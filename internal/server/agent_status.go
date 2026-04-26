@@ -1,23 +1,26 @@
 package server
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/snestors/agenthub/internal/store"
 )
 
 // agentStatus is what the StatusBar consumes.
 type agentStatus struct {
-	Engine      string  `json:"engine"`
-	Model       string  `json:"model"`
-	CtxWindow   int     `json:"ctx_window"`
-	CtxUsed     int64   `json:"ctx_used"`
-	CtxPct      float64 `json:"ctx_pct"`
-	CostUSD     float64 `json:"cost_usd"`
-	SessionID   string  `json:"session_id"`
-	WAEnabled   bool    `json:"wa_enabled"`
-	Permissions string  `json:"permissions"`
+	Engine    string  `json:"engine"`
+	Model     string  `json:"model"`
+	CtxWindow int     `json:"ctx_window"`
+	CtxUsed   int64   `json:"ctx_used"` // input_tokens of the last assistant turn
+	CtxPct    float64 `json:"ctx_pct"`
+	SessionID string  `json:"session_id"`
+	WAEnabled bool    `json:"wa_enabled"`
 }
 
 // modelCtxWindow returns the documented context window for a model alias.
@@ -37,24 +40,31 @@ func modelCtxWindow(model string) int {
 }
 
 // handleAgentStatus returns model/engine/ctx-usage of the current main session.
+//
+// ctx_used = input_tokens of the LAST assistant turn (read from the JSONL).
+// That's what represents how full Claude's context window is right now —
+// next turn will receive ~the same number of tokens (history + system).
+// We don't sum historical tokens because that's a meaningless growing number
+// for sessions that resume.
 func (s *Server) handleAgentStatus(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	_ = ctx
 
 	engine := s.cfg.DefaultEngine
 	model := s.cfg.DefaultModel
-	if v, _ := s.repos.Settings.Get(ctx, "engine"); v != "" {
+	if v, _ := s.repos.Settings.Get(r.Context(), "engine"); v != "" {
 		engine = v
 	}
-	if v, _ := s.repos.Settings.Get(ctx, "model"); v != "" {
+	if v, _ := s.repos.Settings.Get(r.Context(), "model"); v != "" {
 		model = v
 	}
 
-	mainSess, _ := s.repos.Sessions.GetAgentSession(ctx, "main-agent")
+	mainSess, _ := s.repos.Sessions.GetAgentSession(r.Context(), "main-agent")
 	sid := ""
 	if mainSess != nil {
 		sid = mainSess.SessionID
 	}
-	used, cost := computeSessionUsage(ctx, s.repos, sid)
+	used := readLastInputTokens(s.cfg.ClaudeProjectsDir, sid)
 	window := modelCtxWindow(model)
 	pct := 0.0
 	if window > 0 && used > 0 {
@@ -65,33 +75,89 @@ func (s *Server) handleAgentStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, agentStatus{
-		Engine:      engine,
-		Model:       model,
-		CtxWindow:   window,
-		CtxUsed:     used,
-		CtxPct:      pct,
-		CostUSD:     cost,
-		SessionID:   sid,
-		WAEnabled:   s.cfg.WAEnabled,
-		Permissions: "bypass",
+		Engine:    engine,
+		Model:     model,
+		CtxWindow: window,
+		CtxUsed:   used,
+		CtxPct:    pct,
+		SessionID: sid,
+		WAEnabled: s.cfg.WAEnabled,
 	})
 }
 
-// computeSessionUsage sums cost_tokens of the assistant turns of a session.
-// We approximate cost_usd as tokens * $3 / 1M (Sonnet output rate) — coarse but
-// sufficient for the status bar; precise accounting comes later.
-func computeSessionUsage(ctx context.Context, repos *store.Repos, sessionID string) (int64, float64) {
+// readLastInputTokens scans the Claude JSONL of `sessionID` and returns the
+// most recent assistant `usage.input_tokens` it finds. 0 if the file is
+// missing or has no usage block yet.
+func readLastInputTokens(projectsDir, sessionID string) int64 {
+	if sessionID == "" || projectsDir == "" {
+		return 0
+	}
+	// We don't know the encoded cwd dir up front; try the most likely ones.
+	// Walk projectsDir and look for any file named "<sessionID>.jsonl".
+	var path string
+	_ = filepath.Walk(projectsDir, func(p string, info os.FileInfo, err error) error {
+		if err != nil || info == nil || info.IsDir() {
+			return nil
+		}
+		if filepath.Base(p) == sessionID+".jsonl" {
+			path = p
+			return filepath.SkipDir // any match is good enough; stop searching
+		}
+		return nil
+	})
+	if path == "" {
+		return 0
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return 0
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1024*1024), 8*1024*1024)
+	var last int64
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		// fast pre-filter — most lines are tool_use / tool_result without usage
+		if !strings.Contains(string(line), `"input_tokens"`) {
+			continue
+		}
+		var entry struct {
+			Message struct {
+				Usage struct {
+					InputTokens             int64 `json:"input_tokens"`
+					CacheReadInputTokens    int64 `json:"cache_read_input_tokens"`
+					CacheCreationInputTokens int64 `json:"cache_creation_input_tokens"`
+				} `json:"usage"`
+			} `json:"message"`
+		}
+		if err := json.Unmarshal(line, &entry); err != nil {
+			continue
+		}
+		// Total context = direct + cache_read + cache_creation.
+		u := entry.Message.Usage
+		total := u.InputTokens + u.CacheReadInputTokens + u.CacheCreationInputTokens
+		if total > 0 {
+			last = total
+		}
+	}
+	return last
+}
+
+// computeSessionUsage kept around in case we want a historical view later.
+//
+//nolint:unused
+func computeSessionUsage(ctx context.Context, repos *store.Repos, sessionID string) int64 {
 	if sessionID == "" {
-		return 0, 0
+		return 0
 	}
 	msgs, err := repos.Sessions.MessagesForSession(ctx, sessionID, 1000)
 	if err != nil {
-		return 0, 0
+		return 0
 	}
 	var tokens int64
 	for _, m := range msgs {
 		tokens += m.CostTokens
 	}
-	cost := float64(tokens) * 3.0 / 1_000_000.0
-	return tokens, cost
+	return tokens
 }
