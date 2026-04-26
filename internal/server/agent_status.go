@@ -69,7 +69,7 @@ func (s *Server) computeAgentStatus(ctx context.Context) agentStatus {
 	}
 	mainSess, _ := s.repos.Sessions.GetAgentSession(ctx, "main-agent")
 	sid := ""
-	if mainSess != nil {
+	if mainSess != nil && mainSess.Engine == engine {
 		sid = mainSess.SessionID
 	}
 	used := readLastInputTokens(s.cfg.ClaudeProjectsDir, sid)
