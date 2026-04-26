@@ -406,9 +406,9 @@ func (s *Server) acceptMessage(ctx context.Context, req sendMsgReq) (sendMessage
 
 	// Resume id of the main agent's session (persisted between turns). Session
 	// ids are engine-specific; never feed a Claude session id into Codex, etc.
-	mainSess, _ := s.repos.Sessions.GetAgentSession(ctx, "main-agent")
+	mainSess := s.mainAgentSession(ctx, engine)
 	prev := ""
-	if mainSess != nil && mainSess.Engine == engine {
+	if mainSess != nil {
 		prev = mainSess.SessionID
 	}
 
@@ -449,7 +449,7 @@ func (s *Server) runMainAgentTurn(enginePrompt, prev, engine, model string) {
 	}
 	if res.SessionID != "" && res.SessionID != prev {
 		_ = s.repos.Sessions.UpsertAgentSession(context.Background(), store.AgentSession{
-			AgentName: "main-agent",
+			AgentName: mainAgentSessionName(engine),
 			Engine:    engine,
 			SessionID: res.SessionID,
 		})
@@ -465,6 +465,27 @@ func (s *Server) runMainAgentTurn(enginePrompt, prev, engine, model string) {
 	s.broadcastMessageWithModel(outID, "web", "out", res.Text, engine, model)
 	// Push fresh agent_status to all subscribers — ctx_used cambió
 	go s.broadcastAgentStatus(context.Background())
+}
+
+func (s *Server) mainAgentSession(ctx context.Context, engine string) *store.AgentSession {
+	if engine != "" {
+		if sess, _ := s.repos.Sessions.GetAgentSession(ctx, mainAgentSessionName(engine)); sess != nil && sess.Engine == engine {
+			return sess
+		}
+	}
+	// Legacy fallback from the pre-#28 schema, where main-agent had a single
+	// mutable row. Only reuse it when its engine matches.
+	if sess, _ := s.repos.Sessions.GetAgentSession(ctx, "main-agent"); sess != nil && sess.Engine == engine {
+		return sess
+	}
+	return nil
+}
+
+func mainAgentSessionName(engine string) string {
+	if engine == "" {
+		return "main-agent"
+	}
+	return "main-agent:" + engine
 }
 
 // ---------- frontend / static ----------
