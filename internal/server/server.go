@@ -132,6 +132,15 @@ func (s *Server) routes() http.Handler {
 		pr.Post("/api/upload", s.handleUpload)
 		pr.Delete("/api/uploads/{id}", s.handleDeleteUpload)
 
+		// Projects — coding workspaces + browser sessions
+		pr.Get("/api/projects", s.handleProjectsList)
+		pr.Post("/api/projects", s.handleProjectsCreate)
+		pr.Get("/api/projects/{id}", s.handleProjectGet)
+		pr.Get("/api/projects/{id}/sessions", s.handleProjectSessionsList)
+		pr.Post("/api/projects/{id}/sessions", s.handleProjectSessionsCreate)
+		pr.Get("/api/projects/{id}/sessions/{sid}/messages", s.handleProjectSessionMessagesList)
+		pr.Post("/api/projects/{id}/sessions/{sid}/messages", s.handleProjectSessionMessagesSend)
+
 		// System manager
 		pr.Get("/api/system/stats", s.handleSystemStats)
 		pr.Get("/api/system/services", s.handleSystemServices)

@@ -76,6 +76,46 @@ func (r *SessionsRepo) MessagesForSession(ctx context.Context, sessionID string,
 	return out, rows.Err()
 }
 
+// MessagesForProjectSession returns turns attached to a project_session row.
+// This intentionally scopes by project_sess_id instead of only CLI session_id
+// so the very first user turn (persisted before the CLI returns a resume id)
+// is still visible in the project chat history.
+func (r *SessionsRepo) MessagesForProjectSession(ctx context.Context, projectSessID int64, limit int) ([]SessionMessage, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 200
+	}
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, scope, topic_id, project_id, project_sess_id, session_id, role, body, tool_name, tool_args, tool_result, cost_tokens, ts
+		FROM session_messages WHERE scope='project' AND project_sess_id = ? ORDER BY ts ASC, id ASC LIMIT ?
+	`, projectSessID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query project messages: %w", err)
+	}
+	defer rows.Close()
+	out := []SessionMessage{}
+	for rows.Next() {
+		var m SessionMessage
+		if err := rows.Scan(&m.ID, &m.Scope, &m.TopicID, &m.ProjectID, &m.ProjectSessID, &m.SessionID, &m.Role, &m.Body, &m.ToolName, &m.ToolArgs, &m.ToolResult, &m.CostTokens, &m.TS); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// BackfillProjectSessionID replaces the temporary empty session_id emitted
+// during the first project turn with the real CLI resume id.
+func (r *SessionsRepo) BackfillProjectSessionID(ctx context.Context, projectSessID int64, sessionID string) error {
+	if sessionID == "" {
+		return nil
+	}
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE session_messages SET session_id=?
+		WHERE scope='project' AND project_sess_id=? AND session_id=''
+	`, sessionID, projectSessID)
+	return err
+}
+
 // GetAgentSession returns the resume id for a named agent.
 func (r *SessionsRepo) GetAgentSession(ctx context.Context, name string) (*AgentSession, error) {
 	var s AgentSession

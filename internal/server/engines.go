@@ -105,3 +105,12 @@ func validEngineModel(engine, model string) bool {
 	}
 	return false
 }
+
+func validEngine(engine string) bool {
+	for _, e := range availableEngines {
+		if e.Engine == engine {
+			return true
+		}
+	}
+	return false
+}
