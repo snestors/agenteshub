@@ -158,8 +158,14 @@ func (s *Server) mountFrontend(r chi.Router) {
 		dist = "frontend/dist"
 	}
 	if _, err := os.Stat(filepath.Join(dist, "index.html")); err != nil {
-		r.Get("/", s.serveFrontend)
-		r.Get("/*", s.serveFrontend)
+		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+			setFrontendNoStore(w)
+			s.serveFrontend(w, r)
+		})
+		r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
+			setFrontendNoStore(w)
+			s.serveFrontend(w, r)
+		})
 		return
 	}
 	fs := http.FileServer(http.Dir(dist))
@@ -168,12 +174,30 @@ func (s *Server) mountFrontend(r chi.Router) {
 		path := filepath.Join(dist, filepath.Clean(req.URL.Path))
 		info, err := os.Stat(path)
 		if err == nil && !info.IsDir() {
+			setFrontendCacheHeaders(w, req.URL.Path)
 			fs.ServeHTTP(w, req)
 			return
 		}
 		// Fallback to index.html for SPA client-side routes.
+		setFrontendNoStore(w)
 		http.ServeFile(w, req, filepath.Join(dist, "index.html"))
 	})
+}
+
+func setFrontendCacheHeaders(w http.ResponseWriter, urlPath string) {
+	switch {
+	case urlPath == "/" || urlPath == "/index.html":
+		setFrontendNoStore(w)
+	case strings.HasPrefix(urlPath, "/assets/"):
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	default:
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+	}
+}
+
+func setFrontendNoStore(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
 }
 
 // ---------- handlers ----------
