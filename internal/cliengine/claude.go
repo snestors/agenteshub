@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/snestors/agenthub/internal/config"
 	"github.com/snestors/agenthub/internal/store"
@@ -19,9 +20,11 @@ import (
 
 // ClaudeEngine spawns the `claude` CLI with --resume, --output-format json.
 type ClaudeEngine struct {
-	cfg   *config.Config
-	repos *store.Repos
-	log   *slog.Logger
+	cfg       *config.Config
+	repos     *store.Repos
+	log       *slog.Logger
+	spOnce    sync.Once
+	spCached  string
 }
 
 // Name implements Engine.
@@ -70,6 +73,9 @@ func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 	if cfgPath, err := ensureMCPConfig(e.cfg); err == nil {
 		args = append(args, "--mcp-config", cfgPath)
 	}
+	if sp := e.appendSystemPrompt(); sp != "" {
+		args = append(args, "--append-system-prompt", sp)
+	}
 	if model := chooseModel(opts.Model, e.cfg.DefaultModel); model != "" {
 		args = append(args, "--model", model)
 	}
@@ -116,6 +122,27 @@ func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 		SessionID:  resp.SessionID,
 		CostTokens: int64(resp.Usage.InputTokens + resp.Usage.OutputTokens),
 	}, nil
+}
+
+// appendSystemPrompt reads cfg.SystemPromptPath and returns its contents.
+// Cached after the first read; the file rarely changes during a daemon's
+// lifetime and re-reading on every turn would only burn syscalls.
+//
+// Returns "" when the path is unset, missing, or unreadable — the caller
+// just skips the --append-system-prompt arg in that case.
+func (e *ClaudeEngine) appendSystemPrompt() string {
+	e.spOnce.Do(func() {
+		path := e.cfg.SystemPromptPath
+		if path == "" {
+			return
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return
+		}
+		e.spCached = strings.TrimSpace(string(raw))
+	})
+	return e.spCached
 }
 
 // streamEvent is a line in `claude --output-format stream-json --verbose`.

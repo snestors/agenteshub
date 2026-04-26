@@ -42,6 +42,10 @@ type Config struct {
 	CodexBinPath      string
 	OllamaURL         string
 	OllamaModel       string
+	// Path to a markdown file that gets passed as --append-system-prompt to
+	// the claude CLI on every Run. Empty = no extra prompt (only the CLI's
+	// default + skills loaded from cwd/.claude/skills/).
+	SystemPromptPath string
 
 	// WhatsApp
 	WAEnabled     bool     // false en dev hasta cutover
@@ -125,6 +129,7 @@ func Load() (*Config, error) {
 		CodexBinPath:      env("CODEX_BIN", filepath.Join(home, ".npm-global/bin/codex")),
 		OllamaURL:         env("OLLAMA_URL", "http://localhost:11434"),
 		OllamaModel:       env("OLLAMA_MODEL", "gemma:2b"),
+		SystemPromptPath:  env("AGENTHUB_SYSTEM_PROMPT", "data/system-prompt.md"),
 
 		WAEnabled:     boolEnv("AGENTHUB_WA_ENABLED", false), // off por default en dev
 		WADBPath:      env("AGENTHUB_WA_DB_PATH", "data/whatsmeow.db"),
