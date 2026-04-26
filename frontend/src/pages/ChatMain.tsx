@@ -3,6 +3,11 @@ import { api, wsUrl, type AgentMessage } from "@/lib/api";
 import { useWebSocket } from "@/lib/useWebSocket";
 import { Composer } from "@/components/Composer";
 import { MessageBubble } from "@/components/MessageBubble";
+import {
+  GhostBubble,
+  type GhostBubbleData,
+  type ToolCall,
+} from "@/components/GhostBubble";
 import { HudPanel } from "@/components/HudPanel";
 import { Topbar } from "@/components/Topbar";
 
@@ -10,7 +15,11 @@ const POLL_MS = 2000;
 
 /**
  * Backend Envelope shape (internal/ws/hub.go):
- *   { type: "message", topic: "agent", payload: <obj | json-string>, ts }
+ *   { type: "message" | "stream", topic, payload, ts }
+ *
+ * For "message", payload is the persisted AgentMessage.
+ * For "stream", payload contains live chunks of an in-flight turn.
+ *
  * payload may arrive as object (json.RawMessage embedded) OR string (when
  * marshalled twice). We tolerate both.
  */
@@ -30,18 +39,32 @@ interface WsAgentPayload {
   is_read?: boolean;
 }
 
-function parseEnvelopePayload(payload: unknown): WsAgentPayload | null {
+type StreamKind = "text" | "tool_use" | "tool_result" | "thinking";
+
+interface WsStreamPayload {
+  kind: StreamKind;
+  text?: string;
+  tool_name?: string;
+  tool_args?: unknown;
+  tool_result?: string;
+  session_id: string;
+  /** monotonic seq within the turn — used to key tool cards */
+  seq: number;
+  /** true on the last chunk of a turn — when the persisted message is about to arrive */
+  final?: boolean;
+}
+
+function parseEnvelopePayload<T>(payload: unknown): T | null {
   if (!payload) return null;
-  // payload may be a JSON string (defensive)
   if (typeof payload === "string") {
     try {
       const obj = JSON.parse(payload);
-      return obj && typeof obj === "object" ? (obj as WsAgentPayload) : null;
+      return obj && typeof obj === "object" ? (obj as T) : null;
     } catch {
       return null;
     }
   }
-  if (typeof payload === "object") return payload as WsAgentPayload;
+  if (typeof payload === "object") return payload as T;
   return null;
 }
 
@@ -58,6 +81,10 @@ function fromWs(m: WsAgentPayload): AgentMessage {
 
 export function ChatMain() {
   const [messages, setMessages] = React.useState<AgentMessage[]>([]);
+  // ghost bubbles keyed by session_id — map allows multiple parallel turns
+  const [ghosts, setGhosts] = React.useState<Record<string, GhostBubbleData>>(
+    {}
+  );
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
@@ -99,13 +126,111 @@ export function ChatMain() {
     return () => stopPolling();
   }, [stopPolling]);
 
+  // ─── stream handling ───────────────────────────
+  const applyStreamChunk = React.useCallback((chunk: WsStreamPayload) => {
+    const sid = chunk.session_id || "default";
+
+    setGhosts((curr) => {
+      // final=true → drop the ghost; the persisted "message" envelope
+      // will arrive shortly with the consolidated body.
+      if (chunk.final) {
+        if (!(sid in curr)) return curr;
+        const next = { ...curr };
+        delete next[sid];
+        return next;
+      }
+
+      const existing: GhostBubbleData = curr[sid] ?? {
+        id: `stream-${sid}`,
+        thinking: "",
+        text: "",
+        tools: [],
+      };
+
+      switch (chunk.kind) {
+        case "text": {
+          if (!chunk.text) return curr;
+          return {
+            ...curr,
+            [sid]: { ...existing, text: existing.text + chunk.text },
+          };
+        }
+        case "thinking": {
+          if (!chunk.text) return curr;
+          return {
+            ...curr,
+            [sid]: {
+              ...existing,
+              thinking: existing.thinking + chunk.text,
+            },
+          };
+        }
+        case "tool_use": {
+          const id = `${sid}-${chunk.seq}`;
+          const newCall: ToolCall = {
+            id,
+            name: chunk.tool_name ?? "tool",
+            args: chunk.tool_args,
+            status: "running",
+          };
+          // dedupe in case the same seq arrives twice
+          const tools = existing.tools.some((t) => t.id === id)
+            ? existing.tools
+            : [...existing.tools, newCall];
+          return {
+            ...curr,
+            [sid]: { ...existing, tools },
+          };
+        }
+        case "tool_result": {
+          // match the most recent running tool with same name (or last one)
+          const tools = existing.tools.slice();
+          // prefer last running
+          let idx = -1;
+          for (let i = tools.length - 1; i >= 0; i--) {
+            if (
+              tools[i].status === "running" &&
+              (!chunk.tool_name || tools[i].name === chunk.tool_name)
+            ) {
+              idx = i;
+              break;
+            }
+          }
+          if (idx === -1 && tools.length > 0) idx = tools.length - 1;
+          if (idx >= 0) {
+            const preview = (chunk.tool_result ?? "").slice(0, 200);
+            tools[idx] = {
+              ...tools[idx],
+              status: "ok",
+              resultPreview: preview,
+            };
+          }
+          return {
+            ...curr,
+            [sid]: { ...existing, tools },
+          };
+        }
+        default:
+          return curr;
+      }
+    });
+  }, []);
+
   // ─── ws handler ────────────────────────────────
   const handleWsMessage = React.useCallback(
     (data: unknown) => {
       if (typeof data !== "object" || data === null) return;
       const evt = data as WsEnvelope;
+
+      if (evt.type === "stream") {
+        const chunk = parseEnvelopePayload<WsStreamPayload>(evt.payload);
+        if (!chunk) return;
+        applyStreamChunk(chunk);
+        return;
+      }
+
       if (evt.type !== "message") return;
-      const msg = parseEnvelopePayload(evt.payload);
+      const msg = parseEnvelopePayload<WsAgentPayload>(evt.payload);
       if (!msg) return;
       const incoming = fromWs(msg);
 
@@ -134,7 +259,7 @@ export function ChatMain() {
       lastIdRef.current = Math.max(lastIdRef.current, incoming.id);
       setError(null);
     },
-    []
+    [applyStreamChunk]
   );
 
   const { status: wsStatus } = useWebSocket({
@@ -151,11 +276,23 @@ export function ChatMain() {
     },
   });
 
-  // ─── auto-scroll on new messages ───────────────
+  // ─── auto-scroll on new messages or ghost activity ─
+  const ghostList = React.useMemo(() => Object.values(ghosts), [ghosts]);
+  const ghostSig = React.useMemo(
+    () =>
+      ghostList
+        .map(
+          (g) =>
+            `${g.id}:${g.text.length}:${g.thinking.length}:${g.tools.length}:${g.tools.map((t) => t.status).join(",")}`
+        )
+        .join("|"),
+    [ghostList]
+  );
+
   React.useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages.length, pending]);
+  }, [messages.length, pending, ghostSig]);
 
   // ─── send ──────────────────────────────────────
   async function handleSend(body: string) {
@@ -211,6 +348,9 @@ export function ChatMain() {
     }
   })();
 
+  // when there's an active ghost bubble, we don't show the simple "pensando…" line
+  const hasGhost = ghostList.length > 0;
+
   return (
     <div className="flex flex-col h-full min-h-0">
       <Topbar
@@ -243,7 +383,7 @@ export function ChatMain() {
             ref={scrollRef}
             className="flex-1 min-h-0 overflow-y-auto pr-1"
           >
-            {messages.length === 0 && !error && (
+            {messages.length === 0 && !error && !hasGhost && (
               <div className="h-full flex items-center justify-center font-mono text-[11px] text-[var(--color-dim)] tracking-hud-tight">
                 ▸ sin mensajes aún · escribí algo abajo
               </div>
@@ -257,7 +397,11 @@ export function ChatMain() {
               />
             ))}
 
-            {pending && (
+            {ghostList.map((g) => (
+              <GhostBubble key={g.id} data={g} />
+            ))}
+
+            {pending && !hasGhost && (
               <div className="px-1 py-2 font-mono text-[10px] text-[var(--color-magenta)] tracking-hud animate-pulse">
                 ◂ MAIN está pensando…
               </div>
