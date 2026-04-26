@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/snestors/agenthub/internal/store"
@@ -27,6 +28,14 @@ type agentStatus struct {
 	// Empty strings if the file is missing or unreadable.
 	Plan     string `json:"plan"`      // 'max' | 'pro' | ...
 	PlanTier string `json:"plan_tier"` // 'default_claude_max_5x' | ...
+
+	// Local usage estimates from ~/.claude/projects JSONLs. Percent fields are
+	// normalized [0..1], based on configurable approximate limits.
+	UsageSessionPct    float64 `json:"usage_session_pct"`
+	UsageWeekPct       float64 `json:"usage_week_pct"`
+	UsageCalculatedAt  int64   `json:"usage_calculated_at"`
+	UsageSessionTokens int64   `json:"usage_session_tokens"`
+	UsageWeekTokens    int64   `json:"usage_week_tokens"`
 }
 
 // modelCtxWindow returns the documented context window for a model alias.
@@ -73,16 +82,32 @@ func (s *Server) computeAgentStatus(ctx context.Context) agentStatus {
 		}
 	}
 	plan, tier := readClaudePlan()
+	usage := s.readUsageSettings(ctx)
 	return agentStatus{
-		Engine:    engine,
-		Model:     model,
-		CtxWindow: window,
-		CtxUsed:   used,
-		CtxPct:    pct,
-		SessionID: sid,
-		WAEnabled: s.cfg.WAEnabled,
-		Plan:      plan,
-		PlanTier:  tier,
+		Engine:             engine,
+		Model:              model,
+		CtxWindow:          window,
+		CtxUsed:            used,
+		CtxPct:             pct,
+		SessionID:          sid,
+		WAEnabled:          s.cfg.WAEnabled,
+		Plan:               plan,
+		PlanTier:           tier,
+		UsageSessionPct:    usage.UsageSessionPct,
+		UsageWeekPct:       usage.UsageWeekPct,
+		UsageCalculatedAt:  usage.UsageCalculatedAt,
+		UsageSessionTokens: usage.UsageSessionTokens,
+		UsageWeekTokens:    usage.UsageWeekTokens,
+	}
+}
+
+func (s *Server) readUsageSettings(ctx context.Context) agentStatus {
+	return agentStatus{
+		UsageSessionPct:    settingFloat(ctx, s.repos.Settings, "usage_session_pct"),
+		UsageWeekPct:       settingFloat(ctx, s.repos.Settings, "usage_week_pct"),
+		UsageCalculatedAt:  settingInt(ctx, s.repos.Settings, "usage_calculated_at"),
+		UsageSessionTokens: settingInt(ctx, s.repos.Settings, "usage_session_tokens"),
+		UsageWeekTokens:    settingInt(ctx, s.repos.Settings, "usage_week_tokens"),
 	}
 }
 
@@ -109,6 +134,30 @@ func (s *Server) broadcastAgentStatus(ctx context.Context) {
 // for sessions that resume.
 func (s *Server) handleAgentStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.computeAgentStatus(r.Context()))
+}
+
+func settingFloat(ctx context.Context, repo *store.SettingsRepo, key string) float64 {
+	raw, err := repo.Get(ctx, key)
+	if err != nil || raw == "" {
+		return 0
+	}
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0
+	}
+	return v
+}
+
+func settingInt(ctx context.Context, repo *store.SettingsRepo, key string) int64 {
+	raw, err := repo.Get(ctx, key)
+	if err != nil || raw == "" {
+		return 0
+	}
+	v, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return v
 }
 
 // readClaudePlan returns (subscriptionType, rateLimitTier) from

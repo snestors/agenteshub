@@ -27,12 +27,12 @@ type Config struct {
 	DevBypassTOTP bool
 
 	// Storage
-	DBPath          string
-	UploadDir       string
-	WAMediaDir      string
-	LogDir          string
-	LogLevel        string
-	FrontendDist    string
+	DBPath       string
+	UploadDir    string
+	WAMediaDir   string
+	LogDir       string
+	LogLevel     string
+	FrontendDist string
 
 	// CLI engines
 	DefaultEngine     string // claude | codex
@@ -44,16 +44,21 @@ type Config struct {
 	OllamaModel       string
 
 	// WhatsApp
-	WAEnabled       bool   // false en dev hasta cutover
-	WADBPath        string // whatsmeow store
-	WAAuthorized    []string // whitelist de números
-	WANotifyPhone   string   // tu jid
+	WAEnabled     bool     // false en dev hasta cutover
+	WADBPath      string   // whatsmeow store
+	WAAuthorized  []string // whitelist de números
+	WANotifyPhone string   // tu jid
 
 	// Unix socket (CLI subcomandos)
 	UnixSocketPath string
 
 	// Snapshots
 	SnapshotInterval time.Duration
+
+	// Local Claude usage estimates from JSONLs. Week limit is intentionally
+	// configurable because Anthropic does not publish exact Max 5x caps.
+	UsageSessionTokenLimit int64
+	UsageWeekTokenLimit    int64
 
 	// System manager
 	ManagedServices []string
@@ -130,6 +135,9 @@ func Load() (*Config, error) {
 
 		SnapshotInterval: durationEnv("AGENTHUB_SNAPSHOT_INTERVAL", 5*time.Minute),
 
+		UsageSessionTokenLimit: int64Env("AGENTHUB_USAGE_SESSION_TOKEN_LIMIT", 88_000),
+		UsageWeekTokenLimit:    int64Env("AGENTHUB_USAGE_WEEK_TOKEN_LIMIT", 3_000_000),
+
 		ManagedServices: csvEnv("AGENTHUB_MANAGED_SERVICES", []string{
 			"agenthub.service",
 			"whatsapp-bridge.service",
@@ -176,6 +184,18 @@ func boolEnv(key string, fallback bool) bool {
 		return fallback
 	}
 	return b
+}
+
+func int64Env(key string, fallback int64) int64 {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	n, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || n <= 0 {
+		return fallback
+	}
+	return n
 }
 
 func csvEnv(key string, fallback []string) []string {

@@ -108,6 +108,7 @@ export function StatusBar({ transportLabel }: StatusBarProps) {
   const engineBadge = `${status.engine} · ${status.model} · ${fmtCtxWindow(
     status.ctx_window
   )}`;
+  const hasUsage = !!status.usage_calculated_at;
 
   function handleApplied(engine: string, model: string) {
     setPickerOpen(false);
@@ -180,6 +181,26 @@ export function StatusBar({ transportLabel }: StatusBarProps) {
           >
             plan · {status.plan}
             {status.plan_tier?.includes("5x") ? " 5x" : ""}
+          </span>
+        </>
+      ) : null}
+
+      {hasUsage ? (
+        <>
+          <span className="text-[var(--color-dim)]">·</span>
+          <span
+            className="inline-flex items-center px-2 py-0.5 clip-tag"
+            style={{
+              background: "rgba(94, 240, 255, 0.08)",
+              border: "1px solid rgba(94, 240, 255, 0.30)",
+              color: "var(--color-cyan)",
+            }}
+            title={`uso local estimado desde JSONL · sesión ${fmtTokens(
+              status.usage_session_tokens ?? 0
+            )} tokens · semana ${fmtTokens(status.usage_week_tokens ?? 0)} tokens`}
+          >
+            sesión {fmtPct(status.usage_session_pct ?? 0)} · semana{" "}
+            {fmtPct(status.usage_week_pct ?? 0)}
           </span>
         </>
       ) : null}

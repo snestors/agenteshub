@@ -34,6 +34,13 @@ export interface AgentStatus {
   plan?: string;
   /** Rate-limit tier (e.g. 'default_claude_max_5x'). */
   plan_tier?: string;
+  /** Local JSONL usage estimate for the last 5h, normalized [0..1]. */
+  usage_session_pct?: number;
+  /** Local JSONL usage estimate for the last 7d, normalized [0..1]. */
+  usage_week_pct?: number;
+  usage_calculated_at?: number;
+  usage_session_tokens?: number;
+  usage_week_tokens?: number;
 }
 
 export interface EngineDef {
@@ -51,7 +58,7 @@ export const FALLBACK_ENGINES: EngineDef[] = [
   {
     engine: "codex",
     models: ["gpt-5.5"],
-    ctx_windows: { "gpt-5.5": 256_000 },
+    ctx_windows: { "gpt-5.5": 400_000 },
   },
   {
     engine: "ollama",

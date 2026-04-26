@@ -43,11 +43,25 @@ func New(cfg *config.Config, repos *store.Repos, log *slog.Logger) *Runner {
 		_ = repos.Auth.DeleteExpiredRevocations(ctx)
 	})
 
+	// Local Claude usage estimate — every 30 min.
+	_, _ = r.c.AddFunc("@every 30m", func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		r.updateUsageSettings(ctx)
+	})
+
 	return r
 }
 
 // Start kicks off the cron loop. Stop on Stop().
-func (r *Runner) Start() { r.c.Start() }
+func (r *Runner) Start() {
+	r.c.Start()
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		r.updateUsageSettings(ctx)
+	}()
+}
 
 // Stop halts the scheduler.
 func (r *Runner) Stop() { r.c.Stop() }
