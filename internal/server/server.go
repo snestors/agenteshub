@@ -49,9 +49,10 @@ func New(cfg *config.Config, repos *store.Repos, engines *cliengine.Manager, sm 
 	tokens := auth.NewTokenService(cfg, repos.Auth)
 	hub := ws.New(log.With("comp", "ws"))
 	s := &Server{cfg: cfg, repos: repos, tokens: tokens, engines: engines, sysman: sm, hub: hub, log: log}
+	s.registerWSActions()
 	s.httpSrv = &http.Server{
-		Addr:    cfg.HTTPAddr,
-		Handler: s.routes(),
+		Addr:              cfg.HTTPAddr,
+		Handler:           s.routes(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	return s, nil
@@ -139,9 +140,9 @@ func (s *Server) routes() http.Handler {
 		pr.Get("/api/system/connections", s.handleSystemConnections)
 
 		// WebSockets
-		pr.Get("/ws", s.handleWSUnified)            // unified — preferred
-		pr.Get("/ws/agent", s.handleWSAgent)        // legacy: same conn type, locked topic="agent"
-		pr.Get("/ws/system", s.handleWSSystem)      // legacy: locked topic="system"
+		pr.Get("/ws", s.handleWSUnified)       // unified — preferred
+		pr.Get("/ws/agent", s.handleWSAgent)   // legacy: same conn type, locked topic="agent"
+		pr.Get("/ws/system", s.handleWSSystem) // legacy: locked topic="system"
 	})
 
 	// frontend SPA — sirve frontend/dist con fallback a index.html para client-side routing
@@ -316,7 +317,7 @@ func (s *Server) handleMessagesList(w http.ResponseWriter, r *http.Request) {
 }
 
 type sendMsgReq struct {
-	Body        string         `json:"body"`
+	Body        string          `json:"body"`
 	Attachments []msgAttachment `json:"attachments,omitempty"`
 }
 
@@ -352,22 +353,41 @@ func (s *Server) handleMessagesSend(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad json", http.StatusBadRequest)
 		return
 	}
-	if strings.TrimSpace(req.Body) == "" {
-		http.Error(w, "empty", http.StatusBadRequest)
+	res, err := s.acceptMessage(r.Context(), req)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if err.Error() == "empty" {
+			status = http.StatusBadRequest
+		}
+		http.Error(w, err.Error(), status)
 		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+type sendMessageAccepted struct {
+	ID        int64  `json:"id"`
+	MessageID int64  `json:"message_id"`
+	Accepted  bool   `json:"accepted"`
+	Engine    string `json:"engine"`
+	Model     string `json:"model"`
+}
+
+func (s *Server) acceptMessage(ctx context.Context, req sendMsgReq) (sendMessageAccepted, error) {
+	if strings.TrimSpace(req.Body) == "" {
+		return sendMessageAccepted{}, errors.New("empty")
 	}
 	// Persist the user message verbatim (without the attachments footer — that's
 	// only for the agent prompt). The UI shows what the user wrote, not the path
 	// list.
-	id, err := s.repos.Messages.Insert(r.Context(), store.Message{
+	id, err := s.repos.Messages.Insert(ctx, store.Message{
 		Channel:   "web",
 		Direction: "in",
 		Body:      sqlStr(req.Body),
 		TS:        time.Now().Unix(),
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return sendMessageAccepted{}, err
 	}
 	s.broadcastMessage(id, "web", "in", req.Body)
 
@@ -375,7 +395,7 @@ func (s *Server) handleMessagesSend(w http.ResponseWriter, r *http.Request) {
 	enginePrompt := req.Body + formatAttachments(req.Attachments)
 
 	// Resume id of the main agent's session (persisted between turns).
-	mainSess, _ := s.repos.Sessions.GetAgentSession(r.Context(), "main-agent")
+	mainSess, _ := s.repos.Sessions.GetAgentSession(ctx, "main-agent")
 	prev := ""
 	if mainSess != nil {
 		prev = mainSess.SessionID
@@ -384,17 +404,23 @@ func (s *Server) handleMessagesSend(w http.ResponseWriter, r *http.Request) {
 	// Read engine/model from settings (set by /api/agent/engine), with config fallback.
 	engine := s.cfg.DefaultEngine
 	model := s.cfg.DefaultModel
-	if v, _ := s.repos.Settings.Get(r.Context(), "engine"); v != "" {
+	if v, _ := s.repos.Settings.Get(ctx, "engine"); v != "" {
 		engine = v
 	}
-	if v, _ := s.repos.Settings.Get(r.Context(), "model"); v != "" {
+	if v, _ := s.repos.Settings.Get(ctx, "model"); v != "" {
 		model = v
 	}
 
+	go s.runMainAgentTurn(enginePrompt, prev, engine, model)
+
+	return sendMessageAccepted{ID: id, MessageID: id, Accepted: true, Engine: engine, Model: model}, nil
+}
+
+func (s *Server) runMainAgentTurn(enginePrompt, prev, engine, model string) {
 	// Run via cliengine. cwd=agenthub repo so .claude/skills/ is discovered.
 	// Stream events to the WS hub so the browser shows the agent's reasoning + tool calls
 	// while the turn is still in flight.
-	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 	res, err := s.engines.Run(ctx, cliengine.RunOpts{
 		Prompt:    enginePrompt,
@@ -409,17 +435,25 @@ func (s *Server) handleMessagesSend(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		s.log.Error("cliengine", "err", err)
-		http.Error(w, "engine: "+err.Error(), http.StatusInternalServerError)
+		outID, _ := s.repos.Messages.Insert(context.Background(), store.Message{
+			Channel:   "web",
+			Direction: "out",
+			Body:      sqlStr("⚠ engine: " + err.Error()),
+			TS:        time.Now().Unix(),
+			Engine:    sqlStr(engine),
+			Model:     sqlStr(model),
+		})
+		s.broadcastMessageWithModel(outID, "web", "out", "⚠ engine: "+err.Error(), engine, model)
 		return
 	}
 	if res.SessionID != "" && res.SessionID != prev {
-		_ = s.repos.Sessions.UpsertAgentSession(r.Context(), store.AgentSession{
+		_ = s.repos.Sessions.UpsertAgentSession(context.Background(), store.AgentSession{
 			AgentName: "main-agent",
-			Engine:    s.cfg.DefaultEngine,
+			Engine:    engine,
 			SessionID: res.SessionID,
 		})
 	}
-	outID, _ := s.repos.Messages.Insert(r.Context(), store.Message{
+	outID, _ := s.repos.Messages.Insert(context.Background(), store.Message{
 		Channel:   "web",
 		Direction: "out",
 		Body:      sqlStr(res.Text),
@@ -430,7 +464,6 @@ func (s *Server) handleMessagesSend(w http.ResponseWriter, r *http.Request) {
 	s.broadcastMessageWithModel(outID, "web", "out", res.Text, engine, model)
 	// Push fresh agent_status to all subscribers — ctx_used cambió
 	go s.broadcastAgentStatus(context.Background())
-	writeJSON(w, http.StatusOK, map[string]any{"id": id, "reply": res.Text, "session_id": res.SessionID, "tokens": res.CostTokens, "engine": engine, "model": model})
 }
 
 // ---------- frontend / static ----------
@@ -526,6 +559,20 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(body)
+}
+
+func wsAck(topic, id string, result any, err error) ws.Envelope {
+	payload := map[string]any{
+		"id": id,
+		"ok": err == nil,
+	}
+	if err != nil {
+		payload["error"] = err.Error()
+	} else {
+		payload["result"] = result
+	}
+	raw, _ := json.Marshal(payload)
+	return ws.Envelope{Type: "ack", Topic: topic, Payload: raw}
 }
 
 func sqlStr(s string) sql.NullString {

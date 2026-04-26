@@ -31,10 +31,15 @@ type Envelope struct {
 
 // ClientAction is what the browser sends back over the WS.
 type ClientAction struct {
-	Action string          `json:"action"` // 'subscribe' | 'unsubscribe' | 'ping' | RPC actions
-	Topic  string          `json:"topic,omitempty"`
-	ID     string          `json:"id,omitempty"`     // correlation id for RPC
-	Body   json.RawMessage `json:"body,omitempty"`   // free-form payload for RPC
+	Action      string          `json:"action"` // 'subscribe' | 'unsubscribe' | 'ping' | RPC actions
+	Topic       string          `json:"topic,omitempty"`
+	ID          string          `json:"id,omitempty"`          // correlation id for RPC
+	Body        json.RawMessage `json:"body,omitempty"`        // send_message text, encoded as a JSON string
+	Attachments json.RawMessage `json:"attachments,omitempty"` // send_message upload refs
+	Engine      string          `json:"engine,omitempty"`      // set_engine
+	Model       string          `json:"model,omitempty"`       // set_engine
+	Name        string          `json:"name,omitempty"`        // service_action service name
+	Op          string          `json:"op,omitempty"`          // service_action operation (start|stop|restart)
 }
 
 // ActionHandler is invoked for any non-meta action received from a client
@@ -47,20 +52,20 @@ type ActionHandler func(ctx context.Context, c *Client, action ClientAction) (*E
 
 // Hub fan-outs Envelopes to every subscribed channel.
 type Hub struct {
-	log         *slog.Logger
-	mu          sync.RWMutex
-	clients     map[*Client]struct{}
-	actionsMu   sync.RWMutex
+	log            *slog.Logger
+	mu             sync.RWMutex
+	clients        map[*Client]struct{}
+	actionsMu      sync.RWMutex
 	actionHandlers map[string]ActionHandler
 }
 
 // Client is a single connected browser session.
 type Client struct {
-	ID         string
-	send       chan Envelope
-	mu         sync.RWMutex
-	subscribed map[string]struct{} // dynamic set of topics
-	legacyTopic string             // if set, fixed topic (legacy /ws/agent /ws/system)
+	ID          string
+	send        chan Envelope
+	mu          sync.RWMutex
+	subscribed  map[string]struct{} // dynamic set of topics
+	legacyTopic string              // if set, fixed topic (legacy /ws/agent /ws/system)
 }
 
 // New constructs a Hub.
@@ -164,9 +169,10 @@ func (h *Hub) Broadcast(env Envelope) {
 }
 
 // Pump runs the read+write loop of a websocket connection.
-// - Reads ClientAction frames; handles subscribe/unsubscribe/ping internally,
-//   delegates other actions to registered HandleAction callbacks.
-// - Writes envelopes from the client's send channel.
+//   - Reads ClientAction frames; handles subscribe/unsubscribe/ping internally,
+//     delegates other actions to registered HandleAction callbacks.
+//   - Writes envelopes from the client's send channel.
+//
 // Blocks until ctx is cancelled, the connection is closed, or an error occurs.
 func (h *Hub) Pump(ctx context.Context, conn *websocket.Conn, c *Client) error {
 	// reader: process actions from the client

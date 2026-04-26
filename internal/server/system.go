@@ -3,8 +3,10 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -34,15 +36,14 @@ func (s *Server) handleSystemServices(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSystemServiceAction(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	action := chi.URLParam(r, "action")
-	if name == "" || action == "" {
-		http.Error(w, "name and action required", http.StatusBadRequest)
-		return
-	}
-	if err := s.sysman.ServiceAction(r.Context(), name, action); err != nil {
+	res, err := s.serviceAction(r.Context(), name, action)
+	if err != nil {
 		s.log.Warn("service action failed", "name", name, "action", action, "err", err)
 		msg := err.Error()
 		status := http.StatusInternalServerError
-		if isPermissionDenied(msg) {
+		if errors.Is(err, errServiceActionRequired) {
+			status = http.StatusBadRequest
+		} else if isPermissionDenied(msg) {
 			status = http.StatusForbidden
 		} else if isWhitelistError(msg) {
 			status = http.StatusBadRequest
@@ -53,7 +54,19 @@ func (s *Server) handleSystemServiceAction(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	s.broadcastServiceEvent(name, action, "ok", "")
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": name, "action": action})
+	writeJSON(w, http.StatusOK, res)
+}
+
+var errServiceActionRequired = errors.New("name and action required")
+
+func (s *Server) serviceAction(ctx context.Context, name, action string) (map[string]any, error) {
+	if name == "" || action == "" {
+		return nil, errServiceActionRequired
+	}
+	if err := s.sysman.ServiceAction(ctx, name, action); err != nil {
+		return nil, err
+	}
+	return map[string]any{"ok": true, "name": name, "action": action}, nil
 }
 
 // broadcastServiceEvent emits a service_event envelope on the system topic so
@@ -71,16 +84,21 @@ func (s *Server) broadcastServiceEvent(name, action, result, errMsg string) {
 	})
 	s.hub.Broadcast(ws.Envelope{Type: "service_event", Topic: "system", Payload: payload})
 	// Force an immediate stats refresh too, so the service's `state` flips fast.
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*1000_000_000)
-		defer cancel()
-		stats, err := s.sysman.Stats(ctx)
-		if err != nil {
-			return
-		}
-		raw, _ := json.Marshal(stats)
-		s.hub.Broadcast(ws.Envelope{Type: "stats", Topic: "system", Payload: raw})
-	}()
+	go s.broadcastSystemStats()
+}
+
+func (s *Server) broadcastSystemStats() {
+	if s.hub == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	stats, err := s.sysman.Stats(ctx)
+	if err != nil {
+		return
+	}
+	raw, _ := json.Marshal(stats)
+	s.hub.Broadcast(ws.Envelope{Type: "stats", Topic: "system", Payload: raw})
 }
 
 func (s *Server) handleSystemProcesses(w http.ResponseWriter, r *http.Request) {

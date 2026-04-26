@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 )
 
@@ -55,21 +56,33 @@ func (s *Server) handleSetEngine(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad json", http.StatusBadRequest)
 		return
 	}
-	if !validEngineModel(req.Engine, req.Model) {
-		http.Error(w, "engine/model not in supported list", http.StatusBadRequest)
-		return
-	}
-	if err := s.repos.Settings.Set(r.Context(), "engine", req.Engine); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if err := s.repos.Settings.Set(r.Context(), "model", req.Model); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	res, err := s.setEngine(r.Context(), req)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, errInvalidEngineModel) {
+			status = http.StatusBadRequest
+		}
+		http.Error(w, err.Error(), status)
 		return
 	}
 	// Push fresh status to subscribers (engine/model changed → ctx_window may differ)
 	go s.broadcastAgentStatus(context.Background())
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "engine": req.Engine, "model": req.Model})
+	writeJSON(w, http.StatusOK, res)
+}
+
+var errInvalidEngineModel = errors.New("engine/model not in supported list")
+
+func (s *Server) setEngine(ctx context.Context, req engineSetReq) (map[string]any, error) {
+	if !validEngineModel(req.Engine, req.Model) {
+		return nil, errInvalidEngineModel
+	}
+	if err := s.repos.Settings.Set(ctx, "engine", req.Engine); err != nil {
+		return nil, err
+	}
+	if err := s.repos.Settings.Set(ctx, "model", req.Model); err != nil {
+		return nil, err
+	}
+	return map[string]any{"ok": true, "engine": req.Engine, "model": req.Model}, nil
 }
 
 func validEngineModel(engine, model string) bool {
