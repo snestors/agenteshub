@@ -1,6 +1,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import type { AgentMessage } from "@/lib/api";
+import { api, type AgentMessage } from "@/lib/api";
+import { MermaidBlock } from "@/components/MermaidBlock";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -88,7 +89,11 @@ const mdComponents: Components = {
     />
   ),
   code: ({ className, children, ...rest }) => {
+    const language = /language-(\w+)/.exec(className ?? "")?.[1];
     const inline = !className;
+    if (!inline && language === "mermaid") {
+      return <MermaidBlock content={String(children).replace(/\n$/, "")} />;
+    }
     if (inline) {
       return (
         <code
@@ -107,7 +112,7 @@ const mdComponents: Components = {
       <code
         className={cn(
           "font-mono text-[11.5px] block whitespace-pre",
-          className
+          className,
         )}
         {...rest}
       >
@@ -116,7 +121,7 @@ const mdComponents: Components = {
     );
   },
   pre: ({ children }) => (
-    <pre
+    <div
       className="my-2 px-3 py-2 overflow-x-auto clip-hud-sm font-mono text-[11.5px] leading-[1.5]"
       style={{
         background: "rgba(0,0,0,0.55)",
@@ -125,7 +130,7 @@ const mdComponents: Components = {
       }}
     >
       {children}
-    </pre>
+    </div>
   ),
   table: ({ children }) => (
     <div className="my-2 overflow-x-auto">
@@ -178,8 +183,7 @@ export function MessageBubble({ message, topic }: MessageBubbleProps) {
             ? "linear-gradient(135deg, var(--color-lime), var(--color-cyan))"
             : "linear-gradient(135deg, var(--color-magenta), var(--color-cyan))",
           color: "var(--color-bg)",
-          clipPath:
-            "polygon(20% 0, 100% 0, 100% 80%, 80% 100%, 0 100%, 0 20%)",
+          clipPath: "polygon(20% 0, 100% 0, 100% 80%, 80% 100%, 0 100%, 0 20%)",
         }}
       >
         {isUser ? "Y" : "◆"}
@@ -222,12 +226,13 @@ export function MessageBubble({ message, topic }: MessageBubbleProps) {
             "px-3 py-2 clip-hud-sm border",
             isUser
               ? "bg-[rgba(163,255,78,0.04)] border-[rgba(163,255,78,0.20)]"
-              : "bg-[rgba(255,78,214,0.04)] border-[rgba(255,78,214,0.20)]"
+              : "bg-[rgba(255,78,214,0.04)] border-[rgba(255,78,214,0.20)]",
           )}
         >
           {isEmptyAgentBody ? (
             <span className="font-semibold text-[var(--color-danger)]">
-              ⚠ El engine no devolvió respuesta. Probá cambiar de modelo o reintentar.
+              ⚠ El engine no devolvió respuesta. Probá cambiar de modelo o
+              reintentar.
             </span>
           ) : message.body ? (
             <ReactMarkdown
@@ -241,6 +246,13 @@ export function MessageBubble({ message, topic }: MessageBubbleProps) {
           )}
         </div>
 
+        {message.media_type === "image" && message.media_path && (
+          <ImagePreview
+            src={api.fileUrl(message.media_path)}
+            caption={message.media_caption || message.body}
+          />
+        )}
+
         {/* topic-pill (placeholder, only on agent replies) */}
         {!isUser && topic && (
           <div className="mt-1.5">
@@ -249,18 +261,26 @@ export function MessageBubble({ message, topic }: MessageBubbleProps) {
         )}
 
         {/* activity audit (collapsed by default) — assistant only */}
-        {!isUser && message.activity && <ActivityPanel activity={message.activity} />}
+        {!isUser && message.activity && (
+          <ActivityPanel activity={message.activity} />
+        )}
       </div>
     </div>
   );
 }
 
-function ActivityPanel({ activity }: { activity: NonNullable<AgentMessage["activity"]> }) {
+function ActivityPanel({
+  activity,
+}: {
+  activity: NonNullable<AgentMessage["activity"]>;
+}) {
   const [open, setOpen] = React.useState(false);
   const tools = activity.tools ?? [];
   const hasThinking = !!activity.thinking;
   const summary = [
-    tools.length > 0 ? `${tools.length} ${tools.length === 1 ? "tool" : "tools"}` : "",
+    tools.length > 0
+      ? `${tools.length} ${tools.length === 1 ? "tool" : "tools"}`
+      : "",
     hasThinking ? "thinking" : "",
   ]
     .filter(Boolean)
@@ -290,7 +310,9 @@ function ActivityPanel({ activity }: { activity: NonNullable<AgentMessage["activ
               <div className="text-[9px] uppercase tracking-hud-tight text-[var(--color-cyan)] mb-1">
                 ▸ thinking
               </div>
-              <div className="italic whitespace-pre-wrap break-words">{activity.thinking}</div>
+              <div className="italic whitespace-pre-wrap break-words">
+                {activity.thinking}
+              </div>
             </div>
           )}
           {tools.length > 0 && (
@@ -300,10 +322,18 @@ function ActivityPanel({ activity }: { activity: NonNullable<AgentMessage["activ
               </div>
               <ol className="space-y-1.5 list-none">
                 {tools.map((t, i) => (
-                  <li key={t.id ?? i} className="border-l-2 pl-2" style={{ borderColor: "var(--color-line)" }}>
+                  <li
+                    key={t.id ?? i}
+                    className="border-l-2 pl-2"
+                    style={{ borderColor: "var(--color-line)" }}
+                  >
                     <div className="text-[var(--color-fg)]">
-                      <span style={{ color: "var(--color-cyan)" }}>{t.name}</span>
-                      <span className="text-[var(--color-dim)] ml-2">[{t.status}]</span>
+                      <span style={{ color: "var(--color-cyan)" }}>
+                        {t.name}
+                      </span>
+                      <span className="text-[var(--color-dim)] ml-2">
+                        [{t.status}]
+                      </span>
                     </div>
                     {t.result_preview && (
                       <div className="mt-0.5 italic break-words text-[10.5px]">
@@ -318,5 +348,43 @@ function ActivityPanel({ activity }: { activity: NonNullable<AgentMessage["activ
         </div>
       )}
     </div>
+  );
+}
+
+function ImagePreview({ src, caption }: { src: string; caption?: string }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-2 block max-w-[360px] cursor-zoom-in text-left"
+        title="Click para ampliar"
+      >
+        <img
+          src={src}
+          alt={caption || "imagen adjunta"}
+          className="max-h-[260px] max-w-full rounded border object-contain"
+          style={{
+            borderColor: "rgba(94,240,255,0.24)",
+            background: "rgba(0,0,0,0.35)",
+          }}
+          loading="lazy"
+        />
+      </button>
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-6 cursor-zoom-out"
+          onClick={() => setOpen(false)}
+        >
+          <img
+            src={src}
+            alt={caption || "imagen adjunta"}
+            className="max-h-full max-w-full object-contain rounded border"
+            style={{ borderColor: "rgba(94,240,255,0.40)" }}
+          />
+        </div>
+      )}
+    </>
   );
 }

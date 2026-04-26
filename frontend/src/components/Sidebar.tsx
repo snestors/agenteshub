@@ -8,6 +8,7 @@ import {
   LogOut,
   Bell,
   Lock,
+  Network,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -27,7 +28,14 @@ interface NavItem {
 const ITEMS: NavItem[] = [
   { to: "/", label: "Chat", icon: MessageSquare, accent: "cyan" },
   { to: "/projects", label: "Proyectos", icon: FolderKanban, accent: "lime" },
-  { to: "/agents", label: "Mini-agentes", icon: Bot, notifPrefix: "agent_run", accent: "orange" },
+  { to: "/diagrams", label: "Diagramas", icon: Network, accent: "cyan" },
+  {
+    to: "/agents",
+    label: "Mini-agentes",
+    icon: Bot,
+    notifPrefix: "agent_run",
+    accent: "orange",
+  },
   { to: "/topics", label: "Topics", icon: Hash, accent: "magenta" },
   { to: "/subagents", label: "Sub-agentes", icon: GitBranch, accent: "cyan" },
   { to: "/system", label: "Health", icon: Activity, accent: "lime" },
@@ -42,7 +50,8 @@ const ACCENT_VAR: Record<NavItem["accent"], string> = {
 };
 
 export function Sidebar({ username }: { username?: string }) {
-  const { unreadByKindPrefix, markAllRead, unreadCount, openDrawer } = useNotifications();
+  const { unreadByKindPrefix, markAllRead, unreadCount, openDrawer } =
+    useNotifications();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -113,9 +122,13 @@ export function Sidebar({ username }: { username?: string }) {
         {ITEMS.map((item) => {
           const Icon = item.icon;
           const accentColor = ACCENT_VAR[item.accent];
-          const badge = item.notifPrefix ? unreadByKindPrefix(item.notifPrefix) : 0;
+          const badge = item.notifPrefix
+            ? unreadByKindPrefix(item.notifPrefix)
+            : 0;
           const isActive =
-            item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to);
+            item.to === "/"
+              ? location.pathname === "/"
+              : location.pathname.startsWith(item.to);
           return (
             <button
               key={item.to}
@@ -125,7 +138,7 @@ export function Sidebar({ username }: { username?: string }) {
                 "group relative flex items-center gap-3 px-3 py-2 font-mono text-[11px] uppercase tracking-hud-tight transition-colors clip-tag cursor-pointer text-left",
                 isActive
                   ? "bg-[rgba(94,240,255,0.08)] text-[var(--color-fg)]"
-                  : "text-[var(--color-dim)] hover:text-[var(--color-fg)] hover:bg-[rgba(120,255,220,0.04)]"
+                  : "text-[var(--color-dim)] hover:text-[var(--color-fg)] hover:bg-[rgba(120,255,220,0.04)]",
               )}
               style={
                 isActive
@@ -194,7 +207,8 @@ export function Sidebar({ username }: { username?: string }) {
           <div
             className="w-6 h-6 flex items-center justify-center font-display font-bold text-[10px]"
             style={{
-              background: "linear-gradient(135deg, var(--color-cyan), var(--color-magenta))",
+              background:
+                "linear-gradient(135deg, var(--color-cyan), var(--color-magenta))",
               color: "var(--color-bg)",
             }}
           >

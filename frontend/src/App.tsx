@@ -7,6 +7,7 @@ import { Topics } from "@/pages/Topics";
 import { Subagents } from "@/pages/Subagents";
 import { System } from "@/pages/System";
 import { Vault } from "@/pages/Vault";
+import { Diagrams } from "@/pages/Diagrams";
 import { AppShell } from "@/components/AppShell";
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
           <Route path="projects" element={<Projects />} />
           <Route path="projects/:id" element={<Projects />} />
           <Route path="projects/:id/sessions/:sid" element={<Projects />} />
+          <Route path="diagrams" element={<Diagrams />} />
           <Route path="agents" element={<Agents />} />
           <Route path="agents/:id" element={<Agents />} />
           <Route path="topics" element={<Topics />} />

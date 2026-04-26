@@ -143,6 +143,9 @@ export interface AgentMessage {
   engine?: string;
   model?: string;
   activity?: MessageActivity;
+  media_type?: string;
+  media_path?: string;
+  media_caption?: string;
 }
 
 export interface Project {
@@ -222,6 +225,29 @@ export interface AgentRun {
   error?: string;
 }
 
+export interface Diagram {
+  id: number;
+  project_id?: number;
+  title: string;
+  prompt?: string;
+  mermaid?: string;
+  mermaid_source?: string;
+  excalidraw_json: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface DiagramPayload {
+  title: string;
+  prompt?: string;
+  mermaid?: string;
+  mermaid_source?: string;
+  excalidraw_json: string;
+  project_id?: number;
+}
+
+export type DiagramType = "flowchart" | "sequence" | "c4" | "erd" | "mindmap";
+
 function unwrap(v: NullString): string {
   if (v == null) return "";
   if (typeof v === "string") return v;
@@ -253,6 +279,9 @@ function normalize(raw: RawMessage): AgentMessage {
     engine: engine || undefined,
     model: model || undefined,
     activity,
+    media_type: unwrap(raw.MediaType) || undefined,
+    media_path: unwrap(raw.MediaPath) || undefined,
+    media_caption: unwrap(raw.MediaCaption) || undefined,
   };
 }
 
@@ -293,7 +322,11 @@ export const api = {
     });
   },
 
-  async totp(username: string, password: string, code: string): Promise<LoginResponse> {
+  async totp(
+    username: string,
+    password: string,
+    code: string,
+  ): Promise<LoginResponse> {
     return request<LoginResponse>("/api/auth/totp", {
       method: "POST",
       body: JSON.stringify({ username, password, code }),
@@ -313,11 +346,16 @@ export const api = {
   },
 
   // ─── messages ───────────────────────────────
-  async listMessages(opts?: { before?: number; limit?: number }): Promise<AgentMessage[]> {
+  async listMessages(opts?: {
+    before?: number;
+    limit?: number;
+  }): Promise<AgentMessage[]> {
     const qs = new URLSearchParams();
     if (opts?.before && opts.before > 0) qs.set("before", String(opts.before));
     if (opts?.limit && opts.limit > 0) qs.set("limit", String(opts.limit));
-    const path = qs.toString() ? `/api/messages?${qs.toString()}` : "/api/messages";
+    const path = qs.toString()
+      ? `/api/messages?${qs.toString()}`
+      : "/api/messages";
     const res = await request<{ messages: RawMessage[] | null }>(path);
     const raw = res.messages ?? [];
     return raw.map(normalize).sort((a, b) => a.ts - b.ts);
@@ -325,14 +363,16 @@ export const api = {
 
   async searchMessages(query: string, limit = 50): Promise<AgentMessage[]> {
     const qs = new URLSearchParams({ q: query, limit: String(limit) });
-    const res = await request<{ messages: RawMessage[] | null }>(`/api/messages/search?${qs.toString()}`);
+    const res = await request<{ messages: RawMessage[] | null }>(
+      `/api/messages/search?${qs.toString()}`,
+    );
     const raw = res.messages ?? [];
     return raw.map(normalize).sort((a, b) => b.ts - a.ts); // search results: newest first
   },
 
   async sendMessage(
     body: string,
-    attachments?: MessageAttachmentRef[]
+    attachments?: MessageAttachmentRef[],
   ): Promise<SendMessageResponse> {
     const payload: Record<string, unknown> = { body };
     if (attachments && attachments.length > 0) {
@@ -350,15 +390,20 @@ export const api = {
   },
 
   async listEngines(): Promise<EngineDef[]> {
-    const res = await request<{ engines: EngineDef[] | null }>("/api/agent/engines");
+    const res = await request<{ engines: EngineDef[] | null }>(
+      "/api/agent/engines",
+    );
     return res.engines ?? [];
   },
 
   async setEngine(engine: string, model: string): Promise<void> {
-    await request<{ ok: boolean; engine: string; model: string }>("/api/agent/engine", {
-      method: "POST",
-      body: JSON.stringify({ engine, model }),
-    });
+    await request<{ ok: boolean; engine: string; model: string }>(
+      "/api/agent/engine",
+      {
+        method: "POST",
+        body: JSON.stringify({ engine, model }),
+      },
+    );
   },
 
   // ─── uploads ────────────────────────────────
@@ -375,6 +420,14 @@ export const api = {
       throw new ApiError(res.status, text || res.statusText);
     }
     return res.json() as Promise<UploadAttachment>;
+  },
+
+  uploadUrl(id: string): string {
+    return `/api/uploads/${encodeURIComponent(id)}`;
+  },
+
+  fileUrl(path: string): string {
+    return `/api/file?path=${encodeURIComponent(path)}`;
   },
 
   async deleteUpload(id: string): Promise<void> {
@@ -407,7 +460,9 @@ export const api = {
     return res.project;
   },
 
-  async getProject(id: number): Promise<{ project: Project; sessions: ProjectSession[] }> {
+  async getProject(
+    id: number,
+  ): Promise<{ project: Project; sessions: ProjectSession[] }> {
     const res = await request<{
       project: Project;
       sessions: ProjectSession[] | null;
@@ -417,28 +472,28 @@ export const api = {
 
   async listProjectSessions(projectId: number): Promise<ProjectSession[]> {
     const res = await request<{ sessions: ProjectSession[] | null }>(
-      `/api/projects/${projectId}/sessions`
+      `/api/projects/${projectId}/sessions`,
     );
     return res.sessions ?? [];
   },
 
   async createProjectSession(
     projectId: number,
-    payload: { name: string; engine?: string; summary?: string }
+    payload: { name: string; engine?: string; summary?: string },
   ): Promise<ProjectSession> {
     const res = await request<{ session: ProjectSession }>(
       `/api/projects/${projectId}/sessions`,
-      { method: "POST", body: JSON.stringify(payload) }
+      { method: "POST", body: JSON.stringify(payload) },
     );
     return res.session;
   },
 
   async listProjectMessages(
     projectId: number,
-    sessionId: number
+    sessionId: number,
   ): Promise<ProjectMessage[]> {
     const res = await request<{ messages: ProjectMessage[] | null }>(
-      `/api/projects/${projectId}/sessions/${sessionId}/messages`
+      `/api/projects/${projectId}/sessions/${sessionId}/messages`,
     );
     return res.messages ?? [];
   },
@@ -446,11 +501,61 @@ export const api = {
   async sendProjectMessage(
     projectId: number,
     sessionId: number,
-    body: string
+    body: string,
   ): Promise<{ accepted: boolean; topic: string }> {
     return request<{ accepted: boolean; topic: string }>(
       `/api/projects/${projectId}/sessions/${sessionId}/messages`,
-      { method: "POST", body: JSON.stringify({ body }) }
+      { method: "POST", body: JSON.stringify({ body }) },
+    );
+  },
+
+  // ─── diagrams ───────────────────────────────
+  async listDiagrams(projectId?: number): Promise<Diagram[]> {
+    const qs = new URLSearchParams();
+    if (projectId && projectId > 0) qs.set("project_id", String(projectId));
+    const path = qs.toString()
+      ? `/api/diagrams?${qs.toString()}`
+      : "/api/diagrams";
+    const res = await request<{ diagrams: Diagram[] | null }>(path);
+    return res.diagrams ?? [];
+  },
+
+  async getDiagram(id: number): Promise<Diagram> {
+    const res = await request<{ diagram: Diagram }>(`/api/diagrams/${id}`);
+    return res.diagram;
+  },
+
+  async createDiagram(payload: DiagramPayload): Promise<Diagram> {
+    const res = await request<{ diagram: Diagram }>("/api/diagrams", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return res.diagram;
+  },
+
+  async updateDiagram(id: number, payload: DiagramPayload): Promise<Diagram> {
+    const res = await request<{ diagram: Diagram }>(`/api/diagrams/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+    return res.diagram;
+  },
+
+  async deleteDiagram(id: number): Promise<void> {
+    await request<void>(`/api/diagrams/${id}`, { method: "DELETE" });
+  },
+
+  async generateDiagram(payload: {
+    prompt: string;
+    project_id?: number;
+    type?: DiagramType;
+  }): Promise<{ title: string; mermaid: string }> {
+    return request<{ title: string; mermaid: string }>(
+      "/api/diagrams/generate",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
     );
   },
 
@@ -498,7 +603,10 @@ export const api = {
     });
   },
 
-  async runAgentNow(id: number, prompt?: string): Promise<{ run_id: number; topic: string }> {
+  async runAgentNow(
+    id: number,
+    prompt?: string,
+  ): Promise<{ run_id: number; topic: string }> {
     return request<{ run_id: number; topic: string }>(`/api/agents/${id}/run`, {
       method: "POST",
       body: JSON.stringify({ prompt: prompt ?? "" }),
@@ -507,18 +615,22 @@ export const api = {
 
   async listAgentRuns(id: number, limit = 50): Promise<AgentRun[]> {
     const res = await request<{ runs: AgentRun[] | null }>(
-      `/api/agents/${id}/runs?limit=${limit}`
+      `/api/agents/${id}/runs?limit=${limit}`,
     );
     return res.runs ?? [];
   },
 
   async addAgentSchedule(
     id: number,
-    payload: { cron_expr: string; prompt_template: string; notify_target?: string }
+    payload: {
+      cron_expr: string;
+      prompt_template: string;
+      notify_target?: string;
+    },
   ): Promise<AgentSchedule> {
     const res = await request<{ schedule: AgentSchedule }>(
       `/api/agents/${id}/schedules`,
-      { method: "POST", body: JSON.stringify(payload) }
+      { method: "POST", body: JSON.stringify(payload) },
     );
     return res.schedule;
   },
@@ -526,7 +638,7 @@ export const api = {
   async setAgentScheduleEnabled(
     agentId: number,
     scheduleId: number,
-    enabled: boolean
+    enabled: boolean,
   ): Promise<void> {
     await request(`/api/agents/${agentId}/schedules/${scheduleId}/enabled`, {
       method: "POST",
@@ -534,7 +646,10 @@ export const api = {
     });
   },
 
-  async deleteAgentSchedule(agentId: number, scheduleId: number): Promise<void> {
+  async deleteAgentSchedule(
+    agentId: number,
+    scheduleId: number,
+  ): Promise<void> {
     await request(`/api/agents/${agentId}/schedules/${scheduleId}`, {
       method: "DELETE",
     });
@@ -550,27 +665,30 @@ export const api = {
   },
 
   async systemServices(): Promise<SystemService[]> {
-    const res = await request<SystemService[] | { services: SystemService[] | null }>(
-      "/api/system/services"
-    );
+    const res = await request<
+      SystemService[] | { services: SystemService[] | null }
+    >("/api/system/services");
     if (Array.isArray(res)) return res;
     return res.services ?? [];
   },
 
   async systemServiceAction(
     name: string,
-    action: "start" | "stop" | "restart"
+    action: "start" | "stop" | "restart",
   ): Promise<{ ok: boolean; message?: string }> {
     return request<{ ok: boolean; message?: string }>(
       `/api/system/services/${encodeURIComponent(name)}/${action}`,
-      { method: "POST" }
+      { method: "POST" },
     );
   },
 
-  async systemProcesses(top = 10, sort: "cpu" | "mem" = "cpu"): Promise<SystemProcess[]> {
-    const res = await request<SystemProcess[] | { processes: SystemProcess[] | null }>(
-      `/api/system/processes?top=${top}&sort=${sort}`
-    );
+  async systemProcesses(
+    top = 10,
+    sort: "cpu" | "mem" = "cpu",
+  ): Promise<SystemProcess[]> {
+    const res = await request<
+      SystemProcess[] | { processes: SystemProcess[] | null }
+    >(`/api/system/processes?top=${top}&sort=${sort}`);
     if (Array.isArray(res)) return res;
     return res.processes ?? [];
   },
@@ -606,7 +724,13 @@ export interface SystemStats {
 
 export interface SystemService {
   name: string;
-  state: "active" | "inactive" | "failed" | "activating" | "deactivating" | string;
+  state:
+    | "active"
+    | "inactive"
+    | "failed"
+    | "activating"
+    | "deactivating"
+    | string;
   since?: number;
   cpu_pct?: number;
   mem_mb?: number;
@@ -655,16 +779,21 @@ export const secretsApi = {
     scope?: string;
     expires_at?: number;
   }): Promise<void> {
-    await request("/api/secrets", { method: "POST", body: JSON.stringify(input) });
+    await request("/api/secrets", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
   },
   async reveal(key: string): Promise<string> {
     const res = await request<{ key: string; value: string; ts: number }>(
-      `/api/secrets/${encodeURIComponent(key)}/reveal`
+      `/api/secrets/${encodeURIComponent(key)}/reveal`,
     );
     return res.value;
   },
   async delete(key: string): Promise<void> {
-    await request(`/api/secrets/${encodeURIComponent(key)}`, { method: "DELETE" });
+    await request(`/api/secrets/${encodeURIComponent(key)}`, {
+      method: "DELETE",
+    });
   },
 };
 
@@ -699,7 +828,11 @@ export const topicsApi = {
     const res = await request<{ topics: Topic[] | null }>("/api/topics");
     return res.topics ?? [];
   },
-  async create(name: string, description?: string, keywords?: string[]): Promise<{ id: number }> {
+  async create(
+    name: string,
+    description?: string,
+    keywords?: string[],
+  ): Promise<{ id: number }> {
     return request<{ id: number; name: string }>("/api/topics", {
       method: "POST",
       body: JSON.stringify({ name, description, keywords }),
@@ -741,7 +874,9 @@ export const subagentsApi = {
     const qs = new URLSearchParams();
     if (status) qs.set("status", status);
     qs.set("limit", String(limit));
-    const res = await request<{ subagents: Subagent[] | null }>(`/api/subagents?${qs.toString()}`);
+    const res = await request<{ subagents: Subagent[] | null }>(
+      `/api/subagents?${qs.toString()}`,
+    );
     return res.subagents ?? [];
   },
   async get(id: number): Promise<Subagent> {
