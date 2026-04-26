@@ -43,8 +43,11 @@ func (s *Server) startSystemPoller(ctx context.Context) {
 // the server has and sysman doesn't (running agents, ws clients).
 type systemTick struct {
 	sysman.Stats
-	RunningAgents int `json:"running_agents"`
-	WSClients     int `json:"ws_clients"`
+	RunningAgents  int `json:"running_agents"`
+	RunningMain    int `json:"running_main"`
+	RunningProject int `json:"running_project"`
+	RunningTotal   int `json:"running_total"`
+	WSClients      int `json:"ws_clients"`
 }
 
 func (s *Server) buildSystemTick(ctx context.Context) *systemTick {
@@ -52,12 +55,25 @@ func (s *Server) buildSystemTick(ctx context.Context) *systemTick {
 	if err != nil {
 		return nil
 	}
-	running, _ := s.repos.Agents.CountRunning(ctx)
+	runningAgents, _ := s.repos.Agents.CountRunning(ctx)
+	runningMain := 0
+	runningProject := 0
+	if s.runs != nil {
+		runningMain = s.runs.Count("main")
+		runningProject = s.runs.Count("project")
+	}
 	clients := 0
 	if s.hub != nil {
 		clients = s.hub.CountClients()
 	}
-	return &systemTick{Stats: stats, RunningAgents: running, WSClients: clients}
+	return &systemTick{
+		Stats:          stats,
+		RunningAgents:  runningAgents,
+		RunningMain:    runningMain,
+		RunningProject: runningProject,
+		RunningTotal:   runningAgents + runningMain + runningProject,
+		WSClients:      clients,
+	}
 }
 
 // handleWSUnified upgrades the request and runs a Pump with dynamic

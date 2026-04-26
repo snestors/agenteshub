@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useLocation } from "react-router-dom";
 import { Bot, AlertTriangle, Info, X } from "lucide-react";
 import { wsClient } from "@/lib/wsClient";
 
@@ -82,9 +83,19 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   return (
     <Ctx.Provider value={value}>
       {children}
-      <ToastStack items={items} dismiss={dismiss} />
+      <RoutedToastStack items={items} dismiss={dismiss} />
     </Ctx.Provider>
   );
+}
+
+// shouldToast hides the toast when the user is already on the screen that
+// would naturally surface that event. The notification is still kept in the
+// store so the badge counter is honest.
+function shouldToast(kind: string, pathname: string): boolean {
+  if (kind.startsWith("main_turn") && pathname === "/") return false;
+  if (kind.startsWith("agent_run") && pathname.startsWith("/agents")) return false;
+  if (kind.startsWith("project_turn") && pathname.startsWith("/projects")) return false;
+  return true;
 }
 
 export function useNotifications(): NotificationsState {
@@ -95,21 +106,21 @@ export function useNotifications(): NotificationsState {
 
 // ─── Toast stack ─────────────────────────────────────────────
 
-function ToastStack({
+function RoutedToastStack({
   items,
   dismiss,
 }: {
   items: Notification[];
   dismiss: (id: string) => void;
 }) {
-  // Show only fresh + not-yet-dismissed toasts
+  const { pathname } = useLocation();
   const [now, setNow] = React.useState(Date.now());
   React.useEffect(() => {
     const t = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(t);
   }, []);
   const visible = items
-    .filter((i) => !i.read && now - i.ts * 1000 < TOAST_TTL_MS)
+    .filter((i) => !i.read && now - i.ts * 1000 < TOAST_TTL_MS && shouldToast(i.kind, pathname))
     .slice(0, 4);
 
   if (visible.length === 0) return null;

@@ -75,7 +75,20 @@ export function SidebarStats() {
   const ramPct =
     stats && stats.ram_total_gb > 0 ? (stats.ram_used_gb / stats.ram_total_gb) * 100 : 0;
   const temp = stats?.temp_c ?? 0;
-  const running = stats?.running_agents ?? 0;
+  const main = stats?.running_main ?? 0;
+  const project = stats?.running_project ?? 0;
+  const agents = stats?.running_agents ?? 0;
+  const total = stats?.running_total ?? main + project + agents;
+
+  // breakdown like "1m+2a" only when there's activity, else "idle"
+  let runValue = "idle";
+  if (total > 0) {
+    const parts: string[] = [];
+    if (main > 0) parts.push(`${main}m`);
+    if (project > 0) parts.push(`${project}p`);
+    if (agents > 0) parts.push(`${agents}a`);
+    runValue = parts.join("+");
+  }
 
   return (
     <div className="px-1 py-2 border-t border-[var(--color-line)] flex flex-col gap-0.5">
@@ -85,8 +98,8 @@ export function SidebarStats() {
       <Row
         Icon={Bot}
         label="RUN"
-        value={running > 0 ? `${running} live` : "idle"}
-        accent={running > 0 ? "var(--color-orange)" : "var(--color-dim)"}
+        value={runValue}
+        accent={total > 0 ? "var(--color-orange)" : "var(--color-dim)"}
       />
     </div>
   );

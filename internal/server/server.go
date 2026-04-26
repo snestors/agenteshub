@@ -37,6 +37,7 @@ type Server struct {
 	engines *cliengine.Manager
 	sysman  *sysman.Manager
 	hub     *ws.Hub
+	runs    *RunTracker
 	log     *slog.Logger
 	httpSrv *http.Server
 }
@@ -48,7 +49,7 @@ func (s *Server) Hub() *ws.Hub { return s.hub }
 func New(cfg *config.Config, repos *store.Repos, engines *cliengine.Manager, sm *sysman.Manager, log *slog.Logger) (*Server, error) {
 	tokens := auth.NewTokenService(cfg, repos.Auth)
 	hub := ws.New(log.With("comp", "ws"))
-	s := &Server{cfg: cfg, repos: repos, tokens: tokens, engines: engines, sysman: sm, hub: hub, log: log}
+	s := &Server{cfg: cfg, repos: repos, tokens: tokens, engines: engines, sysman: sm, hub: hub, runs: NewRunTracker(), log: log}
 	s.registerWSActions()
 	s.httpSrv = &http.Server{
 		Addr:              cfg.HTTPAddr,
@@ -468,6 +469,8 @@ func (s *Server) runMainAgentTurn(enginePrompt, prev, engine, model string) {
 	// Run via cliengine. cwd=agenthub repo so .claude/skills/ is discovered.
 	// Stream events to the WS hub so the browser shows the agent's reasoning + tool calls
 	// while the turn is still in flight.
+	s.runs.Inc("main")
+	defer s.runs.Dec("main")
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 	res, err := s.engines.Run(ctx, cliengine.RunOpts{
@@ -492,6 +495,13 @@ func (s *Server) runMainAgentTurn(enginePrompt, prev, engine, model string) {
 			Model:     sqlStr(model),
 		})
 		s.broadcastMessageWithModel(outID, "web", "out", "⚠ engine: "+err.Error(), engine, model)
+		s.broadcastNotification(Notification{
+			Kind:     "main_turn_failed",
+			Severity: "error",
+			Title:    "Main · " + engine,
+			Body:     truncate(err.Error(), 280),
+			Context:  map[string]any{"engine": engine, "model": model},
+		})
 		return
 	}
 	if res.SessionID != "" && res.SessionID != prev {
@@ -512,6 +522,13 @@ func (s *Server) runMainAgentTurn(enginePrompt, prev, engine, model string) {
 	s.broadcastMessageWithModel(outID, "web", "out", res.Text, engine, model)
 	// Push fresh agent_status to all subscribers — ctx_used cambió
 	go s.broadcastAgentStatus(context.Background())
+	s.broadcastNotification(Notification{
+		Kind:     "main_turn_done",
+		Severity: "info",
+		Title:    "Main · " + engine,
+		Body:     truncate(res.Text, 280),
+		Context:  map[string]any{"engine": engine, "model": model},
+	})
 }
 
 func (s *Server) mainAgentSession(ctx context.Context, engine string) *store.AgentSession {
