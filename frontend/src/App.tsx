@@ -20,6 +20,7 @@ function App() {
           <Route path="projects/:id" element={<Projects />} />
           <Route path="projects/:id/sessions/:sid" element={<Projects />} />
           <Route path="agents" element={<Agents />} />
+          <Route path="agents/:id" element={<Agents />} />
           <Route path="topics" element={<Topics />} />
           <Route path="subagents" element={<Subagents />} />
           <Route path="system" element={<System />} />
