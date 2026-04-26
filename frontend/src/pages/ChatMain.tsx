@@ -8,19 +8,44 @@ import { Topbar } from "@/components/Topbar";
 
 const POLL_MS = 2000;
 
-interface WsAgentMessage {
+/**
+ * Backend Envelope shape (internal/ws/hub.go):
+ *   { type: "message", topic: "agent", payload: <obj | json-string>, ts }
+ * payload may arrive as object (json.RawMessage embedded) OR string (when
+ * marshalled twice). We tolerate both.
+ */
+interface WsEnvelope {
   type: string;
-  msg?: {
-    id: number;
-    channel: string;
-    direction: "in" | "out" | string;
-    body: string;
-    ts: number;
-    is_read?: boolean;
-  };
+  topic?: string;
+  payload?: unknown;
+  ts?: number;
 }
 
-function fromWs(m: NonNullable<WsAgentMessage["msg"]>): AgentMessage {
+interface WsAgentPayload {
+  id: number;
+  channel: string;
+  direction: "in" | "out" | string;
+  body: string;
+  ts: number;
+  is_read?: boolean;
+}
+
+function parseEnvelopePayload(payload: unknown): WsAgentPayload | null {
+  if (!payload) return null;
+  // payload may be a JSON string (defensive)
+  if (typeof payload === "string") {
+    try {
+      const obj = JSON.parse(payload);
+      return obj && typeof obj === "object" ? (obj as WsAgentPayload) : null;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof payload === "object") return payload as WsAgentPayload;
+  return null;
+}
+
+function fromWs(m: WsAgentPayload): AgentMessage {
   return {
     id: m.id,
     channel: m.channel,
@@ -78,9 +103,11 @@ export function ChatMain() {
   const handleWsMessage = React.useCallback(
     (data: unknown) => {
       if (typeof data !== "object" || data === null) return;
-      const evt = data as WsAgentMessage;
-      if (evt.type !== "message" || !evt.msg) return;
-      const incoming = fromWs(evt.msg);
+      const evt = data as WsEnvelope;
+      if (evt.type !== "message") return;
+      const msg = parseEnvelopePayload(evt.payload);
+      if (!msg) return;
+      const incoming = fromWs(msg);
 
       setMessages((curr) => {
         // merge by id; replace optimistic (negative id) bubbles whose body matches

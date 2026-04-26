@@ -14,11 +14,13 @@ export function Composer({ onSend, disabled }: ComposerProps) {
   async function submit() {
     const trimmed = value.trim();
     if (!trimmed || pending || disabled) return;
+    // Optimistic clear: limpiar input ANTES del await para que el user pueda
+    // seguir escribiendo mientras el agente piensa.
+    setValue("");
+    inputRef.current?.focus();
     setPending(true);
     try {
       await onSend(trimmed);
-      setValue("");
-      inputRef.current?.focus();
     } finally {
       setPending(false);
     }
@@ -54,11 +56,11 @@ export function Composer({ onSend, disabled }: ComposerProps) {
         <textarea
           ref={inputRef}
           value={value}
-          disabled={pending || disabled}
+          disabled={disabled}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKey}
           rows={1}
-          placeholder={pending ? "esperando respuesta…" : "habla con el agente…"}
+          placeholder={pending ? "agente pensando… podés escribir el siguiente" : "habla con el agente…"}
           className="flex-1 bg-transparent border-none outline-none resize-none font-mono text-[13px] text-[var(--color-fg)] placeholder:text-[var(--color-dim)] py-1 max-h-32"
           style={{ minHeight: 22 }}
         />
