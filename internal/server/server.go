@@ -394,13 +394,6 @@ func (s *Server) acceptMessage(ctx context.Context, req sendMsgReq) (sendMessage
 	// Build the actual prompt sent to the engine: user text + attachments footer.
 	enginePrompt := req.Body + formatAttachments(req.Attachments)
 
-	// Resume id of the main agent's session (persisted between turns).
-	mainSess, _ := s.repos.Sessions.GetAgentSession(ctx, "main-agent")
-	prev := ""
-	if mainSess != nil {
-		prev = mainSess.SessionID
-	}
-
 	// Read engine/model from settings (set by /api/agent/engine), with config fallback.
 	engine := s.cfg.DefaultEngine
 	model := s.cfg.DefaultModel
@@ -409,6 +402,14 @@ func (s *Server) acceptMessage(ctx context.Context, req sendMsgReq) (sendMessage
 	}
 	if v, _ := s.repos.Settings.Get(ctx, "model"); v != "" {
 		model = v
+	}
+
+	// Resume id of the main agent's session (persisted between turns). Session
+	// ids are engine-specific; never feed a Claude session id into Codex, etc.
+	mainSess, _ := s.repos.Sessions.GetAgentSession(ctx, "main-agent")
+	prev := ""
+	if mainSess != nil && mainSess.Engine == engine {
+		prev = mainSess.SessionID
 	}
 
 	go s.runMainAgentTurn(enginePrompt, prev, engine, model)
