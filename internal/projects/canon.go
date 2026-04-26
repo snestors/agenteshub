@@ -55,6 +55,9 @@ func EnsureCanon(projectPath, projectName, description string) error {
 	if err := writeIfMissing(filepath.Join(projectPath, ".agenthub", "services.yaml"), servicesSkeleton(projectName)); err != nil {
 		return err
 	}
+	if err := EnsureOpenSpecLayout(projectPath); err != nil {
+		return err
+	}
 	return nil
 }
 
