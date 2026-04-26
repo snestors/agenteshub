@@ -63,9 +63,9 @@ function Row({ Icon, label, value, pct, accent }: RowProps) {
 export function SidebarStats() {
   const [stats, setStats] = React.useState<SystemStats | null>(null);
 
-  const handle = React.useCallback((env: { type: string; payload: unknown }) => {
-    if (env.type !== "stats") return;
-    const s = parseStats(env.payload);
+  const handle = React.useCallback((payload: unknown, evt: { type: string }) => {
+    if (evt.type !== "stats") return;
+    const s = parseStats(payload);
     if (s) setStats(s);
   }, []);
 
