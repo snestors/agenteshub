@@ -162,6 +162,7 @@ const mdComponents: Components = {
 
 export function MessageBubble({ message, topic }: MessageBubbleProps) {
   const isUser = message.direction === "in";
+  const isEmptyAgentBody = !isUser && message.body.trim() === "";
   const accent = isUser ? "var(--color-lime)" : "var(--color-magenta)";
   const role = isUser ? "USR" : "MAIN";
   const arrow = isUser ? "▸" : "◂";
@@ -223,7 +224,11 @@ export function MessageBubble({ message, topic }: MessageBubbleProps) {
               : "bg-[rgba(255,78,214,0.04)] border-[rgba(255,78,214,0.20)]"
           )}
         >
-          {message.body ? (
+          {isEmptyAgentBody ? (
+            <span className="font-semibold text-[var(--color-danger)]">
+              ⚠ El engine no devolvió respuesta. Probá cambiar de modelo o reintentar.
+            </span>
+          ) : message.body ? (
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={mdComponents}
