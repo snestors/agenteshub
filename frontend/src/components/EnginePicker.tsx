@@ -5,6 +5,7 @@ import {
   FALLBACK_ENGINES,
   type EngineDef,
 } from "@/lib/api";
+import { wsClient } from "@/lib/wsClient";
 
 interface EnginePickerProps {
   /** currently active engine (drives initial selection) */
@@ -25,7 +26,7 @@ function fmtCtxWindow(n: number): string {
 
 /**
  * EnginePicker — floating dropdown over StatusBar's engine badge.
- * Lets the user switch engine + model, POSTs to /api/agent/engine.
+ * Lets the user switch engine + model over the unified /ws RPC channel.
  */
 export function EnginePicker({
   currentEngine,
@@ -87,12 +88,17 @@ export function EnginePicker({
     setSubmitting(true);
     setError(null);
     try {
-      await api.setEngine(selectedEngine, selectedModel);
+      await wsClient.request("set_engine", {
+        engine: selectedEngine,
+        model: selectedModel,
+      });
       onApplied(selectedEngine, selectedModel);
     } catch (err) {
       const msg =
         err instanceof ApiError
           ? `error ${err.status}: ${err.message || "no se pudo aplicar"}`
+          : err instanceof Error
+          ? err.message
           : "error de red al cambiar engine";
       setError(msg);
       setSubmitting(false);

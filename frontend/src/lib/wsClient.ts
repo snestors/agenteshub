@@ -5,10 +5,11 @@
 //     { action: "subscribe",   topic: "agent" }
 //     { action: "subscribe",   topic: "system" }
 //     { action: "unsubscribe", topic: "agent" }
+//     { action: "send_message", id: "<corr-id>", body: "...", attachments: [...] }
 //     { action: "ping" }
 //
 //   SERVER → CLIENT (envelope)
-//     { type: "message" | "stream" | "stats" | "status", topic, payload, ts }
+//     { type: "message" | "stream" | "stats" | "status" | "ack", topic, payload, ts }
 //
 // Lifecycle:
 //   - One persistent connection from import time until page unload.
@@ -40,11 +41,20 @@ export interface WsEnvelope {
 export type WsListener = (envelope: WsEnvelope) => void;
 export type WsStatusListener = (status: WsStatus) => void;
 
+export interface WsAckPayload<T = unknown> {
+  id: string;
+  ok: boolean;
+  error?: string;
+  result?: T;
+}
+
 export interface WsClientAPI {
   /** Subscribe to a topic. Returns an unsubscribe function. */
   subscribe(topic: string, listener: WsListener): () => void;
   /** Send a low-level action to the server. Buffers nothing; drops if not open. */
   send(action: string, payload?: object): void;
+  /** Send an RPC action and wait for a correlated ack envelope. */
+  request<T = unknown>(action: string, payload?: object, timeoutMs?: number): Promise<T>;
   /** Current connection status. */
   status(): WsStatus;
   /** Subscribe to status changes. Returns an unsubscribe function. */
@@ -74,6 +84,15 @@ function createWsClient(path: string, opts: CreateOpts = {}): WsClientAPI {
   const topicListeners = new Map<string, Set<WsListener>>();
   // status listeners
   const statusListeners = new Set<WsStatusListener>();
+  // correlation id → pending request
+  const pendingRequests = new Map<
+    string,
+    {
+      resolve: (value: unknown) => void;
+      reject: (reason?: unknown) => void;
+      timer: number;
+    }
+  >();
 
   function setStatus(next: WsStatus) {
     if (status === next) return;
@@ -136,6 +155,36 @@ function createWsClient(path: string, opts: CreateOpts = {}): WsClientAPI {
     }
   }
 
+  function parseAckPayload(payload: unknown): WsAckPayload | null {
+    if (!payload) return null;
+    if (typeof payload === "string") {
+      try {
+        const obj = JSON.parse(payload);
+        return obj && typeof obj === "object" ? (obj as WsAckPayload) : null;
+      } catch {
+        return null;
+      }
+    }
+    if (typeof payload === "object") return payload as WsAckPayload;
+    return null;
+  }
+
+  function dispatchAck(env: WsEnvelope): boolean {
+    if (env.type !== "ack") return false;
+    const ack = parseAckPayload(env.payload);
+    if (!ack?.id) return false;
+    const pending = pendingRequests.get(ack.id);
+    if (!pending) return false;
+    pendingRequests.delete(ack.id);
+    window.clearTimeout(pending.timer);
+    if (ack.ok) {
+      pending.resolve(ack.result);
+    } else {
+      pending.reject(new Error(ack.error || "ws request failed"));
+    }
+    return true;
+  }
+
   function connect() {
     if (stopped) return;
     clearReconnect();
@@ -173,7 +222,9 @@ function createWsClient(path: string, opts: CreateOpts = {}): WsClientAPI {
         return;
       }
       if (!parsed || typeof parsed !== "object") return;
-      dispatchEnvelope(parsed as WsEnvelope);
+      const env = parsed as WsEnvelope;
+      if (dispatchAck(env)) return;
+      dispatchEnvelope(env);
     };
 
     socket.onerror = () => {
@@ -241,6 +292,42 @@ function createWsClient(path: string, opts: CreateOpts = {}): WsClientAPI {
     rawSend(obj);
   }
 
+  function newRequestID(): string {
+    const cryptoObj = globalThis.crypto;
+    if (cryptoObj && typeof cryptoObj.randomUUID === "function") {
+      return cryptoObj.randomUUID();
+    }
+    return `req-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  function request<T = unknown>(
+    action: string,
+    payload: object = {},
+    timeoutMs = 10_000
+  ): Promise<T> {
+    const id = newRequestID();
+    const obj: Record<string, unknown> = { action, id };
+    if (payload && typeof payload === "object") {
+      Object.assign(obj, payload);
+    }
+    return new Promise<T>((resolve, reject) => {
+      const timer = window.setTimeout(() => {
+        pendingRequests.delete(id);
+        reject(new Error(`timeout esperando ack de ${action}`));
+      }, timeoutMs);
+      pendingRequests.set(id, {
+        resolve: (value) => resolve(value as T),
+        reject,
+        timer,
+      });
+      if (!rawSend(obj)) {
+        pendingRequests.delete(id);
+        window.clearTimeout(timer);
+        reject(new Error("websocket no conectado"));
+      }
+    });
+  }
+
   function onStatusChange(cb: WsStatusListener): () => void {
     statusListeners.add(cb);
     return () => {
@@ -251,6 +338,7 @@ function createWsClient(path: string, opts: CreateOpts = {}): WsClientAPI {
   return {
     subscribe,
     send,
+    request,
     status: () => status,
     onStatusChange,
   };

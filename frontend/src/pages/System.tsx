@@ -10,6 +10,7 @@ import {
   type SystemConnections,
 } from "@/lib/api";
 import { useTopic } from "@/lib/useTopic";
+import { wsClient } from "@/lib/wsClient";
 
 const POLL_FALLBACK_MS = 5000;
 const SLOW_POLL_MS = 8000; // services / processes / connections
@@ -143,7 +144,7 @@ export function System() {
   async function runAction(name: string, action: "start" | "stop" | "restart") {
     setActionState({ name, action, busy: true });
     try {
-      await api.systemServiceAction(name, action);
+      await wsClient.request("service_action", { name, op: action });
       // refresh services after a tick — systemd takes a moment
       window.setTimeout(() => void refreshSlow(), 500);
     } catch (err) {

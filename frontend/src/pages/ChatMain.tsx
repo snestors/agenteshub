@@ -5,6 +5,7 @@ import {
   type MessageAttachmentRef,
 } from "@/lib/api";
 import { useTopic } from "@/lib/useTopic";
+import { wsClient } from "@/lib/wsClient";
 import { Composer } from "@/components/Composer";
 import { MessageBubble } from "@/components/MessageBubble";
 import {
@@ -59,6 +60,14 @@ interface WsStreamPayload {
   seq: number;
   /** true on the last chunk of a turn — when the persisted message is about to arrive */
   final?: boolean;
+}
+
+interface SendMessageResult {
+  id: number;
+  message_id: number;
+  accepted: boolean;
+  engine: string;
+  model: string;
 }
 
 function parseEnvelopePayload<T>(payload: unknown): T | null {
@@ -324,13 +333,16 @@ export function ChatMain() {
       },
     ]);
     try {
-      const res = await api.sendMessage(body, attachments);
-      // reconcile optimistic bubble with the real id from the POST
+      const res = await wsClient.request<SendMessageResult>("send_message", {
+        body,
+        attachments,
+      });
+      // reconcile optimistic bubble with the real id from the WS ack
       setMessages((curr) => {
         const next = curr.slice();
         const idx = next.findIndex((m) => m.id === optimisticId);
         if (idx >= 0) {
-          next[idx] = { ...next[idx], id: res.id };
+          next[idx] = { ...next[idx], id: res.message_id ?? res.id };
         }
         return next;
       });
