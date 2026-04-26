@@ -88,6 +88,7 @@ type Repos struct {
 	Snapshots *SnapshotsRepo
 	Subagents *SubagentRunsRepo
 	Secrets   *SecretsRepo
+	WaOutbox  *WaOutboxRepo
 }
 
 // NewRepos wires up every repo around a single *sql.DB handle.
@@ -104,6 +105,7 @@ func NewRepos(db *sql.DB) *Repos {
 		Snapshots: NewSnapshotsRepo(db),
 		Subagents: NewSubagentRunsRepo(db),
 		Secrets:   NewSecretsRepo(db),
+		WaOutbox:  NewWaOutboxRepo(db),
 	}
 }
 

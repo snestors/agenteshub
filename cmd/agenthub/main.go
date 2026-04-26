@@ -22,6 +22,7 @@ import (
 	"github.com/snestors/agenthub/internal/setup"
 	"github.com/snestors/agenthub/internal/store"
 	"github.com/snestors/agenthub/internal/sysman"
+	"github.com/snestors/agenthub/internal/wa"
 )
 
 func main() {
@@ -119,6 +120,19 @@ func runServe() {
 	}
 	sched.SetRunFinishedHook(srv.NotifyAgentRunFinished)
 	sched.Start(ctx)
+
+	// WhatsApp client + outbox worker. Both no-op when WAEnabled=false so
+	// dev mode stays untouched.
+	waClient, err := wa.New(cfg, repos, logger)
+	if err != nil {
+		logger.Error("wa new", "err", err)
+	} else if cfg.WAEnabled {
+		if err := waClient.Connect(ctx); err != nil {
+			logger.Error("wa connect", "err", err)
+		}
+		waClient.StartOutboxWorker(ctx)
+		defer waClient.Disconnect()
+	}
 
 	logger.Info("agenthub starting", "addr", cfg.HTTPAddr, "dev_bypass_totp", cfg.DevBypassTOTP, "wa_enabled", cfg.WAEnabled)
 

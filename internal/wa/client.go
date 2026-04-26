@@ -19,6 +19,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
+	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
 
 	"github.com/snestors/agenthub/internal/config"
@@ -159,10 +160,21 @@ func (c *Client) SendText(ctx context.Context, jid, text string) error {
 }
 
 func (c *Client) handleEvent(evt any) {
-	// Minimal dispatch for the v0; full media + Whisper integration arrives in
-	// the wa-handler step. We just log unhandled events and queue text msgs so
-	// the rest of the system can already consume the channel.
-	c.log.Debug("wa event", "type", fmt.Sprintf("%T", evt))
+	switch e := evt.(type) {
+	case *events.Message:
+		c.dispatchIncoming(context.Background(), e)
+	case *events.Connected:
+		c.setConnected(true)
+		c.log.Info("wa connected event")
+	case *events.Disconnected:
+		c.setConnected(false)
+		c.log.Warn("wa disconnected event")
+	case *events.LoggedOut:
+		c.setConnected(false)
+		c.log.Warn("wa logged out — re-pair required", "reason", e.Reason)
+	default:
+		c.log.Debug("wa event", "type", fmt.Sprintf("%T", evt))
+	}
 }
 
 // IsAuthorized reports whether the phone is in the configured whitelist.

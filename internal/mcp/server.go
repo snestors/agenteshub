@@ -59,6 +59,47 @@ func (s *Server) registerTools() {
 		mcp.WithString("text", mcp.Required(), mcp.Description("Plain text body to send.")),
 	), s.handleSendMessage)
 
+	s.srv.AddTool(mcp.NewTool("send_image",
+		mcp.WithDescription("Send an image to a WhatsApp JID. Queues the file for delivery; the daemon's outbox worker uploads + dispatches."),
+		mcp.WithString("jid", mcp.Required(), mcp.Description("Target JID (digits or full '<phone>@s.whatsapp.net').")),
+		mcp.WithString("path", mcp.Required(), mcp.Description("Absolute path to the image on the daemon's filesystem.")),
+		mcp.WithString("caption", mcp.Description("Optional caption shown below the image.")),
+	), s.handleSendImage)
+
+	s.srv.AddTool(mcp.NewTool("send_voice",
+		mcp.WithDescription("Send a voice note (PTT) to a WhatsApp JID. File should be opus-encoded .ogg."),
+		mcp.WithString("jid", mcp.Required()),
+		mcp.WithString("path", mcp.Required(), mcp.Description("Absolute path to the .ogg file.")),
+	), s.handleSendVoice)
+
+	s.srv.AddTool(mcp.NewTool("send_audio",
+		mcp.WithDescription("Send an audio file (music / non-PTT) to a WhatsApp JID."),
+		mcp.WithString("jid", mcp.Required()),
+		mcp.WithString("path", mcp.Required()),
+	), s.handleSendAudio)
+
+	s.srv.AddTool(mcp.NewTool("send_document",
+		mcp.WithDescription("Send a file as a document attachment to a WhatsApp JID. Filename shown is the basename of the path."),
+		mcp.WithString("jid", mcp.Required()),
+		mcp.WithString("path", mcp.Required()),
+		mcp.WithString("caption", mcp.Description("Optional caption.")),
+	), s.handleSendDocument)
+
+	s.srv.AddTool(mcp.NewTool("send_video",
+		mcp.WithDescription("Send a video file to a WhatsApp JID."),
+		mcp.WithString("jid", mcp.Required()),
+		mcp.WithString("path", mcp.Required()),
+		mcp.WithString("caption", mcp.Description("Optional caption.")),
+	), s.handleSendVideo)
+
+	s.srv.AddTool(mcp.NewTool("send_location",
+		mcp.WithDescription("Send a static location pin to a WhatsApp JID."),
+		mcp.WithString("jid", mcp.Required()),
+		mcp.WithNumber("lat", mcp.Required(), mcp.Description("Latitude in decimal degrees.")),
+		mcp.WithNumber("lng", mcp.Required(), mcp.Description("Longitude in decimal degrees.")),
+		mcp.WithString("name", mcp.Description("Optional place label shown next to the pin.")),
+	), s.handleSendLocation)
+
 	// ---------- input ----------
 	s.srv.AddTool(mcp.NewTool("recent_messages",
 		mcp.WithDescription("Returns recent messages from the user, optionally filtered by channel."),
@@ -227,6 +268,136 @@ func (s *Server) handleSendMessage(ctx context.Context, req mcp.CallToolRequest)
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	return mcp.NewToolResultText(fmt.Sprintf("ok message_id=%d", id)), nil
+}
+
+func (s *Server) handleSendImage(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	jid, err := req.RequireString("jid")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	path, err := req.RequireString("path")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	caption := strings.TrimSpace(req.GetString("caption", ""))
+	id, err := s.repos.WaOutbox.Enqueue(ctx, store.WaOutboxItem{
+		JID:       jid,
+		Kind:      "image",
+		MediaPath: sqlStr(path),
+		Caption:   sqlStr(caption),
+	})
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return mcp.NewToolResultText(fmt.Sprintf("queued id=%d kind=image", id)), nil
+}
+
+func (s *Server) handleSendVoice(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	jid, err := req.RequireString("jid")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	path, err := req.RequireString("path")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	id, err := s.repos.WaOutbox.Enqueue(ctx, store.WaOutboxItem{
+		JID:       jid,
+		Kind:      "voice",
+		MediaPath: sqlStr(path),
+	})
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return mcp.NewToolResultText(fmt.Sprintf("queued id=%d kind=voice", id)), nil
+}
+
+func (s *Server) handleSendAudio(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	jid, err := req.RequireString("jid")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	path, err := req.RequireString("path")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	id, err := s.repos.WaOutbox.Enqueue(ctx, store.WaOutboxItem{
+		JID:       jid,
+		Kind:      "audio",
+		MediaPath: sqlStr(path),
+	})
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return mcp.NewToolResultText(fmt.Sprintf("queued id=%d kind=audio", id)), nil
+}
+
+func (s *Server) handleSendDocument(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	jid, err := req.RequireString("jid")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	path, err := req.RequireString("path")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	caption := strings.TrimSpace(req.GetString("caption", ""))
+	id, err := s.repos.WaOutbox.Enqueue(ctx, store.WaOutboxItem{
+		JID:       jid,
+		Kind:      "document",
+		MediaPath: sqlStr(path),
+		Caption:   sqlStr(caption),
+	})
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return mcp.NewToolResultText(fmt.Sprintf("queued id=%d kind=document", id)), nil
+}
+
+func (s *Server) handleSendVideo(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	jid, err := req.RequireString("jid")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	path, err := req.RequireString("path")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	caption := strings.TrimSpace(req.GetString("caption", ""))
+	id, err := s.repos.WaOutbox.Enqueue(ctx, store.WaOutboxItem{
+		JID:       jid,
+		Kind:      "video",
+		MediaPath: sqlStr(path),
+		Caption:   sqlStr(caption),
+	})
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return mcp.NewToolResultText(fmt.Sprintf("queued id=%d kind=video", id)), nil
+}
+
+func (s *Server) handleSendLocation(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	jid, err := req.RequireString("jid")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	lat := req.GetFloat("lat", 0)
+	lng := req.GetFloat("lng", 0)
+	if lat == 0 && lng == 0 {
+		return mcp.NewToolResultError("lat and lng required"), nil
+	}
+	name := strings.TrimSpace(req.GetString("name", ""))
+	id, err := s.repos.WaOutbox.Enqueue(ctx, store.WaOutboxItem{
+		JID:     jid,
+		Kind:    "location",
+		LocLat:  sql.NullFloat64{Float64: lat, Valid: true},
+		LocLng:  sql.NullFloat64{Float64: lng, Valid: true},
+		LocName: sqlStr(name),
+	})
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return mcp.NewToolResultText(fmt.Sprintf("queued id=%d kind=location", id)), nil
 }
 
 func (s *Server) handleRecentMessages(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
