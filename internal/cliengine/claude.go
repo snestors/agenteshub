@@ -254,10 +254,23 @@ func rawToText(raw json.RawMessage) string {
 }
 
 func chooseModel(opt, fallback string) string {
-	if strings.TrimSpace(opt) != "" {
-		return opt
+	picked := opt
+	if strings.TrimSpace(picked) == "" {
+		picked = fallback
 	}
-	return fallback
+	return resolveClaudeAlias(picked)
+}
+
+// resolveClaudeAlias converts AgentHub-friendly model names into the exact
+// IDs the Claude CLI accepts. Claude Code's `--model` parser is finicky:
+// 'sonnet'/'opus'/'haiku' work, full IDs like 'claude-opus-4-7' work, but
+// '-1m' suffix variants only work as bracket-suffixed IDs.
+func resolveClaudeAlias(m string) string {
+	switch strings.TrimSpace(m) {
+	case "opus-1m", "opus-4-7-1m":
+		return "claude-opus-4-7[1m]"
+	}
+	return m
 }
 
 // ensureMCPConfig writes a JSON file pointing the Claude CLI to `agenthub mcp`,

@@ -12,36 +12,24 @@ type engineDef struct {
 	CtxWindows map[string]int `json:"ctx_windows"`
 }
 
-// availableEngines returns the canonical list of engines + models that the
-// daemon knows about. This is the source of truth for the picker in the UI
-// and for validation when the user POSTs a change.
+// availableEngines is the source of truth for the picker UI and POST validation.
+// codex + ollama están conceptualmente soportados (cliengine los acepta) pero
+// hoy no los exponemos: codex requiere validar el flow --resume y ollama
+// requiere setup local. TODO: re-incluirlos cuando cada uno tenga smoke test
+// E2E pasando.
 //
-// Models are listed first → preferred default for that engine.
+// El "model" del JSON es el alias que el frontend muestra; algunos pasan por
+// resolveClaudeAlias() para convertirse en el ID que el CLI realmente acepta
+// (ej. opus-1m → claude-opus-4-7[1m]).
 var availableEngines = []engineDef{
 	{
 		Engine: "claude",
-		Models: []string{"sonnet", "opus", "haiku", "opus-4-7-1m"},
+		Models: []string{"sonnet", "opus", "haiku", "opus-1m"},
 		CtxWindows: map[string]int{
-			"sonnet":       200_000,
-			"opus":         200_000,
-			"haiku":        200_000,
-			"opus-4-7-1m":  1_000_000,
-		},
-	},
-	{
-		Engine: "codex",
-		Models: []string{"gpt-5.5", "gpt-5"},
-		CtxWindows: map[string]int{
-			"gpt-5.5": 256_000,
-			"gpt-5":   128_000,
-		},
-	},
-	{
-		Engine: "ollama",
-		Models: []string{"gemma:2b", "llama3.1:8b"},
-		CtxWindows: map[string]int{
-			"gemma:2b":     8_192,
-			"llama3.1:8b": 128_000,
+			"sonnet":  200_000,
+			"opus":    200_000,
+			"haiku":   200_000,
+			"opus-1m": 1_000_000,
 		},
 	},
 }
