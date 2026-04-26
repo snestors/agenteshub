@@ -15,6 +15,7 @@ import (
 
 	"github.com/snestors/agenthub/internal/cliengine"
 	"github.com/snestors/agenthub/internal/config"
+	intcron "github.com/snestors/agenthub/internal/cron"
 	"github.com/snestors/agenthub/internal/mcp"
 	"github.com/snestors/agenthub/internal/server"
 	"github.com/snestors/agenthub/internal/setup"
@@ -102,6 +103,9 @@ func runServe() {
 	defer db.Close()
 	repos := store.NewRepos(db)
 	engines := cliengine.New(cfg, repos, logger)
+	cronRunner := intcron.New(cfg, repos, logger)
+	cronRunner.Start()
+	defer cronRunner.Stop()
 
 	srv, err := server.New(cfg, repos, engines, logger)
 	if err != nil {

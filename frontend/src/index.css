@@ -1,7 +1,6 @@
-@import "tailwindcss";
-
-/* webfonts */
+/* webfonts (must precede all other rules including tailwind) */
 @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Oxanium:wght@400;500;600;700;800&display=swap");
+@import "tailwindcss";
 
 /* ─────────────────────────────────────────────────────────────
    AgentHub HUD — design tokens (cyberpunk, dark only)

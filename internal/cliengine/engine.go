@@ -129,9 +129,13 @@ func (m *Manager) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 		CostTokens:    res.CostTokens,
 	})
 
-	// 5. Snapshot post-turn (best effort, async).
+	// 5. Snapshot post-turn + capture sub-agents (best effort, async).
 	if res.SessionID != "" && opts.Engine == "claude" {
-		go m.snapshot(context.Background(), res.SessionID, opts.Cwd)
+		go func(sid, cwd string, ro RunOpts) {
+			m.snapshot(context.Background(), sid, cwd)
+			jsonl := claudeJSONLPath(m.cfg.ClaudeProjectsDir, cwd, sid)
+			m.captureSubagents(context.Background(), sid, jsonl, ro)
+		}(res.SessionID, opts.Cwd, opts)
 	}
 	return res, nil
 }
