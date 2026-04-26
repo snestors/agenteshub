@@ -27,6 +27,7 @@ type Message struct {
 	Engine        sql.NullString // engine usado para producir la respuesta (assistant turns)
 	Model         sql.NullString // model concreto (sonnet, opus, codex, gemma:2b...)
 	Activity      sql.NullString // JSON: thinking + tools used during this turn (assistant only)
+	ExternalID    sql.NullString // WhatsApp StanzaID — what to pass back as reply_to to quote this message
 }
 
 // MessagesRepo persists wa_messages.
@@ -40,12 +41,12 @@ func (r *MessagesRepo) Insert(ctx context.Context, m Message) (int64, error) {
 		INSERT INTO wa_messages(
 			channel, direction, jid, body, media_type, media_path, media_caption,
 			location_lat, location_lng, location_name, quoted_id, reply_to, ts, is_read,
-			engine, model, activity
-		) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+			engine, model, activity, external_id
+		) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 	`,
 		m.Channel, m.Direction, m.JID, m.Body, m.MediaType, m.MediaPath, m.MediaCaption,
 		m.LocationLat, m.LocationLng, m.LocationName, m.QuotedID, m.ReplyTo, m.TS, m.IsRead,
-		m.Engine, m.Model, m.Activity,
+		m.Engine, m.Model, m.Activity, m.ExternalID,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("insert message: %w", err)
@@ -74,7 +75,7 @@ func (r *MessagesRepo) Range(ctx context.Context, channel string, beforeID int64
 	}
 	q := `SELECT id, channel, direction, jid, body, media_type, media_path, media_caption,
 	             location_lat, location_lng, location_name, quoted_id, reply_to, ts, is_read,
-	             engine, model, activity
+	             engine, model, activity, external_id
 	      FROM wa_messages`
 	args := []any{}
 	conds := []string{}
@@ -101,7 +102,7 @@ func (r *MessagesRepo) Range(ctx context.Context, channel string, beforeID int64
 		var m Message
 		if err := rows.Scan(&m.ID, &m.Channel, &m.Direction, &m.JID, &m.Body, &m.MediaType, &m.MediaPath, &m.MediaCaption,
 			&m.LocationLat, &m.LocationLng, &m.LocationName, &m.QuotedID, &m.ReplyTo, &m.TS, &m.IsRead,
-			&m.Engine, &m.Model, &m.Activity); err != nil {
+			&m.Engine, &m.Model, &m.Activity, &m.ExternalID); err != nil {
 			return nil, fmt.Errorf("scan message: %w", err)
 		}
 		out = append(out, m)
@@ -121,7 +122,7 @@ func (r *MessagesRepo) Search(ctx context.Context, channel, query string, limit 
 	}
 	sql := `SELECT m.id, m.channel, m.direction, m.jid, m.body, m.media_type, m.media_path, m.media_caption,
 	               m.location_lat, m.location_lng, m.location_name, m.quoted_id, m.reply_to, m.ts, m.is_read,
-	               m.engine, m.model, m.activity
+	               m.engine, m.model, m.activity, m.external_id
 	        FROM wa_messages_fts f
 	        JOIN wa_messages m ON m.id = f.rowid
 	        WHERE wa_messages_fts MATCH ?`
@@ -142,7 +143,7 @@ func (r *MessagesRepo) Search(ctx context.Context, channel, query string, limit 
 		var m Message
 		if err := rows.Scan(&m.ID, &m.Channel, &m.Direction, &m.JID, &m.Body, &m.MediaType, &m.MediaPath, &m.MediaCaption,
 			&m.LocationLat, &m.LocationLng, &m.LocationName, &m.QuotedID, &m.ReplyTo, &m.TS, &m.IsRead,
-			&m.Engine, &m.Model, &m.Activity); err != nil {
+			&m.Engine, &m.Model, &m.Activity, &m.ExternalID); err != nil {
 			return nil, fmt.Errorf("scan message: %w", err)
 		}
 		out = append(out, m)

@@ -14,15 +14,23 @@ estado con `query_records` o consultás la DB.
 
 ## Tools disponibles
 
+Todas las tools de envío aceptan un argumento opcional `reply_to`:
+el `external_id` (StanzaID de WhatsApp) del mensaje que querés citar.
+Cuando lo pasás, la respuesta sale citando el mensaje original como
+hace WhatsApp en su UI.
+
 | Tool | Args |
 | --- | --- |
-| `send_message` | `text` |
-| `send_image` | `jid`, `path`, `caption?` |
-| `send_voice` | `jid`, `path` (.ogg opus) |
-| `send_audio` | `jid`, `path` |
-| `send_document` | `jid`, `path`, `caption?` |
-| `send_video` | `jid`, `path`, `caption?` |
-| `send_location` | `jid`, `lat`, `lng`, `name?` |
+| `send_message` | `text`, `jid?`, `reply_to?` |
+| `send_image` | `jid`, `path`, `caption?`, `reply_to?` |
+| `send_voice` | `jid`, `path` (.ogg opus), `reply_to?` |
+| `send_audio` | `jid`, `path`, `reply_to?` |
+| `send_document` | `jid`, `path`, `caption?`, `reply_to?` |
+| `send_video` | `jid`, `path`, `caption?`, `reply_to?` |
+| `send_location` | `jid`, `lat`, `lng`, `name?`, `reply_to?` |
+
+`send_message` con `jid` además encola un envío a WhatsApp (no solo
+persiste para la web). Con `jid + reply_to` cita un mensaje específico.
 
 `jid` puede ser dígitos sueltos (`51922743968`) o el JID completo
 (`51922743968@s.whatsapp.net`). El primero se asume `@s.whatsapp.net`.
@@ -56,6 +64,13 @@ El daemon recibe automáticamente y persiste en `wa_messages` con
 y `media_path` (ruta local descargada). Las locaciones llenan `location_lat`,
 `location_lng`, `location_name`.
 
+Cada row trae también:
+- `external_id` — el StanzaID que WA usa internamente. Es lo que pasás
+  como `reply_to` en una tool de envío para **citar ese mensaje**.
+- `reply_to` — si el user te respondió a un mensaje tuyo, este campo
+  trae el StanzaID del original. Usalo para entender el contexto del
+  "el user está respondiendo sobre X de hace 5 mensajes".
+
 Para revisar lo que llegó:
 - `recent_messages(channel='wa', limit=N)` — últimos N
 - Si `media_path` está set, podés leer el archivo con la tool Read.
@@ -84,11 +99,34 @@ send_voice jid="51922743968" path="/tmp/voz.ogg"
 ## Flujo típico al recibir un mensaje WA
 
 1. `recent_messages(channel='wa', limit=5)` para ver contexto
-2. Procesar
-3. **`send_message(text=...)`** para responder texto
-4. O `send_image/document/...` si tenés que mandar un archivo
-5. Si la respuesta es larga, considerá `send_voice` con TTS
-6. **NUNCA** dejes un mensaje sin responder — el user te está esperando
+2. Procesar. Si querés citar un mensaje específico, anotá su `external_id`.
+3. **`send_message(text=..., jid=..., reply_to=<external_id>)`** para
+   responder texto citando. Sin `reply_to` el envío sale como un mensaje
+   normal sin cita.
+4. O `send_image/document/...` si tenés que mandar un archivo (también
+   acepta `reply_to`).
+5. Si la respuesta es larga, considerá `send_voice` con TTS.
+6. **NUNCA** dejes un mensaje sin responder — el user te está esperando.
+
+## Ejemplo de reply citando
+
+```
+recent_messages(channel='wa', limit=3)
+→ [
+    {id: 401, body: "che, anda viendo cuánto pesé hoy", external_id: "3EB0AB12..."},
+    ...
+  ]
+
+# El user después manda algo no relacionado y querés volver al primer mensaje:
+send_message(
+  text: "según los registros de hoy: 87.3 kg (-0.2 vs ayer)",
+  jid: "51922743968",
+  reply_to: "3EB0AB12..."   ← el external_id del mensaje 401
+)
+```
+
+El mensaje sale con la cita de "che, anda viendo cuánto pesé hoy"
+arriba en color WhatsApp, queda claro a qué le respondés.
 
 ## Estado del outbox
 

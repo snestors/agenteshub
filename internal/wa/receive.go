@@ -41,6 +41,7 @@ func (c *Client) dispatchIncoming(ctx context.Context, evt *events.Message) {
 		Phone:      phone,
 		Name:       evt.Info.PushName,
 		TS:         evt.Info.Timestamp,
+		ExternalID: evt.Info.ID,
 		Authorized: authorized,
 	}
 
@@ -183,6 +184,7 @@ func (c *Client) persistIncoming(in IncomingMessage) {
 		},
 		LocationName: sql.NullString{String: in.LocName, Valid: in.LocName != ""},
 		ReplyTo:      sql.NullString{String: in.QuotedID, Valid: in.QuotedID != ""},
+		ExternalID:   sql.NullString{String: in.ExternalID, Valid: in.ExternalID != ""},
 		TS:           in.TS.Unix(),
 	}
 	if row.TS == 0 {

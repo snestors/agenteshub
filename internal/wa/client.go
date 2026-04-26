@@ -40,18 +40,19 @@ type Client struct {
 
 // IncomingMessage is what the handler dispatches to the cola serial of the main.
 type IncomingMessage struct {
-	JID       string
-	Phone     string
-	Name      string
-	Body      string
-	MediaPath string
-	MediaKind string // 'image'|'voice'|'audio'|'video'|'document'|''
-	LocLat    float64
-	LocLng    float64
-	LocName   string
-	QuotedID  string
-	TS        time.Time
-	IsCommand bool   // /reset /status /topic etc.
+	JID        string
+	Phone      string
+	Name       string
+	Body       string
+	MediaPath  string
+	MediaKind  string // 'image'|'voice'|'audio'|'video'|'document'|''
+	LocLat     float64
+	LocLng     float64
+	LocName    string
+	QuotedID   string // external StanzaID this message is replying to (if any)
+	ExternalID string // this message's own external StanzaID — pass back as reply_to to quote it later
+	TS         time.Time
+	IsCommand  bool // /reset /status /topic etc.
 	Authorized bool
 }
 
