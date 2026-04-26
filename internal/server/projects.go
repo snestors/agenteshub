@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/snestors/agenthub/internal/cliengine"
+	projectcanon "github.com/snestors/agenthub/internal/projects"
 	"github.com/snestors/agenthub/internal/store"
 	"github.com/snestors/agenthub/internal/ws"
 )
@@ -110,6 +111,10 @@ func (s *Server) handleProjectsCreate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "path must exist and be a directory", http.StatusBadRequest)
 		return
 	}
+	if err := projectcanon.EnsureCanon(req.Path, req.Name, req.Description); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	id, err := s.repos.Projects.Create(r.Context(), store.Project{
 		Name:          req.Name,
 		Path:          req.Path,
@@ -135,6 +140,10 @@ func (s *Server) handleProjectsCreate(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleProjectGet(w http.ResponseWriter, r *http.Request) {
 	project, ok := s.projectFromRequest(w, r)
 	if !ok {
+		return
+	}
+	if err := projectcanon.EnsureCanon(project.Path, project.Name, nullString(project.Description)); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	sessions, err := s.repos.Projects.ListSessions(r.Context(), project.ID)
