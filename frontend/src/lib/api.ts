@@ -20,6 +20,45 @@ export interface SendMessageResponse {
   tokens: number;
 }
 
+export interface AgentStatus {
+  engine: string;
+  model: string;
+  ctx_window: number;
+  ctx_used: number;
+  ctx_pct: number;
+  cost_usd: number;
+  session_id?: string;
+  wa_enabled?: boolean;
+  permissions: string;
+}
+
+export const AGENT_STATUS_FALLBACK: AgentStatus = {
+  engine: "claude",
+  model: "sonnet",
+  ctx_window: 200_000,
+  ctx_used: 0,
+  ctx_pct: 0,
+  cost_usd: 0,
+  permissions: "bypass",
+};
+
+export interface UploadAttachment {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  path: string;
+  /** true when the backend endpoint was unavailable and we faked the upload client-side */
+  pending?: boolean;
+}
+
+export interface MessageAttachmentRef {
+  id: string;
+  name: string;
+  type: string;
+  path: string;
+}
+
 // Backend currently encodes Go's sql.NullString — wire shape is verbose.
 // Both shapes are tolerated by `unwrap`.
 type NullString = string | null | { String: string; Valid: boolean };
@@ -132,11 +171,50 @@ export const api = {
     return raw.map(normalize).sort((a, b) => a.ts - b.ts);
   },
 
-  async sendMessage(body: string): Promise<SendMessageResponse> {
+  async sendMessage(
+    body: string,
+    attachments?: MessageAttachmentRef[]
+  ): Promise<SendMessageResponse> {
+    const payload: Record<string, unknown> = { body };
+    if (attachments && attachments.length > 0) {
+      payload.attachments = attachments;
+    }
     return request<SendMessageResponse>("/api/messages", {
       method: "POST",
-      body: JSON.stringify({ body }),
+      body: JSON.stringify(payload),
     });
+  },
+
+  // ─── agent status ───────────────────────────
+  async agentStatus(): Promise<AgentStatus> {
+    return request<AgentStatus>("/api/agent/status");
+  },
+
+  // ─── uploads ────────────────────────────────
+  async upload(file: File): Promise<UploadAttachment> {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      credentials: "include",
+      body: fd,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new ApiError(res.status, text || res.statusText);
+    }
+    return res.json() as Promise<UploadAttachment>;
+  },
+
+  async deleteUpload(id: string): Promise<void> {
+    const res = await fetch(`/api/uploads/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!res.ok && res.status !== 404) {
+      const text = await res.text().catch(() => "");
+      throw new ApiError(res.status, text || res.statusText);
+    }
   },
 
   // ─── system ─────────────────────────────────

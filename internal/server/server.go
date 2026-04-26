@@ -102,6 +102,13 @@ func (s *Server) routes() http.Handler {
 		pr.Get("/api/messages", s.handleMessagesList)
 		pr.Post("/api/messages", s.handleMessagesSend)
 
+		// Agent status (StatusBar UI)
+		pr.Get("/api/agent/status", s.handleAgentStatus)
+
+		// Uploads — adjuntar archivos al prompt
+		pr.Post("/api/upload", s.handleUpload)
+		pr.Delete("/api/uploads/{id}", s.handleDeleteUpload)
+
 		// System manager
 		pr.Get("/api/system/stats", s.handleSystemStats)
 		pr.Get("/api/system/services", s.handleSystemServices)
@@ -286,7 +293,34 @@ func (s *Server) handleMessagesList(w http.ResponseWriter, r *http.Request) {
 }
 
 type sendMsgReq struct {
-	Body string `json:"body"`
+	Body        string         `json:"body"`
+	Attachments []msgAttachment `json:"attachments,omitempty"`
+}
+
+// msgAttachment is the lightweight reference the client sends back after upload.
+type msgAttachment struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Type string `json:"type"`
+	Path string `json:"path"`
+	Size int64  `json:"size,omitempty"`
+}
+
+// formatAttachments expands the attachments list into a footer the agent reads.
+// The agent (Claude) can use the Read tool to inspect them at the given paths.
+func formatAttachments(att []msgAttachment) string {
+	if len(att) == 0 {
+		return ""
+	}
+	lines := []string{"", "[archivos adjuntos del user — leelos con la tool Read si te ayudan a responder]"}
+	for _, a := range att {
+		size := ""
+		if a.Size > 0 {
+			size = fmt.Sprintf(" (%d bytes)", a.Size)
+		}
+		lines = append(lines, fmt.Sprintf("- %s%s · type=%s · path=%s", a.Name, size, a.Type, a.Path))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (s *Server) handleMessagesSend(w http.ResponseWriter, r *http.Request) {
@@ -299,6 +333,9 @@ func (s *Server) handleMessagesSend(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "empty", http.StatusBadRequest)
 		return
 	}
+	// Persist the user message verbatim (without the attachments footer — that's
+	// only for the agent prompt). The UI shows what the user wrote, not the path
+	// list.
 	id, err := s.repos.Messages.Insert(r.Context(), store.Message{
 		Channel:   "web",
 		Direction: "in",
@@ -310,6 +347,9 @@ func (s *Server) handleMessagesSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.broadcastMessage(id, "web", "in", req.Body)
+
+	// Build the actual prompt sent to the engine: user text + attachments footer.
+	enginePrompt := req.Body + formatAttachments(req.Attachments)
 
 	// Resume id of the main agent's session (persisted between turns).
 	mainSess, _ := s.repos.Sessions.GetAgentSession(r.Context(), "main-agent")
@@ -324,7 +364,7 @@ func (s *Server) handleMessagesSend(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
 	defer cancel()
 	res, err := s.engines.Run(ctx, cliengine.RunOpts{
-		Prompt:    req.Body,
+		Prompt:    enginePrompt,
 		SessionID: prev,
 		Channel:   "web",
 		Cwd:       ".",
