@@ -1,7 +1,49 @@
 import * as React from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Bot, AlertTriangle, Info, X } from "lucide-react";
 import { wsClient } from "@/lib/wsClient";
+
+// Web Audio API blip — synthesizes a short two-tone notification on demand.
+// We don't ship an audio file because (a) one less network request, (b) no
+// licensing question, and (c) it's a couple of lines.
+let audioCtx: AudioContext | null = null;
+function playBlip(severity: "info" | "warn" | "error") {
+  try {
+    if (!audioCtx) {
+      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctx) return;
+      audioCtx = new Ctx();
+    }
+    const ctx = audioCtx;
+    if (ctx.state === "suspended") void ctx.resume();
+    const now = ctx.currentTime;
+    const freq = severity === "error" ? 320 : severity === "warn" ? 520 : 740;
+    const tones = severity === "error" ? [freq, freq * 0.7] : [freq, freq * 1.5];
+    tones.forEach((f, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = f;
+      const start = now + i * 0.12;
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.18, start + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.18);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + 0.2);
+    });
+  } catch {
+    // ignore — autoplay policy or unavailable
+  }
+}
+
+// Map a notification kind to the route we should offer to navigate to.
+function routeForKind(kind: string): string | null {
+  if (kind.startsWith("main_turn")) return "/";
+  if (kind.startsWith("agent_run")) return "/agents";
+  if (kind.startsWith("project_turn")) return "/projects";
+  return null;
+}
 
 export interface Notification {
   id: string;
@@ -71,6 +113,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       const n = parsePayload(env.payload);
       if (!n || !n.id) return;
       push(n);
+      playBlip(n.severity ?? "info");
     });
     return off;
   }, [push]);
@@ -114,6 +157,7 @@ function RoutedToastStack({
   dismiss: (id: string) => void;
 }) {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const [now, setNow] = React.useState(Date.now());
   React.useEffect(() => {
     const t = window.setInterval(() => setNow(Date.now()), 1000);
@@ -123,17 +167,36 @@ function RoutedToastStack({
     .filter((i) => !i.read && now - i.ts * 1000 < TOAST_TTL_MS && shouldToast(i.kind, pathname))
     .slice(0, 4);
 
+  const handleClick = (n: Notification) => {
+    const route = routeForKind(n.kind);
+    if (!route || pathname === route || pathname.startsWith(route + "/")) {
+      dismiss(n.id);
+      return;
+    }
+    const ok = window.confirm(`${n.title}\n\nIr a ${route} ?`);
+    if (ok) navigate(route);
+    dismiss(n.id);
+  };
+
   if (visible.length === 0) return null;
   return (
     <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
       {visible.map((n) => (
-        <Toast key={n.id} n={n} onClose={() => dismiss(n.id)} />
+        <Toast key={n.id} n={n} onClose={() => dismiss(n.id)} onClick={() => handleClick(n)} />
       ))}
     </div>
   );
 }
 
-function Toast({ n, onClose }: { n: Notification; onClose: () => void }) {
+function Toast({
+  n,
+  onClose,
+  onClick,
+}: {
+  n: Notification;
+  onClose: () => void;
+  onClick: () => void;
+}) {
   const accent =
     n.severity === "error"
       ? "var(--color-danger)"
@@ -141,9 +204,25 @@ function Toast({ n, onClose }: { n: Notification; onClose: () => void }) {
       ? "var(--color-orange)"
       : "var(--color-cyan)";
   const Icon = n.severity === "error" ? AlertTriangle : n.kind.startsWith("agent_run") ? Bot : Info;
+  const hasRoute = routeForKind(n.kind) !== null;
   return (
     <div
-      className="pointer-events-auto clip-tag flex gap-3 px-3 py-2 backdrop-blur-sm border"
+      role={hasRoute ? "button" : undefined}
+      tabIndex={hasRoute ? 0 : -1}
+      onClick={hasRoute ? onClick : undefined}
+      onKeyDown={
+        hasRoute
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      className={`pointer-events-auto clip-tag flex gap-3 px-3 py-2 backdrop-blur-sm border ${
+        hasRoute ? "cursor-pointer hover:scale-[1.01] transition-transform" : ""
+      }`}
       style={{
         background: "rgba(10, 15, 36, 0.90)",
         borderColor: accent,
@@ -162,7 +241,10 @@ function Toast({ n, onClose }: { n: Notification; onClose: () => void }) {
         )}
       </div>
       <button
-        onClick={onClose}
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
         className="text-[var(--color-dim)] hover:text-[var(--color-fg)] transition-colors p-0.5 cursor-pointer self-start"
         aria-label="cerrar"
       >
