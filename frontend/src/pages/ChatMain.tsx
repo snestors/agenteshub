@@ -80,7 +80,7 @@ function fromWs(m: WsAgentPayload): AgentMessage {
 export function ChatMain() {
   // Live ghost bubbles for in-flight turns are managed by the global
   // StreamsProvider so they survive cross-navigation. We only read from it.
-  const { agentGhostsList: ghostList, markAgentPending, dismissAgentGhost } = useStreams();
+  const { agentGhostsList: ghostList, markAgentPending, clearAgentGhosts } = useStreams();
   const [messages, setMessages] = React.useState<AgentMessage[]>([]);
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
@@ -202,19 +202,15 @@ export function ChatMain() {
         return next;
       });
       lastIdRef.current = Math.max(lastIdRef.current, incoming.id);
-      // The persisted agent reply just arrived — dismiss its ghost (if any).
-      // We don't know the session_id from the message envelope itself, so
-      // we drop every ghost on 'out' direction since there's typically only
-      // one in-flight turn per session here.
+      // The persisted agent reply just arrived — clear any in-flight ghost
+      // (real or pending placeholder). We use the imperative clear instead
+      // of iterating ghostList so a stale closure can't leak the placeholder.
       if (incoming.direction === "out") {
-        for (const g of Object.values(ghostList)) {
-          const sid = g.id.replace(/^stream-/, "");
-          dismissAgentGhost(sid);
-        }
+        clearAgentGhosts();
       }
       setError(null);
     },
-    [ghostList, dismissAgentGhost]
+    [clearAgentGhosts]
   );
 
   // subscribe to the unified /ws endpoint, topic "agent"

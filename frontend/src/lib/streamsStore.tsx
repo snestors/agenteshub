@@ -38,6 +38,10 @@ interface StreamsState {
   markAgentPending: () => void;
   /** Drop a ghost once the persisted message has reached the consumer. */
   dismissAgentGhost: (sessionId: string) => void;
+  /** Clear every ghost on the agent topic — used when the assistant's
+   *  persisted message arrives, since at that point any in-flight ghost
+   *  (placeholder or real) is stale.  */
+  clearAgentGhosts: () => void;
 }
 
 const PENDING_KEY = "__pending__";
@@ -204,12 +208,26 @@ export function StreamsProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const clearAgentGhosts = React.useCallback(() => {
+    setByTopic((curr) => {
+      const inner = curr.agent ?? {};
+      if (Object.keys(inner).length === 0) return curr;
+      return { ...curr, agent: {} };
+    });
+  }, []);
+
   const agentGhosts = byTopic.agent ?? {};
   const agentGhostsList = React.useMemo(() => Object.values(agentGhosts), [agentGhosts]);
 
   const value = React.useMemo<StreamsState>(
-    () => ({ agentGhosts, agentGhostsList, markAgentPending, dismissAgentGhost }),
-    [agentGhosts, agentGhostsList, markAgentPending, dismissAgentGhost]
+    () => ({
+      agentGhosts,
+      agentGhostsList,
+      markAgentPending,
+      dismissAgentGhost,
+      clearAgentGhosts,
+    }),
+    [agentGhosts, agentGhostsList, markAgentPending, dismissAgentGhost, clearAgentGhosts]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
