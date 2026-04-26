@@ -84,26 +84,89 @@ export function ChatMain() {
   const [messages, setMessages] = React.useState<AgentMessage[]>([]);
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
+  const [loadingOlder, setLoadingOlder] = React.useState(false);
+  const [hasMoreOlder, setHasMoreOlder] = React.useState(true);
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [searchResults, setSearchResults] = React.useState<AgentMessage[] | null>(null);
+  const [searching, setSearching] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const lastIdRef = React.useRef<number>(0);
 
   // ─── load helpers ──────────────────────────────
   const refresh = React.useCallback(async () => {
     try {
-      const list = await api.listMessages();
+      const list = await api.listMessages({ limit: 50 });
       const lastId = list.length ? list[list.length - 1].id : 0;
       lastIdRef.current = lastId;
       setMessages(list);
+      setHasMoreOlder(list.length === 50);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "error de red");
     }
   }, []);
 
+  const loadOlder = React.useCallback(async () => {
+    if (loadingOlder || !hasMoreOlder) return;
+    if (messages.length === 0) return;
+    const oldestId = messages[0].id;
+    if (oldestId <= 0) return; // optimistic — wait until real id arrives
+    setLoadingOlder(true);
+    const el = scrollRef.current;
+    const prevScrollHeight = el?.scrollHeight ?? 0;
+    try {
+      const older = await api.listMessages({ before: oldestId, limit: 50 });
+      if (older.length === 0) {
+        setHasMoreOlder(false);
+      } else {
+        setMessages((curr) => {
+          const have = new Set(curr.map((m) => m.id));
+          const merged = [...older.filter((m) => !have.has(m.id)), ...curr];
+          return merged.sort((a, b) => a.ts - b.ts);
+        });
+        if (older.length < 50) setHasMoreOlder(false);
+        // Preserve scroll position so the user stays where they were reading
+        requestAnimationFrame(() => {
+          const elNow = scrollRef.current;
+          if (elNow) elNow.scrollTop = elNow.scrollHeight - prevScrollHeight;
+        });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "error cargando historial");
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [loadingOlder, hasMoreOlder, messages]);
+
   // initial fetch — always do this so we have history before WS opens
   React.useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // ─── search ────────────────────────────────────
+  React.useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) {
+      setSearchResults(null);
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    const handle = window.setTimeout(async () => {
+      try {
+        const hits = await api.searchMessages(q);
+        if (!cancelled) setSearchResults(hits);
+      } catch {
+        if (!cancelled) setSearchResults([]);
+      } finally {
+        if (!cancelled) setSearching(false);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [searchQuery]);
 
   // ─── ws handler ────────────────────────────────
   // stream chunks are handled by StreamsProvider; here we only react to
@@ -191,10 +254,14 @@ export function ChatMain() {
     const onScroll = () => {
       const fromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
       stickToBottomRef.current = fromBottom < 80;
+      // Trigger lazy-load of older messages when scrolling near the top.
+      if (el.scrollTop < 120 && !searchResults) {
+        void loadOlder();
+      }
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
-  }, []);
+  }, [loadOlder, searchResults]);
 
   React.useEffect(() => {
     const el = scrollRef.current;
@@ -291,32 +358,66 @@ export function ChatMain() {
       <div className="flex-1 min-h-0 p-4 overflow-hidden">
         <HudPanel
           title="agente principal"
-          sub={`session-aware · ${messages.length} mensajes`}
+          sub={
+            searchResults
+              ? `búsqueda · ${searchResults.length} resultado${searchResults.length === 1 ? "" : "s"}`
+              : `session-aware · ${messages.length} mensajes`
+          }
           accent="magenta"
           className="h-full"
         >
+          <SearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            searching={searching}
+            resultsCount={searchResults?.length}
+          />
+
           <div
             ref={scrollRef}
             className="flex-1 min-h-0 overflow-y-auto pr-1"
           >
-            {messages.length === 0 && !error && !hasGhost && (
-              <div className="h-full flex items-center justify-center font-mono text-[11px] text-[var(--color-dim)] tracking-hud-tight">
-                ▸ sin mensajes aún · escribí algo abajo
+            {loadingOlder && !searchResults && (
+              <div className="px-1 py-2 font-mono text-[10px] text-[var(--color-dim)] tracking-hud-tight italic text-center">
+                ▸ cargando historial…
+              </div>
+            )}
+            {!hasMoreOlder && messages.length > 0 && !searchResults && (
+              <div className="px-1 py-2 font-mono text-[9px] text-[var(--color-dim)] tracking-hud-tight uppercase text-center opacity-50">
+                — inicio de la conversación —
               </div>
             )}
 
-            {messages.map((m) => (
-              <MessageBubble key={m.id} message={m} />
-            ))}
+            {searchResults ? (
+              searchResults.length === 0 ? (
+                <div className="h-full flex items-center justify-center font-mono text-[11px] text-[var(--color-dim)] tracking-hud-tight">
+                  ▸ {searching ? "buscando…" : "sin resultados"}
+                </div>
+              ) : (
+                searchResults.map((m) => <MessageBubble key={m.id} message={m} />)
+              )
+            ) : (
+              <>
+                {messages.length === 0 && !error && !hasGhost && (
+                  <div className="h-full flex items-center justify-center font-mono text-[11px] text-[var(--color-dim)] tracking-hud-tight">
+                    ▸ sin mensajes aún · escribí algo abajo
+                  </div>
+                )}
 
-            {ghostList.map((g) => (
-              <GhostBubble key={g.id} data={g} />
-            ))}
+                {messages.map((m) => (
+                  <MessageBubble key={m.id} message={m} />
+                ))}
 
-            {pending && !hasGhost && (
-              <div className="px-1 py-2 font-mono text-[10px] text-[var(--color-magenta)] tracking-hud animate-pulse">
-                ◂ MAIN está pensando…
-              </div>
+                {ghostList.map((g) => (
+                  <GhostBubble key={g.id} data={g} />
+                ))}
+
+                {pending && !hasGhost && (
+                  <div className="px-1 py-2 font-mono text-[10px] text-[var(--color-magenta)] tracking-hud animate-pulse">
+                    ◂ MAIN está pensando…
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -339,6 +440,52 @@ export function ChatMain() {
           </div>
         </HudPanel>
       </div>
+    </div>
+  );
+}
+
+function SearchBar({
+  value,
+  onChange,
+  searching,
+  resultsCount,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  searching: boolean;
+  resultsCount?: number;
+}) {
+  return (
+    <div className="mb-2 flex items-center gap-2">
+      <span
+        className="font-mono text-[10px] uppercase tracking-hud-tight text-[var(--color-dim)] flex items-center gap-1"
+        style={{ minWidth: 60 }}
+      >
+        ▸ buscar
+      </span>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="palabra clave (FTS5)…"
+        className="flex-1 font-mono text-[11.5px] px-2 py-1 clip-tag border bg-[rgba(255,255,255,0.02)] text-[var(--color-fg)] focus:outline-none"
+        style={{ borderColor: "var(--color-line)" }}
+      />
+      {value && (
+        <span className="font-mono text-[9px] uppercase tracking-hud-tight text-[var(--color-dim)]">
+          {searching ? "…" : resultsCount !== undefined ? `${resultsCount} hits` : ""}
+        </span>
+      )}
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          className="font-mono text-[10px] uppercase tracking-hud-tight px-2 py-1 clip-tag border text-[var(--color-dim)] hover:text-[var(--color-fg)] cursor-pointer transition-colors"
+          style={{ borderColor: "var(--color-line)" }}
+        >
+          clear
+        </button>
+      )}
     </div>
   );
 }

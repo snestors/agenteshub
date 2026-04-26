@@ -313,10 +313,21 @@ export const api = {
   },
 
   // ─── messages ───────────────────────────────
-  async listMessages(): Promise<AgentMessage[]> {
-    const res = await request<{ messages: RawMessage[] | null }>("/api/messages");
+  async listMessages(opts?: { before?: number; limit?: number }): Promise<AgentMessage[]> {
+    const qs = new URLSearchParams();
+    if (opts?.before && opts.before > 0) qs.set("before", String(opts.before));
+    if (opts?.limit && opts.limit > 0) qs.set("limit", String(opts.limit));
+    const path = qs.toString() ? `/api/messages?${qs.toString()}` : "/api/messages";
+    const res = await request<{ messages: RawMessage[] | null }>(path);
     const raw = res.messages ?? [];
     return raw.map(normalize).sort((a, b) => a.ts - b.ts);
+  },
+
+  async searchMessages(query: string, limit = 50): Promise<AgentMessage[]> {
+    const qs = new URLSearchParams({ q: query, limit: String(limit) });
+    const res = await request<{ messages: RawMessage[] | null }>(`/api/messages/search?${qs.toString()}`);
+    const raw = res.messages ?? [];
+    return raw.map(normalize).sort((a, b) => b.ts - a.ts); // search results: newest first
   },
 
   async sendMessage(

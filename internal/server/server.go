@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -122,6 +123,7 @@ func (s *Server) routes() http.Handler {
 
 		// stubs (próximas tools)
 		pr.Get("/api/messages", s.handleMessagesList)
+		pr.Get("/api/messages/search", s.handleMessagesSearch)
 		pr.Post("/api/messages", s.handleMessagesSend)
 
 		// Agent status (StatusBar UI)
@@ -366,12 +368,51 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 // ---------- messages stubs (los completa Bloque 2) ----------
 
 func (s *Server) handleMessagesList(w http.ResponseWriter, r *http.Request) {
-	msgs, err := s.repos.Messages.Recent(r.Context(), "", 50)
+	limit := parseIntDefault(r.URL.Query().Get("limit"), 50)
+	before := parseInt64Default(r.URL.Query().Get("before"), 0)
+	msgs, err := s.repos.Messages.Range(r.Context(), "", before, limit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"messages": msgs})
+}
+
+func (s *Server) handleMessagesSearch(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query().Get("q")
+	if strings.TrimSpace(q) == "" {
+		writeJSON(w, http.StatusOK, map[string]any{"messages": []store.Message{}})
+		return
+	}
+	limit := parseIntDefault(r.URL.Query().Get("limit"), 50)
+	msgs, err := s.repos.Messages.Search(r.Context(), "", q, limit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"messages": msgs, "query": q})
+}
+
+func parseIntDefault(s string, def int) int {
+	if s == "" {
+		return def
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return def
+	}
+	return n
+}
+
+func parseInt64Default(s string, def int64) int64 {
+	if s == "" {
+		return def
+	}
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil || n < 0 {
+		return def
+	}
+	return n
 }
 
 type sendMsgReq struct {
