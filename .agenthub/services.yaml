@@ -1,0 +1,11 @@
+# AgentHub service manifest.
+services:
+  - kind: systemd
+    unit: agenthub.service
+    description: AgentHub daemon Go + frontend estático
+    health_url: http://127.0.0.1:8093/healthz
+    public_url: http://127.0.0.1:8093
+
+  - kind: docker
+    container: engram-cloud-postgres
+    description: Engram/Postgres dependency container
