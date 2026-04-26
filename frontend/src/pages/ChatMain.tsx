@@ -1,5 +1,10 @@
 import * as React from "react";
-import { api, wsUrl, type AgentMessage } from "@/lib/api";
+import {
+  api,
+  wsUrl,
+  type AgentMessage,
+  type MessageAttachmentRef,
+} from "@/lib/api";
 import { useWebSocket } from "@/lib/useWebSocket";
 import { Composer } from "@/components/Composer";
 import { MessageBubble } from "@/components/MessageBubble";
@@ -10,6 +15,7 @@ import {
 } from "@/components/GhostBubble";
 import { HudPanel } from "@/components/HudPanel";
 import { Topbar } from "@/components/Topbar";
+import { StatusBar } from "@/components/StatusBar";
 
 const POLL_MS = 2000;
 
@@ -295,7 +301,7 @@ export function ChatMain() {
   }, [messages.length, pending, ghostSig]);
 
   // ─── send ──────────────────────────────────────
-  async function handleSend(body: string) {
+  async function handleSend(body: string, attachments: MessageAttachmentRef[]) {
     setPending(true);
     const optimisticId = -Date.now();
     setMessages((curr) => [
@@ -310,7 +316,7 @@ export function ChatMain() {
       },
     ]);
     try {
-      const res = await api.sendMessage(body);
+      const res = await api.sendMessage(body, attachments);
       // reconcile optimistic bubble with the real id from the POST
       setMessages((curr) => {
         const next = curr.slice();
@@ -423,6 +429,7 @@ export function ChatMain() {
 
           <div className="mt-2 -mx-4 -mb-3">
             <Composer onSend={handleSend} />
+            <StatusBar transportLabel={transportLabel} />
           </div>
         </HudPanel>
       </div>
