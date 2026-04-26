@@ -33,6 +33,7 @@ Tres causas:
 
 | Decisión | Detalle |
 | --- | --- |
+| 2026-04-26 | Fase A.2 implementada: OpenSpec por proyecto con `openspec/{specs,changes,archive}/`, tabla `openspec_changes`, endpoints gated propose/design/tasks/apply/verify/archive, tab Changes, templates inline SDD y skill `sdd-workflow`. |
 | **Orquestadores = Opus** | Main agent, project-main, sdd-propose, sdd-design, project-evaluator. Razonamiento crack importa. |
 | **Verificadores = Sonnet** | Review, sdd-verify, security-check. Juicio sólido y más barato que Opus. |
 | **Ejecutores = Codex GPT-5.5** | sdd-apply, frontend-specialist, backend-specialist, deploy-specialist. Trabajo sucio sin consumir cuota Anthropic. |
@@ -278,6 +279,7 @@ Investigación del user (validar antes de importar; algunas son URLs incompletas
 
 | Skill | Origen | Para qué |
 | --- | --- | --- |
+| 2026-04-26 | Fase A.2 implementada: OpenSpec por proyecto con `openspec/{specs,changes,archive}/`, tabla `openspec_changes`, endpoints gated propose/design/tasks/apply/verify/archive, tab Changes, templates inline SDD y skill `sdd-workflow`. |
 | Frontend Design Skill | Anthropic (claude-...) | Patrones de UI/UX para Claude |
 | Interface Design | <https://skills.sh/dammyjay93/interfac...> | Diseño de interfaces |
 | Vercel React Best Practices | <https://skills.sh/vercel-labs/agent-s...> | React + Next + Vercel |
@@ -297,6 +299,7 @@ Política: **antes de importar**, el `agent-builder` o vos mismo revisan la skil
 
 | Fase | Qué entrega | Prioridad |
 | --- | --- | --- |
+| 2026-04-26 | Fase A.2 implementada: OpenSpec por proyecto con `openspec/{specs,changes,archive}/`, tabla `openspec_changes`, endpoints gated propose/design/tasks/apply/verify/archive, tab Changes, templates inline SDD y skill `sdd-workflow`. |
 | **0** | **AgentHub renderiza esquemas e imágenes**: mermaid en chat, endpoint `GET /api/uploads/{id}` con auth JWT, image preview en MessageBubble cuando `media_type=image`, ruta `/diagrams` con Excalidraw embebido, tabla `diagrams`, endpoints CRUD + generate, skill `diagram-architect` skeleton | **Hacer ya** |
 | **A.1** | Project canon + `services.yaml` + carga de `CLAUDE.md` como append-system-prompt cuando el cwd es del proyecto. Reader Go del manifest + endpoint live status + tab UI con cards | Después |
 | **A.2** | OpenSpec adoptado: `<project>/openspec/{specs,changes,archive}/` + MCP tools `openspec_propose / openspec_apply / openspec_archive` + UI con gates de aprobación explícitos | |
@@ -332,6 +335,7 @@ Política: **antes de importar**, el `agent-builder` o vos mismo revisan la skil
 
 | Fecha | Cambio |
 | --- | --- |
+| 2026-04-26 | Fase A.2 implementada: OpenSpec por proyecto con `openspec/{specs,changes,archive}/`, tabla `openspec_changes`, endpoints gated propose/design/tasks/apply/verify/archive, tab Changes, templates inline SDD y skill `sdd-workflow`. |
 | 2026-04-26 | Fase A.1 implementada: canon por proyecto, `.agenthub/services.yaml`, status live de servicios, tab Services y append-system-prompt con `CLAUDE.md` del proyecto por cwd. |
 | 2026-04-26 | Fase 0 implementada: render Mermaid inline en chat, previews de imágenes protegidas por auth, endpoint de uploads/file, CRUD + generate de diagramas, pantalla `/diagrams` con Excalidraw, y skill `diagram-architect` skeleton. |
 | 2026-04-26 | Documento creado. Decisiones congeladas: 3 niveles, engines por rol (opus/sonnet/codex/ollama), SDD con gates, OpenSpec format, Excalidraw para diagramas. Fase 0 = render de mermaid + UI Excalidraw. |

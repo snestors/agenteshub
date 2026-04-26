@@ -15,4 +15,5 @@ Path: `/home/nestor/agenthub`
 
 - `go-testing`: usar cuando se escriban o modifiquen tests Go.
 - `branch-pr` / `issue-creation`: usar para flujos GitHub cuando aplique.
-- TODO: listar skills custom en `.claude/skills/`.
+- `sdd-workflow`: reglas OpenSpec/SDD con gates obligatorios para proposal/design/tasks/apply/verify/archive.
+- TODO: listar más skills custom en `.claude/skills/`.
