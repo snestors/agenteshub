@@ -23,16 +23,26 @@ import (
 // TickInterval is how often the scheduler polls for due jobs.
 const TickInterval = 30 * time.Second
 
+// RunFinishedFn is called after every cron run with its outcome so the
+// server can broadcast a notification. Optional — if nil, no-op.
+type RunFinishedFn func(ctx context.Context, agentName string, agentID, runID int64, status, result, errStr string)
+
 // Scheduler is the runtime worker that drives agent_schedules.
 type Scheduler struct {
-	repos   *store.Repos
-	engines *cliengine.Manager
-	log     *slog.Logger
+	repos      *store.Repos
+	engines    *cliengine.Manager
+	log        *slog.Logger
+	onFinished RunFinishedFn
 }
 
 // New constructs the scheduler.
 func New(repos *store.Repos, engines *cliengine.Manager, log *slog.Logger) *Scheduler {
 	return &Scheduler{repos: repos, engines: engines, log: log.With("comp", "scheduler")}
+}
+
+// SetRunFinishedHook installs a callback fired after each cron run finishes.
+func (s *Scheduler) SetRunFinishedHook(fn RunFinishedFn) {
+	s.onFinished = fn
 }
 
 // Start launches the scheduler loop in a goroutine.
@@ -155,6 +165,10 @@ func (s *Scheduler) runAgent(ctx context.Context, agent *store.Agent, sched stor
 	}
 	if ferr := s.repos.Agents.FinishRun(ctx, runID, status, result, tokens, errStr); ferr != nil {
 		s.log.Warn("finish run", "agent", agent.Name, "err", ferr)
+	}
+
+	if s.onFinished != nil {
+		s.onFinished(ctx, agent.Name, agent.ID, runID, status, result, errStr)
 	}
 
 	// Route notification.

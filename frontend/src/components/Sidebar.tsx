@@ -1,4 +1,3 @@
-import { NavLink } from "react-router-dom";
 import {
   MessageSquare,
   FolderKanban,
@@ -8,24 +7,27 @@ import {
   Activity,
   LogOut,
 } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { useNotifications } from "@/lib/notifications";
 
 interface NavItem {
   to: string;
   label: string;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
-  badge?: number;
+  /** kind prefix used to count unread notifications for this section, if any */
+  notifPrefix?: string;
   accent: "cyan" | "magenta" | "lime" | "orange";
 }
 
 const ITEMS: NavItem[] = [
-  { to: "/", label: "Chat", icon: MessageSquare, badge: 0, accent: "cyan" },
-  { to: "/projects", label: "Proyectos", icon: FolderKanban, badge: 0, accent: "lime" },
-  { to: "/agents", label: "Mini-agentes", icon: Bot, badge: 0, accent: "orange" },
-  { to: "/topics", label: "Topics", icon: Hash, badge: 0, accent: "magenta" },
-  { to: "/subagents", label: "Sub-agentes", icon: GitBranch, badge: 0, accent: "cyan" },
-  { to: "/system", label: "Health", icon: Activity, badge: 0, accent: "lime" },
+  { to: "/", label: "Chat", icon: MessageSquare, accent: "cyan" },
+  { to: "/projects", label: "Proyectos", icon: FolderKanban, accent: "lime" },
+  { to: "/agents", label: "Mini-agentes", icon: Bot, notifPrefix: "agent_run", accent: "orange" },
+  { to: "/topics", label: "Topics", icon: Hash, accent: "magenta" },
+  { to: "/subagents", label: "Sub-agentes", icon: GitBranch, accent: "cyan" },
+  { to: "/system", label: "Health", icon: Activity, accent: "lime" },
 ];
 
 const ACCENT_VAR: Record<NavItem["accent"], string> = {
@@ -36,6 +38,10 @@ const ACCENT_VAR: Record<NavItem["accent"], string> = {
 };
 
 export function Sidebar({ username }: { username?: string }) {
+  const { unreadByKindPrefix, markAllRead } = useNotifications();
+  const location = useLocation();
+  const navigate = useNavigate();
+
   async function handleLogout() {
     try {
       await api.logout();
@@ -43,6 +49,17 @@ export function Sidebar({ username }: { username?: string }) {
       // ignore — cookie may already be invalid
     }
     window.location.href = "/login";
+  }
+
+  function handleNavClick(item: NavItem) {
+    if (item.notifPrefix && location.pathname.startsWith(item.to)) {
+      // already on the section — clearing unread is a no-op visually
+      return;
+    }
+    if (item.notifPrefix) {
+      markAllRead();
+    }
+    navigate(item.to);
   }
 
   return (
@@ -92,57 +109,49 @@ export function Sidebar({ username }: { username?: string }) {
         {ITEMS.map((item) => {
           const Icon = item.icon;
           const accentColor = ACCENT_VAR[item.accent];
+          const badge = item.notifPrefix ? unreadByKindPrefix(item.notifPrefix) : 0;
+          const isActive =
+            item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to);
           return (
-            <NavLink
+            <button
               key={item.to}
-              to={item.to}
-              end={item.to === "/"}
-              className={({ isActive }) =>
-                cn(
-                  "group relative flex items-center gap-3 px-3 py-2 font-mono text-[11px] uppercase tracking-hud-tight transition-colors clip-tag",
-                  isActive
-                    ? "bg-[rgba(94,240,255,0.08)] text-[var(--color-fg)]"
-                    : "text-[var(--color-dim)] hover:text-[var(--color-fg)] hover:bg-[rgba(120,255,220,0.04)]"
-                )
-              }
-              style={({ isActive }: { isActive: boolean }) =>
+              type="button"
+              onClick={() => handleNavClick(item)}
+              className={cn(
+                "group relative flex items-center gap-3 px-3 py-2 font-mono text-[11px] uppercase tracking-hud-tight transition-colors clip-tag cursor-pointer text-left",
                 isActive
-                  ? {
-                      borderLeft: `2px solid ${accentColor}`,
-                    }
+                  ? "bg-[rgba(94,240,255,0.08)] text-[var(--color-fg)]"
+                  : "text-[var(--color-dim)] hover:text-[var(--color-fg)] hover:bg-[rgba(120,255,220,0.04)]"
+              )}
+              style={
+                isActive
+                  ? { borderLeft: `2px solid ${accentColor}` }
                   : { borderLeft: "2px solid transparent" }
               }
             >
-              {({ isActive }) => (
-                <>
-                  <Icon
-                    size={14}
-                    strokeWidth={1.6}
-                  />
-                  <span className="flex-1">{item.label}</span>
-                  {item.badge !== undefined && item.badge > 0 && (
-                    <span
-                      className="font-display font-bold text-[10px] px-1.5"
-                      style={{
-                        color: accentColor,
-                        background: `${accentColor}15`,
-                      }}
-                    >
-                      {item.badge}
-                    </span>
-                  )}
-                  {isActive && (
-                    <span
-                      className="absolute right-2 w-1 h-1 rounded-full"
-                      style={{
-                        background: accentColor,
-                        boxShadow: `0 0 6px ${accentColor}`,
-                      }}
-                    />
-                  )}
-                </>
+              <Icon size={14} strokeWidth={1.6} />
+              <span className="flex-1">{item.label}</span>
+              {badge > 0 && (
+                <span
+                  className="font-display font-bold text-[10px] px-1.5"
+                  style={{
+                    color: accentColor,
+                    background: `${accentColor}15`,
+                  }}
+                >
+                  {badge > 99 ? "99+" : badge}
+                </span>
               )}
-            </NavLink>
+              {isActive && (
+                <span
+                  className="absolute right-2 w-1 h-1 rounded-full"
+                  style={{
+                    background: accentColor,
+                    boxShadow: `0 0 6px ${accentColor}`,
+                  }}
+                />
+              )}
+            </button>
           );
         })}
       </nav>

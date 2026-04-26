@@ -349,6 +349,27 @@ func (s *Server) runAgentManual(ctx context.Context, agent *store.Agent, runID i
 		"finished_at": time.Now().Unix(),
 	})
 	s.hub.Broadcast(ws.Envelope{Type: "run", Topic: topic, Payload: raw})
+
+	kind := "agent_run_done"
+	severity := "info"
+	body := truncate(result, 280)
+	if status != "ok" {
+		kind = "agent_run_failed"
+		severity = "error"
+		body = truncate(errStr, 280)
+	}
+	s.broadcastNotification(Notification{
+		Kind:     kind,
+		Severity: severity,
+		Title:    "Agent · " + agent.Name,
+		Body:     body,
+		Context: map[string]any{
+			"agent_id": agent.ID,
+			"run_id":   runID,
+			"trigger":  "manual",
+			"status":   status,
+		},
+	})
 }
 
 func (s *Server) agentFromRequest(w http.ResponseWriter, r *http.Request) (*store.Agent, bool) {

@@ -111,13 +111,14 @@ func runServe() {
 	defer cronRunner.Stop()
 
 	sched := scheduler.New(repos, engines, logger)
-	sched.Start(ctx)
 
 	srv, err := server.New(cfg, repos, engines, sm, logger)
 	if err != nil {
 		logger.Error("server new", "err", err)
 		os.Exit(1)
 	}
+	sched.SetRunFinishedHook(srv.NotifyAgentRunFinished)
+	sched.Start(ctx)
 
 	logger.Info("agenthub starting", "addr", cfg.HTTPAddr, "dev_bypass_totp", cfg.DevBypassTOTP, "wa_enabled", cfg.WAEnabled)
 
