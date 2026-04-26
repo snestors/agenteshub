@@ -88,6 +88,8 @@
 - **Agent control**: `GET /api/agent/status` (incluye plan + usage local), `GET /api/agent/engines`, `POST /api/agent/engine` (compat) + WS action `set_engine`
 - **System**: `GET /api/system/stats`, `/services`, `/processes`, `/connections`, `POST /api/system/services/{name}/{action}` (compat) + `WS /ws` topic `system` + action `service_action` con `{name, op}`
 - **Uploads**: `POST /api/upload` (max 50MB), `DELETE /api/uploads/{id}`
+- **Projects #42**: `GET/POST /api/projects`, `GET /api/projects/{id}`, `GET/POST /api/projects/{id}/sessions`, `GET/POST /api/projects/{id}/sessions/{sid}/messages`; project chats streamean por topic `project_session:<project_session_id>`.
+- **Mini-agentes #43**: `GET/POST /api/agents`, `GET /api/agents/{id}`, `POST /api/agents/{id}/enabled`, `POST /api/agents/{id}/run`, `GET /api/agents/{id}/runs`, `POST /api/agents/{id}/schedules`, `POST /api/agents/{id}/schedules/{sid}/enabled`, `DELETE /api/agents/{id}/schedules/{sid}`; manual runs streamean por topic `agent_run:<run_id>`.
 - **Health**: `GET /healthz`
 - **Frontend SPA**: `GET /` y `/*` sirven `frontend/dist/`; `index.html`/fallback van con `Cache-Control: no-store`, `/assets/*` hasheados con `public, max-age=31536000, immutable`, otros estáticos con `public, max-age=3600`.
 
@@ -107,13 +109,15 @@ Migrations idempotentes via tabla `__migrations(name, applied_at)`.
 #### Stack
 Vite 8 + React 19 + TypeScript 6 + Tailwind v4 + shadcn-style components (escritos a mano, sin la CLI por TTY) + react-router-dom 7 + lucide-react + react-markdown + remark-gfm.
 
-Bundle: ~478 KB JS / 147 KB gz. Build: `cd frontend && pnpm run build`.
+Bundle actual: ~509 KB JS / 152 KB gz. Build: `cd frontend && pnpm run build`.
 
 #### Pantallas
 1. **Login** (`/login`) — username + password (+ TOTP cuando `need_totp:true`)
 2. **Chat con el main** (`/`) — pantalla principal con WS streaming
 3. **System** (`/system`) — gauges radiales SVG, services systemd, top procesos, conexiones
-4. **Placeholders** v1+ (Projects, Agents, Topics, Subagents)
+4. **Projects** (`/projects`, `/projects/:id`, `/projects/:id/sessions/:sid`) — cards, modal de alta, split view de sesiones y chat por proyecto con `ProjectChat` + topic `project_session:<id>`
+5. **Mini-agentes** (`/agents`, `/agents/:id`) — cards enabled/paused, detalle con tabs Schedules/Runs/Run now, streaming live por `agent_run:<id>`
+6. **Placeholders restantes** v2+ (Topics, Subagents)
 
 #### Componentes UX clave
 - **`Composer.tsx`**: auto-resize hasta 5 filas, paste-collapse a chips `[Pasted #N +M lines]`, drag-drop de archivos, attachments con chips lime/`pending` orange
@@ -297,6 +301,7 @@ Cosas que decidí o ajusté durante la implementación que no llegaron a doc:
 
 ## ✅ Bugs corregidos
 
+- **Projects #42 + Mini-agentes #43**: backend HTTP y UI funcional construidos. Smoke: creación/listado de proyecto, sesión y path inválido 400 OK; WS de project session verificado. Mini-agente creado, run manual persistido, schedule `*/5 * * * *` tomado por scheduler en el siguiente tick. Claude estaba rate-limited hasta 18:20 UTC, por eso los runs terminaron en `error`, pero el flujo persistió y reportó correctamente.
 - **Streaming en vivo en chat**: agregado `--include-partial-messages` al CLI `claude` en modo streaming. Sin ese flag, `stream-json` entregaba blocks `assistant` completos al final del turn (no deltas reales). El parser ahora decodifica `stream_event` → `content_block_delta` con `text_delta` / `thinking_delta`, ignora deltas parciales de tool JSON y mantiene `tool_use` / `tool_result` completos desde el evento `assistant`.
 
 ## 🛠 Cómo trabajar después de retomar
