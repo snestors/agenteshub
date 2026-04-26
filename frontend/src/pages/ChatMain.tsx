@@ -43,6 +43,8 @@ interface WsAgentPayload {
   body: string;
   ts: number;
   is_read?: boolean;
+  engine?: string;
+  model?: string;
 }
 
 type StreamKind = "text" | "tool_use" | "tool_result" | "thinking";
@@ -82,6 +84,8 @@ function fromWs(m: WsAgentPayload): AgentMessage {
     body: m.body ?? "",
     ts: m.ts,
     isRead: !!m.is_read,
+    engine: m.engine,
+    model: m.model,
   };
 }
 
@@ -396,11 +400,7 @@ export function ChatMain() {
             )}
 
             {messages.map((m) => (
-              <MessageBubble
-                key={m.id}
-                message={m}
-                topic={m.direction === "out" ? "main-agent" : null}
-              />
+              <MessageBubble key={m.id} message={m} />
             ))}
 
             {ghostList.map((g) => (

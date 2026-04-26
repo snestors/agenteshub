@@ -184,8 +184,8 @@ export function MessageBubble({ message, topic }: MessageBubbleProps) {
       </div>
 
       <div className="flex-1 min-w-0">
-        {/* header: role · time */}
-        <div className="flex items-center gap-2 mb-1">
+        {/* header: role · time · channel · engine·model (assistant) */}
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
           <span
             className="font-display font-semibold text-[10px] tracking-hud"
             style={{ color: accent }}
@@ -198,6 +198,19 @@ export function MessageBubble({ message, topic }: MessageBubbleProps) {
           <span className="font-mono text-[9px] text-[var(--color-dim)] uppercase">
             {message.channel}
           </span>
+          {!isUser && (message.engine || message.model) && (
+            <span
+              className="font-mono text-[9px] tracking-hud-tight px-1.5 py-px clip-tag"
+              style={{
+                color: "var(--color-cyan)",
+                background: "rgba(94, 240, 255, 0.08)",
+                border: "1px solid rgba(94, 240, 255, 0.30)",
+              }}
+              title="engine · model que respondió"
+            >
+              {[message.engine, message.model].filter(Boolean).join(" · ")}
+            </span>
+          )}
         </div>
 
         {/* body */}

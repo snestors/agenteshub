@@ -23,6 +23,8 @@ type Message struct {
 	ReplyTo       sql.NullString
 	TS            int64
 	IsRead        int
+	Engine        sql.NullString // engine usado para producir la respuesta (assistant turns)
+	Model         sql.NullString // model concreto (sonnet, opus, codex, gemma:2b...)
 }
 
 // MessagesRepo persists wa_messages.
@@ -35,11 +37,13 @@ func (r *MessagesRepo) Insert(ctx context.Context, m Message) (int64, error) {
 	res, err := r.db.ExecContext(ctx, `
 		INSERT INTO wa_messages(
 			channel, direction, jid, body, media_type, media_path, media_caption,
-			location_lat, location_lng, location_name, quoted_id, reply_to, ts, is_read
-		) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+			location_lat, location_lng, location_name, quoted_id, reply_to, ts, is_read,
+			engine, model
+		) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 	`,
 		m.Channel, m.Direction, m.JID, m.Body, m.MediaType, m.MediaPath, m.MediaCaption,
 		m.LocationLat, m.LocationLng, m.LocationName, m.QuotedID, m.ReplyTo, m.TS, m.IsRead,
+		m.Engine, m.Model,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("insert message: %w", err)
@@ -53,7 +57,8 @@ func (r *MessagesRepo) Recent(ctx context.Context, channel string, limit int) ([
 		limit = 50
 	}
 	q := `SELECT id, channel, direction, jid, body, media_type, media_path, media_caption,
-	             location_lat, location_lng, location_name, quoted_id, reply_to, ts, is_read
+	             location_lat, location_lng, location_name, quoted_id, reply_to, ts, is_read,
+	             engine, model
 	      FROM wa_messages`
 	args := []any{}
 	if channel != "" {
@@ -71,7 +76,8 @@ func (r *MessagesRepo) Recent(ctx context.Context, channel string, limit int) ([
 	for rows.Next() {
 		var m Message
 		if err := rows.Scan(&m.ID, &m.Channel, &m.Direction, &m.JID, &m.Body, &m.MediaType, &m.MediaPath, &m.MediaCaption,
-			&m.LocationLat, &m.LocationLng, &m.LocationName, &m.QuotedID, &m.ReplyTo, &m.TS, &m.IsRead); err != nil {
+			&m.LocationLat, &m.LocationLng, &m.LocationName, &m.QuotedID, &m.ReplyTo, &m.TS, &m.IsRead,
+			&m.Engine, &m.Model); err != nil {
 			return nil, fmt.Errorf("scan message: %w", err)
 		}
 		out = append(out, m)

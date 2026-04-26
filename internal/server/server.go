@@ -390,9 +390,11 @@ func (s *Server) handleMessagesSend(w http.ResponseWriter, r *http.Request) {
 		Direction: "out",
 		Body:      sqlStr(res.Text),
 		TS:        time.Now().Unix(),
+		Engine:    sqlStr(s.cfg.DefaultEngine),
+		Model:     sqlStr(s.cfg.DefaultModel),
 	})
-	s.broadcastMessage(outID, "web", "out", res.Text)
-	writeJSON(w, http.StatusOK, map[string]any{"id": id, "reply": res.Text, "session_id": res.SessionID, "tokens": res.CostTokens})
+	s.broadcastMessageWithModel(outID, "web", "out", res.Text, s.cfg.DefaultEngine, s.cfg.DefaultModel)
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "reply": res.Text, "session_id": res.SessionID, "tokens": res.CostTokens, "engine": s.cfg.DefaultEngine, "model": s.cfg.DefaultModel})
 }
 
 // ---------- frontend / static ----------
@@ -444,16 +446,29 @@ func (s *Server) streamEventBroadcaster() func(cliengine.StreamEvent) {
 
 // broadcastMessage pushes a chat message envelope to all WS subscribers on /ws/agent.
 func (s *Server) broadcastMessage(id int64, channel, direction, body string) {
+	s.broadcastMessageWithModel(id, channel, direction, body, "", "")
+}
+
+// broadcastMessageWithModel includes engine/model so the UI can show the
+// model that produced an assistant turn.
+func (s *Server) broadcastMessageWithModel(id int64, channel, direction, body, engine, model string) {
 	if s.hub == nil {
 		return
 	}
-	payload, _ := json.Marshal(map[string]any{
+	out := map[string]any{
 		"id":        id,
 		"channel":   channel,
 		"direction": direction,
 		"body":      body,
 		"ts":        time.Now().Unix(),
-	})
+	}
+	if engine != "" {
+		out["engine"] = engine
+	}
+	if model != "" {
+		out["model"] = model
+	}
+	payload, _ := json.Marshal(out)
 	s.hub.Broadcast(ws.Envelope{Type: "message", Topic: "agent", Payload: payload})
 }
 

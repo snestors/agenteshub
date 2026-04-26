@@ -80,6 +80,8 @@ interface RawMessage {
   ReplyTo: NullString;
   TS: number;
   IsRead: number;
+  Engine: NullString;
+  Model: NullString;
 }
 
 export interface AgentMessage {
@@ -89,6 +91,8 @@ export interface AgentMessage {
   body: string;
   ts: number;
   isRead: boolean;
+  engine?: string;
+  model?: string;
 }
 
 function unwrap(v: NullString): string {
@@ -98,6 +102,8 @@ function unwrap(v: NullString): string {
 }
 
 function normalize(raw: RawMessage): AgentMessage {
+  const engine = unwrap(raw.Engine);
+  const model = unwrap(raw.Model);
   return {
     id: raw.ID,
     channel: raw.Channel,
@@ -105,6 +111,8 @@ function normalize(raw: RawMessage): AgentMessage {
     body: unwrap(raw.Body),
     ts: raw.TS,
     isRead: raw.IsRead === 1,
+    engine: engine || undefined,
+    model: model || undefined,
   };
 }
 
