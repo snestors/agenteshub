@@ -60,7 +60,7 @@
   - **ClaudeEngine** (default `sonnet`): `claude -p --resume --output-format json|stream-json --mcp-config`
   - **CodexEngine**: `codex exec --json` con resume validado E2E (expuesto en picker como `gpt-5.5`)
   - **OllamaEngine**: HTTP `:11434` (NO expuesto, requiere setup)
-- **Streaming**: cuando `OnEvent != nil`, usa `--output-format stream-json --verbose` y emite `StreamEvent` por cada `text`/`thinking`/`tool_use`/`tool_result`/`final`
+- **Streaming**: cuando `OnEvent != nil`, usa `--output-format stream-json --verbose --include-partial-messages` y emite `StreamEvent` por cada `text`/`thinking`/`tool_use`/`tool_result`/`final`
 - **Resume robusto**: antes de spawn, valida que existe `~/.claude/projects/<encoded_cwd>/<sid>.jsonl`. Si falta, restaura desde `session_snapshots`. **Cero "session not found"**.
 - **MCP config auto-generado**: `/tmp/agenthub/mcp.json` apunta el CLI a `agenthub mcp` con env vars necesarias
 - **Sub-agent capture**: post-turn parsea el JSONL buscando `tool_use` con `name=Agent` y persiste en `subagent_runs`
@@ -294,6 +294,10 @@ Cosas que decidí o ajusté durante la implementación que no llegaron a doc:
 9. **WS RPC service_action usa `op`**, no `action`, para evitar colisión con el campo action del envelope RPC.
 10. **Cache frontend explícito**: HTML/fallback con `no-store`; `/assets/*` de Vite con hash cacheados 1 año immutable; estáticos sin hash 1h.
 11. **Catch-all SPA no captura `/ws/*` desconocido**: tras remover legacy, `/ws/agent` y `/ws/system` deben responder 404, no `index.html`.
+
+## ✅ Bugs corregidos
+
+- **Streaming en vivo en chat**: agregado `--include-partial-messages` al CLI `claude` en modo streaming. Sin ese flag, `stream-json` entregaba blocks `assistant` completos al final del turn (no deltas reales). El parser ahora decodifica `stream_event` → `content_block_delta` con `text_delta` / `thinking_delta`, ignora deltas parciales de tool JSON y mantiene `tool_use` / `tool_result` completos desde el evento `assistant`.
 
 ## 🛠 Cómo trabajar después de retomar
 

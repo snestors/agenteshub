@@ -29,14 +29,14 @@ func (e *ClaudeEngine) Name() string { return "claude" }
 
 // claudeJSONResp is the shape of `claude -p --output-format json` output.
 type claudeJSONResp struct {
-	Type      string `json:"type"`        // "result"
-	Subtype   string `json:"subtype"`     // "success"
-	Result    string `json:"result"`      // the assistant text
-	SessionID string `json:"session_id"`  // resume id (echo back)
+	Type      string `json:"type"`       // "result"
+	Subtype   string `json:"subtype"`    // "success"
+	Result    string `json:"result"`     // the assistant text
+	SessionID string `json:"session_id"` // resume id (echo back)
 	IsError   bool   `json:"is_error"`
 	Usage     struct {
-		InputTokens     int `json:"input_tokens"`
-		OutputTokens    int `json:"output_tokens"`
+		InputTokens          int `json:"input_tokens"`
+		OutputTokens         int `json:"output_tokens"`
 		CacheReadInputTokens int `json:"cache_read_input_tokens"`
 	} `json:"usage"`
 	TotalCostUSD float64 `json:"total_cost_usd"`
@@ -47,10 +47,13 @@ type claudeJSONResp struct {
 // callback in real time. Otherwise it stays in single-shot json mode.
 func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 	streaming := opts.OnEvent != nil
+	includePartialMessages := streaming
 
 	outFmt := "json"
 	if streaming {
-		// stream-json requires --verbose to emit deltas; if absent the CLI errors out.
+		// stream-json requires --verbose; --include-partial-messages makes the
+		// CLI emit stream_event/content_block_delta entries instead of only
+		// complete assistant blocks at the end of the turn.
 		outFmt = "stream-json"
 	}
 	args := []string{
@@ -60,6 +63,9 @@ func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 	}
 	if streaming {
 		args = append(args, "--verbose")
+	}
+	if includePartialMessages {
+		args = append(args, "--include-partial-messages")
 	}
 	if cfgPath, err := ensureMCPConfig(e.cfg); err == nil {
 		args = append(args, "--mcp-config", cfgPath)
@@ -84,7 +90,7 @@ func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 	cmd.Dir = opts.Cwd
 
 	if streaming {
-		return e.runStreaming(ctx, cmd, opts)
+		return e.runStreaming(ctx, cmd, opts, includePartialMessages)
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -114,11 +120,11 @@ func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 
 // streamEvent is a line in `claude --output-format stream-json --verbose`.
 type streamEvent struct {
-	Type      string          `json:"type"`        // 'system' | 'assistant' | 'user' | 'result'
-	Subtype   string          `json:"subtype"`     // for 'system' / 'result'
+	Type      string          `json:"type"`    // 'system' | 'stream_event' | 'assistant' | 'user' | 'result'
+	Subtype   string          `json:"subtype"` // for 'system' / 'result'
 	SessionID string          `json:"session_id"`
-	Message   json.RawMessage `json:"message"`     // for 'assistant' | 'user'
-	Result    string          `json:"result"`      // for 'result'
+	Message   json.RawMessage `json:"message"` // for 'assistant' | 'user'
+	Result    string          `json:"result"`  // for 'result'
 	IsError   bool            `json:"is_error"`
 	Usage     struct {
 		InputTokens  int `json:"input_tokens"`
@@ -138,9 +144,20 @@ type contentBlock struct {
 	Content   json.RawMessage `json:"content"` // for tool_result; can be string or []block
 }
 
+type claudeStreamEvent struct {
+	Event struct {
+		Type  string `json:"type"`
+		Delta struct {
+			Type     string `json:"type"`
+			Text     string `json:"text"`
+			Thinking string `json:"thinking"`
+		} `json:"delta"`
+	} `json:"event"`
+}
+
 // runStreaming spawns the cmd, parses each JSONL event, fires opts.OnEvent for
 // each useful one, and returns the final Result when 'result' arrives.
-func (e *ClaudeEngine) runStreaming(ctx context.Context, cmd *exec.Cmd, opts RunOpts) (*Result, error) {
+func (e *ClaudeEngine) runStreaming(ctx context.Context, cmd *exec.Cmd, opts RunOpts, includePartialMessages bool) (*Result, error) {
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("stdout pipe: %w", err)
@@ -179,6 +196,24 @@ func (e *ClaudeEngine) runStreaming(ctx context.Context, cmd *exec.Cmd, opts Run
 		switch ev.Type {
 		case "system":
 			emit(StreamEvent{Kind: "system", Text: ev.Subtype})
+		case "stream_event":
+			var sev claudeStreamEvent
+			if err := json.Unmarshal(raw, &sev); err != nil {
+				continue
+			}
+			if sev.Event.Type != "content_block_delta" {
+				continue
+			}
+			switch sev.Event.Delta.Type {
+			case "text_delta":
+				if sev.Event.Delta.Text != "" {
+					emit(StreamEvent{Kind: "text", Text: sev.Event.Delta.Text})
+				}
+			case "thinking_delta":
+				if sev.Event.Delta.Thinking != "" {
+					emit(StreamEvent{Kind: "thinking", Text: sev.Event.Delta.Thinking})
+				}
+			}
 		case "assistant", "user":
 			// Decode message.content as []contentBlock
 			var msg struct {
@@ -190,10 +225,16 @@ func (e *ClaudeEngine) runStreaming(ctx context.Context, cmd *exec.Cmd, opts Run
 			for _, b := range msg.Content {
 				switch b.Type {
 				case "text":
+					if includePartialMessages {
+						continue
+					}
 					if b.Text != "" {
 						emit(StreamEvent{Kind: "text", Text: b.Text})
 					}
 				case "thinking":
+					if includePartialMessages {
+						continue
+					}
 					if b.Thinking != "" {
 						emit(StreamEvent{Kind: "thinking", Text: b.Thinking})
 					}
