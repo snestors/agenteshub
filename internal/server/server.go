@@ -24,6 +24,7 @@ import (
 	"github.com/snestors/agenthub/internal/config"
 	"github.com/snestors/agenthub/internal/store"
 	"github.com/snestors/agenthub/internal/sysman"
+	"github.com/snestors/agenthub/internal/ws"
 )
 
 const cookieName = "agenthub_token"
@@ -35,14 +36,19 @@ type Server struct {
 	tokens  *auth.TokenService
 	engines *cliengine.Manager
 	sysman  *sysman.Manager
+	hub     *ws.Hub
 	log     *slog.Logger
 	httpSrv *http.Server
 }
 
+// Hub exposes the WS hub for producers (poller, message handlers).
+func (s *Server) Hub() *ws.Hub { return s.hub }
+
 // New constructs a Server.
 func New(cfg *config.Config, repos *store.Repos, engines *cliengine.Manager, sm *sysman.Manager, log *slog.Logger) (*Server, error) {
 	tokens := auth.NewTokenService(cfg, repos.Auth)
-	s := &Server{cfg: cfg, repos: repos, tokens: tokens, engines: engines, sysman: sm, log: log}
+	hub := ws.New(log.With("comp", "ws"))
+	s := &Server{cfg: cfg, repos: repos, tokens: tokens, engines: engines, sysman: sm, hub: hub, log: log}
 	s.httpSrv = &http.Server{
 		Addr:    cfg.HTTPAddr,
 		Handler: s.routes(),
@@ -53,6 +59,8 @@ func New(cfg *config.Config, repos *store.Repos, engines *cliengine.Manager, sm 
 
 // Run blocks serving HTTP until ctx is cancelled.
 func (s *Server) Run(ctx context.Context) error {
+	// Background poller that pushes /ws/system stats.
+	go startSystemPoller(ctx, s.hub, s.sysman)
 	go func() {
 		<-ctx.Done()
 		_ = s.httpSrv.Close()
@@ -100,6 +108,10 @@ func (s *Server) routes() http.Handler {
 		pr.Post("/api/system/services/{name}/{action}", s.handleSystemServiceAction)
 		pr.Get("/api/system/processes", s.handleSystemProcesses)
 		pr.Get("/api/system/connections", s.handleSystemConnections)
+
+		// WebSockets
+		pr.Get("/ws/agent", s.handleWSAgent)
+		pr.Get("/ws/system", s.handleWSSystem)
 	})
 
 	// frontend SPA — sirve frontend/dist con fallback a index.html para client-side routing
@@ -297,6 +309,7 @@ func (s *Server) handleMessagesSend(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.broadcastMessage(id, "web", "in", req.Body)
 
 	// Resume id of the main agent's session (persisted between turns).
 	mainSess, _ := s.repos.Sessions.GetAgentSession(r.Context(), "main-agent")
@@ -329,12 +342,13 @@ func (s *Server) handleMessagesSend(w http.ResponseWriter, r *http.Request) {
 			SessionID: res.SessionID,
 		})
 	}
-	_, _ = s.repos.Messages.Insert(r.Context(), store.Message{
+	outID, _ := s.repos.Messages.Insert(r.Context(), store.Message{
 		Channel:   "web",
 		Direction: "out",
 		Body:      sqlStr(res.Text),
 		TS:        time.Now().Unix(),
 	})
+	s.broadcastMessage(outID, "web", "out", res.Text)
 	writeJSON(w, http.StatusOK, map[string]any{"id": id, "reply": res.Text, "session_id": res.SessionID, "tokens": res.CostTokens})
 }
 
@@ -369,6 +383,21 @@ code{color:#38bdf8;background:rgba(56,189,248,.08);padding:2px 6px;border-radius
 </div>
 <p class=warn>⚠ Ejecutá <code>agenthub setup-user --password &lt;X&gt;</code> antes del primer login.</p>
 </body></html>`
+
+// broadcastMessage pushes a chat message envelope to all WS subscribers on /ws/agent.
+func (s *Server) broadcastMessage(id int64, channel, direction, body string) {
+	if s.hub == nil {
+		return
+	}
+	payload, _ := json.Marshal(map[string]any{
+		"id":        id,
+		"channel":   channel,
+		"direction": direction,
+		"body":      body,
+		"ts":        time.Now().Unix(),
+	})
+	s.hub.Broadcast(ws.Envelope{Type: "message", Topic: "agent", Payload: payload})
+}
 
 // ---------- helpers ----------
 

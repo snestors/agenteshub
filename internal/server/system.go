@@ -72,6 +72,10 @@ func (s *Server) handleSystemConnections(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// Inject live WS clients count (sysman doesn't know about the hub).
+	if s.hub != nil {
+		conns.WSClients = s.hub.CountClients()
+	}
 	writeJSON(w, http.StatusOK, conns)
 }
 

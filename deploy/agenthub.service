@@ -19,7 +19,7 @@ KillSignal=SIGTERM
 TimeoutStopSec=20s
 
 # Hardening (modesto — single-user box)
-NoNewPrivileges=true
+# NoNewPrivileges=true  # disabled to allow sudo systemctl via NOPASSWD for service_action
 PrivateTmp=true
 ProtectSystem=full
 ProtectHome=false
