@@ -4,20 +4,28 @@ import { Topbar } from "@/components/Topbar";
 import { Gauge } from "@/components/Gauge";
 import {
   api,
-  wsUrl,
   type SystemStats,
   type SystemService,
   type SystemProcess,
   type SystemConnections,
 } from "@/lib/api";
-import { useWebSocket } from "@/lib/useWebSocket";
+import { useTopic } from "@/lib/useTopic";
 
 const POLL_FALLBACK_MS = 5000;
 const SLOW_POLL_MS = 8000; // services / processes / connections
 
-interface WsStatsEvent {
-  type: string;
-  data?: SystemStats;
+function parseStatsPayload(payload: unknown): SystemStats | null {
+  if (!payload) return null;
+  if (typeof payload === "string") {
+    try {
+      const obj = JSON.parse(payload);
+      return obj && typeof obj === "object" ? (obj as SystemStats) : null;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof payload === "object") return payload as SystemStats;
+  return null;
 }
 
 function formatUptime(secs: number): string {
@@ -86,22 +94,28 @@ export function System() {
     return () => stopStatsPoll();
   }, [fetchStats, stopStatsPoll]);
 
-  const { status: wsStatus } = useWebSocket({
-    url: wsUrl("/ws/system"),
-    onMessage: (data) => {
-      if (typeof data !== "object" || data === null) return;
-      const evt = data as WsStatsEvent;
-      if (evt.type === "stats" && evt.data) {
-        setStats(evt.data);
-        setError(null);
-      }
+  const handleStatsMessage = React.useCallback(
+    (payload: unknown, evt: { type: string }) => {
+      if (evt.type !== "stats") return;
+      const stats = parseStatsPayload(payload);
+      if (!stats) return;
+      setStats(stats);
+      setError(null);
     },
-    onFallback: () => startStatsPoll(),
-    onReconnected: () => {
+    [],
+  );
+
+  const { status: wsStatus } = useTopic("system", handleStatsMessage);
+
+  // wire WS status → polling fallback
+  React.useEffect(() => {
+    if (wsStatus === "fallback") {
+      startStatsPoll();
+    } else if (wsStatus === "open") {
       stopStatsPoll();
       void fetchStats();
-    },
-  });
+    }
+  }, [wsStatus, startStatsPoll, stopStatsPoll, fetchStats]);
 
   // ─── services / processes / connections: HTTP poll ──────────────
   const refreshSlow = React.useCallback(async () => {

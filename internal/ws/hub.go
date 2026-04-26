@@ -1,9 +1,13 @@
-// Package ws implements a minimal pub/sub hub for browser clients.
+// Package ws implements a pub/sub hub for browser clients.
 //
-// One Hub instance, N subscribers. Producers (chat handlers, system manager
-// poller, mini-agent runs) call Broadcast on a topic; subscribers receive
-// JSON envelopes via their personal channel and the WebSocket goroutine
-// pumps them to the browser.
+// One Hub instance, N subscribers. Each Client holds a dynamic set of topics
+// it subscribed to (subscribe/unsubscribe sent over WebSocket). Producers
+// call Broadcast(envelope); only clients whose subscription set contains
+// envelope.Topic (or "*") receive it.
+//
+// Legacy: Register(id, topic) with non-empty topic creates a client locked to
+// that single topic — kept for /ws/agent and /ws/system endpoints during the
+// transition to the unified /ws.
 package ws
 
 import (
@@ -19,38 +23,64 @@ import (
 
 // Envelope is what gets sent to subscribed browsers as JSON.
 type Envelope struct {
-	Type    string          `json:"type"`              // "message" | "stats" | "subagent" | "agent_run" | ...
-	Topic   string          `json:"topic,omitempty"`   // routing key the producer used
+	Type    string          `json:"type"`            // "message" | "stream" | "stats" | "status" | ...
+	Topic   string          `json:"topic,omitempty"` // routing key the producer used
 	Payload json.RawMessage `json:"payload"`
 	TS      int64           `json:"ts"`
 }
 
+// ClientAction is what the browser sends back over the WS.
+type ClientAction struct {
+	Action string          `json:"action"` // 'subscribe' | 'unsubscribe' | 'ping' | RPC actions
+	Topic  string          `json:"topic,omitempty"`
+	ID     string          `json:"id,omitempty"`     // correlation id for RPC
+	Body   json.RawMessage `json:"body,omitempty"`   // free-form payload for RPC
+}
+
+// ActionHandler is invoked for any non-meta action received from a client
+// (i.e. anything that isn't subscribe/unsubscribe/ping). Allows callers to
+// register handlers for RPC actions like 'send_message' or 'set_engine'.
+//
+// The handler may return an Envelope to be unicast back to the originating
+// client (correlation via the action's ID).
+type ActionHandler func(ctx context.Context, c *Client, action ClientAction) (*Envelope, error)
+
 // Hub fan-outs Envelopes to every subscribed channel.
 type Hub struct {
-	log     *slog.Logger
-	mu      sync.RWMutex
-	clients map[*Client]struct{}
+	log         *slog.Logger
+	mu          sync.RWMutex
+	clients     map[*Client]struct{}
+	actionsMu   sync.RWMutex
+	actionHandlers map[string]ActionHandler
 }
 
 // Client is a single connected browser session.
 type Client struct {
-	ID    string
-	send  chan Envelope
-	topic string // optional filter; empty = all
+	ID         string
+	send       chan Envelope
+	mu         sync.RWMutex
+	subscribed map[string]struct{} // dynamic set of topics
+	legacyTopic string             // if set, fixed topic (legacy /ws/agent /ws/system)
 }
 
 // New constructs a Hub.
 func New(log *slog.Logger) *Hub {
-	return &Hub{log: log, clients: map[*Client]struct{}{}}
+	return &Hub{
+		log:            log,
+		clients:        map[*Client]struct{}{},
+		actionHandlers: map[string]ActionHandler{},
+	}
 }
 
-// Register adds a new subscriber. Optional topic filter ("" = receive all).
-// Returns the client and a cleanup func to call on disconnect.
+// Register adds a new subscriber. If topic != "" the client is locked to that
+// single topic (legacy behavior used by /ws/agent and /ws/system). For the
+// unified /ws, pass "" and let the client subscribe dynamically over WS.
 func (h *Hub) Register(id, topic string) (*Client, func()) {
 	c := &Client{
-		ID:    id,
-		send:  make(chan Envelope, 64),
-		topic: topic,
+		ID:          id,
+		send:        make(chan Envelope, 64),
+		subscribed:  map[string]struct{}{},
+		legacyTopic: topic,
 	}
 	h.mu.Lock()
 	h.clients[c] = struct{}{}
@@ -64,7 +94,55 @@ func (h *Hub) Register(id, topic string) (*Client, func()) {
 	return c, cleanup
 }
 
-// Broadcast pushes the envelope to every client whose topic matches (or is empty).
+// HandleAction registers a handler for an RPC action coming from clients.
+// Reserved actions (subscribe/unsubscribe/ping) are handled by Pump.
+func (h *Hub) HandleAction(name string, handler ActionHandler) {
+	h.actionsMu.Lock()
+	h.actionHandlers[name] = handler
+	h.actionsMu.Unlock()
+}
+
+// Subscribe adds a topic to the client's subscription set.
+func (c *Client) Subscribe(topic string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.subscribed[topic] = struct{}{}
+}
+
+// Unsubscribe removes a topic from the client's set.
+func (c *Client) Unsubscribe(topic string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.subscribed, topic)
+}
+
+// matches reports whether the client wants envelopes on this topic.
+func (c *Client) matches(topic string) bool {
+	if c.legacyTopic != "" {
+		return c.legacyTopic == topic
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if _, ok := c.subscribed["*"]; ok {
+		return true
+	}
+	_, ok := c.subscribed[topic]
+	return ok
+}
+
+// SendDirect pushes an envelope only to this client (for RPC responses).
+// Non-blocking — drops if buffer full, same policy as Broadcast.
+func (c *Client) SendDirect(env Envelope) {
+	if env.TS == 0 {
+		env.TS = time.Now().UnixMilli()
+	}
+	select {
+	case c.send <- env:
+	default:
+	}
+}
+
+// Broadcast pushes the envelope to every client whose subscription matches.
 // Non-blocking: if a client's send buffer is full, the envelope is dropped for
 // that client (we prefer dropping over blocking the producer).
 func (h *Hub) Broadcast(env Envelope) {
@@ -74,32 +152,73 @@ func (h *Hub) Broadcast(env Envelope) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	for c := range h.clients {
-		if c.topic != "" && c.topic != env.Topic {
+		if !c.matches(env.Topic) {
 			continue
 		}
 		select {
 		case c.send <- env:
 		default:
-			// dropped — slow client; the deadline-based reader on the WS side
-			// will drop the connection if it doesn't catch up.
 			h.log.Warn("ws drop", "client", c.ID, "type", env.Type)
 		}
 	}
 }
 
 // Pump runs the read+write loop of a websocket connection.
+// - Reads ClientAction frames; handles subscribe/unsubscribe/ping internally,
+//   delegates other actions to registered HandleAction callbacks.
+// - Writes envelopes from the client's send channel.
 // Blocks until ctx is cancelled, the connection is closed, or an error occurs.
 func (h *Hub) Pump(ctx context.Context, conn *websocket.Conn, c *Client) error {
-	// reader: drains incoming frames (we don't act on client-sent messages yet,
-	// but we must read so the lib processes ping/pong + close frames).
+	// reader: process actions from the client
 	go func() {
 		for {
-			if _, _, err := conn.Read(ctx); err != nil {
+			_, raw, err := conn.Read(ctx)
+			if err != nil {
 				return
+			}
+			var act ClientAction
+			if err := json.Unmarshal(raw, &act); err != nil {
+				h.log.Debug("ws bad action", "client", c.ID, "err", err)
+				continue
+			}
+			switch act.Action {
+			case "subscribe":
+				if act.Topic != "" {
+					c.Subscribe(act.Topic)
+					h.log.Debug("ws subscribe", "client", c.ID, "topic", act.Topic)
+				}
+			case "unsubscribe":
+				if act.Topic != "" {
+					c.Unsubscribe(act.Topic)
+					h.log.Debug("ws unsubscribe", "client", c.ID, "topic", act.Topic)
+				}
+			case "ping":
+				c.SendDirect(Envelope{Type: "pong", Topic: "system", Payload: json.RawMessage(`{}`)})
+			default:
+				h.actionsMu.RLock()
+				handler := h.actionHandlers[act.Action]
+				h.actionsMu.RUnlock()
+				if handler == nil {
+					h.log.Debug("ws unhandled action", "client", c.ID, "action", act.Action)
+					continue
+				}
+				go func(a ClientAction) {
+					resp, err := handler(ctx, c, a)
+					if err != nil {
+						h.log.Warn("ws action error", "action", a.Action, "err", err)
+						errPayload, _ := json.Marshal(map[string]any{"error": err.Error(), "action": a.Action, "id": a.ID})
+						c.SendDirect(Envelope{Type: "error", Topic: "rpc", Payload: errPayload})
+						return
+					}
+					if resp != nil {
+						c.SendDirect(*resp)
+					}
+				}(act)
 			}
 		}
 	}()
 
+	// writer
 	for {
 		select {
 		case <-ctx.Done():
@@ -127,4 +246,18 @@ func (h *Hub) CountClients() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return len(h.clients)
+}
+
+// CountSubscribed returns how many clients have the given topic in their set.
+// Used by producers (e.g. system poller) to skip work when nobody listens.
+func (h *Hub) CountSubscribed(topic string) int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	n := 0
+	for c := range h.clients {
+		if c.matches(topic) {
+			n++
+		}
+	}
+	return n
 }

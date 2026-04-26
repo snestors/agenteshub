@@ -59,8 +59,9 @@ func New(cfg *config.Config, repos *store.Repos, engines *cliengine.Manager, sm 
 
 // Run blocks serving HTTP until ctx is cancelled.
 func (s *Server) Run(ctx context.Context) error {
-	// Background poller that pushes /ws/system stats.
+	// Background pollers that push to WS subscribers.
 	go startSystemPoller(ctx, s.hub, s.sysman)
+	go s.startStatusHeartbeat(ctx)
 	go func() {
 		<-ctx.Done()
 		_ = s.httpSrv.Close()
@@ -69,6 +70,25 @@ func (s *Server) Run(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+// startStatusHeartbeat emits agent_status every 60s as a catch-all for drift
+// (changes that didn't go through our handlers, e.g. settings table edited
+// directly). Skips work if no subscriber.
+func (s *Server) startStatusHeartbeat(ctx context.Context) {
+	tick := time.NewTicker(60 * time.Second)
+	defer tick.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+			if s.hub.CountSubscribed("agent_status") == 0 {
+				continue
+			}
+			s.broadcastAgentStatus(ctx)
+		}
+	}
 }
 
 // Shutdown gracefully stops the server.
@@ -119,8 +139,9 @@ func (s *Server) routes() http.Handler {
 		pr.Get("/api/system/connections", s.handleSystemConnections)
 
 		// WebSockets
-		pr.Get("/ws/agent", s.handleWSAgent)
-		pr.Get("/ws/system", s.handleWSSystem)
+		pr.Get("/ws", s.handleWSUnified)            // unified — preferred
+		pr.Get("/ws/agent", s.handleWSAgent)        // legacy: same conn type, locked topic="agent"
+		pr.Get("/ws/system", s.handleWSSystem)      // legacy: locked topic="system"
 	})
 
 	// frontend SPA — sirve frontend/dist con fallback a index.html para client-side routing
@@ -407,6 +428,8 @@ func (s *Server) handleMessagesSend(w http.ResponseWriter, r *http.Request) {
 		Model:     sqlStr(model),
 	})
 	s.broadcastMessageWithModel(outID, "web", "out", res.Text, engine, model)
+	// Push fresh agent_status to all subscribers — ctx_used cambió
+	go s.broadcastAgentStatus(context.Background())
 	writeJSON(w, http.StatusOK, map[string]any{"id": id, "reply": res.Text, "session_id": res.SessionID, "tokens": res.CostTokens, "engine": engine, "model": model})
 }
 

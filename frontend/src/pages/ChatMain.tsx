@@ -1,11 +1,10 @@
 import * as React from "react";
 import {
   api,
-  wsUrl,
   type AgentMessage,
   type MessageAttachmentRef,
 } from "@/lib/api";
-import { useWebSocket } from "@/lib/useWebSocket";
+import { useTopic } from "@/lib/useTopic";
 import { Composer } from "@/components/Composer";
 import { MessageBubble } from "@/components/MessageBubble";
 import {
@@ -228,10 +227,7 @@ export function ChatMain() {
 
   // ─── ws handler ────────────────────────────────
   const handleWsMessage = React.useCallback(
-    (data: unknown) => {
-      if (typeof data !== "object" || data === null) return;
-      const evt = data as WsEnvelope;
-
+    (_payload: unknown, evt: WsEnvelope) => {
       if (evt.type === "stream") {
         const chunk = parseEnvelopePayload<WsStreamPayload>(evt.payload);
         if (!chunk) return;
@@ -272,19 +268,27 @@ export function ChatMain() {
     [applyStreamChunk]
   );
 
-  const { status: wsStatus } = useWebSocket({
-    url: wsUrl("/ws/agent"),
-    onMessage: handleWsMessage,
-    onFallback: () => {
-      // ws is repeatedly failing — start polling so the UX keeps working
+  // subscribe to the unified /ws endpoint, topic "agent"
+  const { status: wsStatus } = useTopic("agent", handleWsMessage);
+
+  // PREVIEW for backend task #33 — when /ws starts pushing agent_status
+  // envelopes, this subscription will start receiving them. Until then it's
+  // a no-op (no envelopes with topic="agent_status" arrive). StatusBar already
+  // polls /api/agent/status, so nothing breaks.
+  useTopic("agent_status", () => {
+    /* StatusBar handles its own subscription; this only keeps the topic
+       active at the connection level for future use. */
+  });
+
+  // wire WS status → polling fallback
+  React.useEffect(() => {
+    if (wsStatus === "fallback") {
       startPolling();
-    },
-    onReconnected: () => {
-      // ws came back — stop polling and resync once
+    } else if (wsStatus === "open") {
       stopPolling();
       void refresh();
-    },
-  });
+    }
+  }, [wsStatus, startPolling, stopPolling, refresh]);
 
   // ─── auto-scroll on new messages or ghost activity ─
   const ghostList = React.useMemo(() => Object.values(ghosts), [ghosts]);

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/snestors/agenthub/internal/store"
+	"github.com/snestors/agenthub/internal/ws"
 )
 
 // agentStatus is what the StatusBar consumes.
@@ -44,34 +45,24 @@ func modelCtxWindow(model string) int {
 	return 200_000
 }
 
-// handleAgentStatus returns model/engine/ctx-usage of the current main session.
-//
-// ctx_used = input_tokens of the LAST assistant turn (read from the JSONL).
-// That's what represents how full Claude's context window is right now —
-// next turn will receive ~the same number of tokens (history + system).
-// We don't sum historical tokens because that's a meaningless growing number
-// for sessions that resume.
-func (s *Server) handleAgentStatus(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	_ = ctx
-
+// computeAgentStatus builds the same struct that handleAgentStatus returns —
+// extracted so it can be broadcast over WS without an HTTP round-trip.
+func (s *Server) computeAgentStatus(ctx context.Context) agentStatus {
 	engine := s.cfg.DefaultEngine
 	model := s.cfg.DefaultModel
-	if v, _ := s.repos.Settings.Get(r.Context(), "engine"); v != "" {
+	if v, _ := s.repos.Settings.Get(ctx, "engine"); v != "" {
 		engine = v
 	}
-	if v, _ := s.repos.Settings.Get(r.Context(), "model"); v != "" {
+	if v, _ := s.repos.Settings.Get(ctx, "model"); v != "" {
 		model = v
 	}
-
-	mainSess, _ := s.repos.Sessions.GetAgentSession(r.Context(), "main-agent")
+	mainSess, _ := s.repos.Sessions.GetAgentSession(ctx, "main-agent")
 	sid := ""
 	if mainSess != nil {
 		sid = mainSess.SessionID
 	}
 	used := readLastInputTokens(s.cfg.ClaudeProjectsDir, sid)
 	window := modelCtxWindow(model)
-	plan, tier := readClaudePlan()
 	pct := 0.0
 	if window > 0 && used > 0 {
 		pct = float64(used) / float64(window)
@@ -79,8 +70,8 @@ func (s *Server) handleAgentStatus(w http.ResponseWriter, r *http.Request) {
 			pct = 1
 		}
 	}
-
-	writeJSON(w, http.StatusOK, agentStatus{
+	plan, tier := readClaudePlan()
+	return agentStatus{
 		Engine:    engine,
 		Model:     model,
 		CtxWindow: window,
@@ -90,7 +81,32 @@ func (s *Server) handleAgentStatus(w http.ResponseWriter, r *http.Request) {
 		WAEnabled: s.cfg.WAEnabled,
 		Plan:      plan,
 		PlanTier:  tier,
-	})
+	}
+}
+
+// broadcastAgentStatus emits a fresh status snapshot to every subscriber on the
+// "agent_status" topic. Cheap (one DB read + one JSONL scan).
+func (s *Server) broadcastAgentStatus(ctx context.Context) {
+	if s.hub == nil {
+		return
+	}
+	st := s.computeAgentStatus(ctx)
+	raw, err := json.Marshal(st)
+	if err != nil {
+		return
+	}
+	s.hub.Broadcast(ws.Envelope{Type: "status", Topic: "agent_status", Payload: raw})
+}
+
+// handleAgentStatus returns model/engine/ctx-usage of the current main session.
+//
+// ctx_used = input_tokens of the LAST assistant turn (read from the JSONL).
+// That's what represents how full Claude's context window is right now —
+// next turn will receive ~the same number of tokens (history + system).
+// We don't sum historical tokens because that's a meaningless growing number
+// for sessions that resume.
+func (s *Server) handleAgentStatus(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, s.computeAgentStatus(r.Context()))
 }
 
 // readClaudePlan returns (subscriptionType, rateLimitTier) from

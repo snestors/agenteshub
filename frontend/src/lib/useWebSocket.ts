@@ -1,5 +1,13 @@
 import * as React from "react";
 
+/**
+ * @deprecated Use `useTopic` from `@/lib/useTopic` together with the
+ * singleton `wsClient` from `@/lib/wsClient`. The unified `/ws` endpoint
+ * with a subscribe/unsubscribe protocol replaces the per-topic sockets
+ * (`/ws/agent`, `/ws/system`) this hook was built for. This file remains
+ * temporarily so transitional code keeps compiling; it will be removed
+ * once all consumers have migrated.
+ */
 export type WsStatus = "connecting" | "open" | "closed" | "fallback";
 
 interface UseWebSocketOptions {

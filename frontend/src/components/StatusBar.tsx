@@ -5,6 +5,7 @@ import {
   ApiError,
   type AgentStatus,
 } from "@/lib/api";
+import { useTopic } from "@/lib/useTopic";
 import { EnginePicker } from "./EnginePicker";
 
 interface StatusBarProps {
@@ -83,6 +84,16 @@ export function StatusBar({ transportLabel }: StatusBarProps) {
       if (timer !== null) window.clearTimeout(timer);
     };
   }, []);
+
+  // PREVIEW for backend task #33 — once /ws starts pushing `agent_status`
+  // envelopes, this listener will keep the badge in sync without waiting for
+  // the next 5s poll. The polling above keeps running until #33 ships; when
+  // it does, polling can be removed.
+  useTopic<AgentStatus>("agent_status", (payload) => {
+    if (payload && typeof payload === "object") {
+      setStatus(payload);
+    }
+  });
 
   // auto-dismiss toast
   React.useEffect(() => {

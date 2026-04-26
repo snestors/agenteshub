@@ -1,10 +1,14 @@
 package server
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/snestors/agenthub/internal/ws"
 )
 
 // ---------- system endpoints (require JWT) ----------
@@ -35,7 +39,6 @@ func (s *Server) handleSystemServiceAction(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if err := s.sysman.ServiceAction(r.Context(), name, action); err != nil {
-		// Heuristic: permission errors → 403
 		s.log.Warn("service action failed", "name", name, "action", action, "err", err)
 		msg := err.Error()
 		status := http.StatusInternalServerError
@@ -45,9 +48,39 @@ func (s *Server) handleSystemServiceAction(w http.ResponseWriter, r *http.Reques
 			status = http.StatusBadRequest
 		}
 		http.Error(w, msg, status)
+		// also push the failure to subscribers so the UI can refresh state.
+		s.broadcastServiceEvent(name, action, "error", msg)
 		return
 	}
+	s.broadcastServiceEvent(name, action, "ok", "")
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": name, "action": action})
+}
+
+// broadcastServiceEvent emits a service_event envelope on the system topic so
+// any UI subscribed sees the action result immediately (no need to wait for
+// the next 2s stats tick).
+func (s *Server) broadcastServiceEvent(name, action, result, errMsg string) {
+	if s.hub == nil {
+		return
+	}
+	payload, _ := json.Marshal(map[string]any{
+		"name":   name,
+		"action": action,
+		"result": result, // 'ok' | 'error'
+		"error":  errMsg,
+	})
+	s.hub.Broadcast(ws.Envelope{Type: "service_event", Topic: "system", Payload: payload})
+	// Force an immediate stats refresh too, so the service's `state` flips fast.
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*1000_000_000)
+		defer cancel()
+		stats, err := s.sysman.Stats(ctx)
+		if err != nil {
+			return
+		}
+		raw, _ := json.Marshal(stats)
+		s.hub.Broadcast(ws.Envelope{Type: "stats", Topic: "system", Payload: raw})
+	}()
 }
 
 func (s *Server) handleSystemProcesses(w http.ResponseWriter, r *http.Request) {

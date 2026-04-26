@@ -13,8 +13,8 @@ import (
 	"github.com/snestors/agenthub/internal/ws"
 )
 
-// startSystemPoller pushes a stats envelope every 2s on the /ws/system topic.
-// Runs for the lifetime of the daemon (ctx cancelled at shutdown).
+// startSystemPoller pushes a stats envelope every 2s on the system topic.
+// Skips work if no client is currently subscribed to "system".
 func startSystemPoller(ctx context.Context, hub *ws.Hub, sm *sysman.Manager) {
 	tick := time.NewTicker(2 * time.Second)
 	defer tick.Stop()
@@ -23,7 +23,7 @@ func startSystemPoller(ctx context.Context, hub *ws.Hub, sm *sysman.Manager) {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
-			if hub.CountClients() == 0 {
+			if hub.CountSubscribed("system") == 0 {
 				continue
 			}
 			stats, err := sm.Stats(ctx)
@@ -36,8 +36,9 @@ func startSystemPoller(ctx context.Context, hub *ws.Hub, sm *sysman.Manager) {
 	}
 }
 
-// handleWSAgent upgrades the request and pumps "message" envelopes for the chat.
-func (s *Server) handleWSAgent(w http.ResponseWriter, r *http.Request) {
+// handleWSUnified upgrades the request and runs a Pump with dynamic
+// subscriptions controlled by the client.
+func (s *Server) handleWSUnified(w http.ResponseWriter, r *http.Request) {
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 		OriginPatterns: []string{"*"},
 	})
@@ -48,32 +49,44 @@ func (s *Server) handleWSAgent(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close(websocket.StatusNormalClosure, "bye")
 
 	id := uuid.NewString()
-	client, cleanup := s.hub.Register(id, "agent")
+	client, cleanup := s.hub.Register(id, "") // empty topic = dynamic subscriptions
 	defer cleanup()
 
 	ctx := r.Context()
 	if err := s.hub.Pump(ctx, conn, client); err != nil {
+		s.log.Debug("ws pump end", "id", id, "err", err)
+	}
+}
+
+// handleWSAgent and handleWSSystem stay temporarily for backward-compat with
+// the previous two-endpoint layout. They lock the client to a single topic
+// (legacy mode of Register). Removed once frontend confirms /ws works.
+func (s *Server) handleWSAgent(w http.ResponseWriter, r *http.Request) {
+	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: []string{"*"}})
+	if err != nil {
+		s.log.Warn("ws accept", "err", err)
+		return
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "bye")
+	id := uuid.NewString()
+	client, cleanup := s.hub.Register(id, "agent")
+	defer cleanup()
+	if err := s.hub.Pump(r.Context(), conn, client); err != nil {
 		s.log.Debug("ws agent pump end", "id", id, "err", err)
 	}
 }
 
-// handleWSSystem upgrades the request and pumps "stats" envelopes from the poller.
 func (s *Server) handleWSSystem(w http.ResponseWriter, r *http.Request) {
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		OriginPatterns: []string{"*"},
-	})
+	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: []string{"*"}})
 	if err != nil {
 		s.log.Warn("ws accept", "err", err)
 		return
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "bye")
-
 	id := uuid.NewString()
 	client, cleanup := s.hub.Register(id, "system")
 	defer cleanup()
-
-	ctx := r.Context()
-	if err := s.hub.Pump(ctx, conn, client); err != nil {
+	if err := s.hub.Pump(r.Context(), conn, client); err != nil {
 		s.log.Debug("ws system pump end", "id", id, "err", err)
 	}
 }

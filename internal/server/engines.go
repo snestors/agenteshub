@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 )
@@ -66,6 +67,8 @@ func (s *Server) handleSetEngine(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// Push fresh status to subscribers (engine/model changed → ctx_window may differ)
+	go s.broadcastAgentStatus(context.Background())
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "engine": req.Engine, "model": req.Model})
 }
 
