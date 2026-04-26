@@ -21,18 +21,23 @@ type OllamaEngine struct {
 func (e *OllamaEngine) Name() string { return "ollama" }
 
 type ollamaReq struct {
-	Model    string `json:"model"`
-	Prompt   string `json:"prompt"`
-	Stream   bool   `json:"stream"`
+	Model  string `json:"model"`
+	Prompt string `json:"prompt"`
+	Stream bool   `json:"stream"`
 }
 type ollamaResp struct {
-	Response string `json:"response"`
-	Done     bool   `json:"done"`
-	EvalCount int   `json:"eval_count"`
+	Response  string `json:"response"`
+	Done      bool   `json:"done"`
+	EvalCount int    `json:"eval_count"`
+	Error     string `json:"error,omitempty"` // populated by ollama on 4xx
 }
 
 func (e *OllamaEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
-	body, _ := json.Marshal(ollamaReq{Model: e.cfg.OllamaModel, Prompt: opts.Prompt, Stream: false})
+	model := opts.Model
+	if model == "" {
+		model = e.cfg.OllamaModel
+	}
+	body, _ := json.Marshal(ollamaReq{Model: model, Prompt: opts.Prompt, Stream: false})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, e.cfg.OllamaURL+"/api/generate", bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -40,7 +45,7 @@ func (e *OllamaEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("ollama request: %w", err)
+		return nil, fmt.Errorf("ollama: cannot reach %s (%w)", e.cfg.OllamaURL, err)
 	}
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(resp.Body)
@@ -48,8 +53,16 @@ func (e *OllamaEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 		return nil, err
 	}
 	var r ollamaResp
-	if err := json.Unmarshal(raw, &r); err != nil {
-		return nil, fmt.Errorf("ollama decode: %w", err)
+	_ = json.Unmarshal(raw, &r) // ignore decode err — we want the error first
+	if resp.StatusCode >= 400 || r.Error != "" {
+		msg := r.Error
+		if msg == "" {
+			msg = fmt.Sprintf("status %d", resp.StatusCode)
+		}
+		return nil, fmt.Errorf("ollama: %s", msg)
+	}
+	if r.Response == "" {
+		return nil, fmt.Errorf("ollama: empty response (model=%q)", model)
 	}
 	return &Result{Text: r.Response, CostTokens: int64(r.EvalCount)}, nil
 }

@@ -32,9 +32,13 @@ type codexEvent struct {
 		Type string `json:"type"`
 		Text string `json:"text"`
 	} `json:"item,omitempty"`
-	Text   string `json:"text,omitempty"`
-	Result string `json:"result,omitempty"`
-	Usage  struct {
+	Text    string `json:"text,omitempty"`
+	Result  string `json:"result,omitempty"`
+	Message string `json:"message,omitempty"` // for type=='error'
+	Error   struct {
+		Message string `json:"message"`
+	} `json:"error,omitempty"` // for type=='turn.failed'
+	Usage struct {
 		InputTokens       int64 `json:"input_tokens"`
 		CachedInputTokens int64 `json:"cached_input_tokens"`
 		OutputTokens      int64 `json:"output_tokens"`
@@ -67,17 +71,20 @@ func (e *CodexEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 	if opts.Cwd != "" {
 		cmd.Dir = opts.Cwd
 	}
+	// Closed stdin so the CLI doesn't sit waiting on its banner
+	// "Reading additional input from stdin..." prompt.
+	cmd.Stdin = bytes.NewReader(nil)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("codex run: %w (stderr=%s)", err, strings.TrimSpace(stderr.String()))
-	}
 
-	// Parse JSONL stream
+	// We always parse stdout — even on non-zero exit — because the JSONL
+	// usually contains the real reason (rate limit, model error, etc.).
+	runErr := cmd.Run()
+
 	scanner := bufio.NewScanner(&stdout)
 	scanner.Buffer(make([]byte, 1024*1024), 8*1024*1024)
-	var sessionID, finalText string
+	var sessionID, finalText, codexErr string
 	var tokens int64
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -94,11 +101,16 @@ func (e *CodexEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 		if ev.SessionID != "" {
 			sessionID = ev.SessionID
 		}
-		if ev.Type == "item.completed" && ev.Item.Type == "agent_message" && ev.Item.Text != "" {
+		switch {
+		case ev.Type == "item.completed" && ev.Item.Type == "agent_message" && ev.Item.Text != "":
 			finalText = ev.Item.Text
-		} else if ev.Result != "" {
+		case ev.Result != "":
 			finalText = ev.Result
-		} else if ev.Text != "" {
+		case ev.Type == "error" && ev.Message != "":
+			codexErr = ev.Message
+		case ev.Type == "turn.failed" && ev.Error.Message != "":
+			codexErr = ev.Error.Message
+		case ev.Text != "":
 			finalText = ev.Text
 		}
 		if ev.Usage.InputTokens > 0 || ev.Usage.CachedInputTokens > 0 || ev.Usage.OutputTokens > 0 {
@@ -107,6 +119,21 @@ func (e *CodexEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("codex parse: %w", err)
+	}
+
+	// If codex told us a meaningful error, surface that instead of the bare
+	// exit-code message.
+	if codexErr != "" {
+		return nil, fmt.Errorf("codex: %s", codexErr)
+	}
+	if runErr != nil {
+		stderrStr := strings.TrimSpace(stderr.String())
+		// strip the noisy banner so the message is actionable
+		stderrStr = strings.TrimSpace(strings.ReplaceAll(stderrStr, "Reading additional input from stdin...", ""))
+		if stderrStr == "" {
+			stderrStr = "exit " + runErr.Error()
+		}
+		return nil, fmt.Errorf("codex: %s", stderrStr)
 	}
 	if finalText == "" {
 		finalText = strings.TrimSpace(stdout.String())
