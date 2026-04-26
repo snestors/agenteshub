@@ -58,13 +58,14 @@
 #### CLIEngine
 - Interface `Engine.Run(ctx, RunOpts)` con implementaciones:
   - **ClaudeEngine** (default `sonnet`): `claude -p --resume --output-format json|stream-json --mcp-config`
-  - **CodexEngine**: `codex exec --json` con resume (NO expuesto en picker, smoke test pendiente)
+  - **CodexEngine**: `codex exec --json` con resume validado E2E (expuesto en picker como `gpt-5.5`)
   - **OllamaEngine**: HTTP `:11434` (NO expuesto, requiere setup)
 - **Streaming**: cuando `OnEvent != nil`, usa `--output-format stream-json --verbose` y emite `StreamEvent` por cada `text`/`thinking`/`tool_use`/`tool_result`/`final`
 - **Resume robusto**: antes de spawn, valida que existe `~/.claude/projects/<encoded_cwd>/<sid>.jsonl`. Si falta, restaura desde `session_snapshots`. **Cero "session not found"**.
 - **MCP config auto-generado**: `/tmp/agenthub/mcp.json` apunta el CLI a `agenthub mcp` con env vars necesarias
 - **Sub-agent capture**: post-turn parsea el JSONL buscando `tool_use` con `name=Agent` y persiste en `subagent_runs`
 - **Resolver de aliases**: `opus-1m` → `claude-opus-4-7[1m]` (los `[]` son obligatorios para el CLI)
+- **Sesiones por engine**: el main usa `main-agent:<engine>` para no mezclar resume IDs de Claude y Codex; fallback legacy a `main-agent`.
 
 #### MCP Go embebido stdio (22 tools)
 - **Salida**: `send_message`, `send_image`, `send_voice`, `send_audio`, `send_document`, `send_video`, `send_location`, `send_contact`, `react_to_message` *(últimas 5 declaradas en doc, sólo `send_message` en código actual — ampliar es trivial)*
@@ -83,9 +84,9 @@
 
 #### Endpoints HTTP/WS
 - **Auth**: `POST /api/auth/login`, `/api/auth/totp`, `/api/auth/logout`, `/api/auth/refresh`, `GET /api/auth/me`
-- **Chat**: `GET /api/messages`, `POST /api/messages` (con attachments), `WS /ws/agent`
-- **Agent control**: `GET /api/agent/status` (incluye plan + plan_tier de `~/.claude/.credentials.json`), `GET /api/agent/engines`, `POST /api/agent/engine`
-- **System**: `GET /api/system/stats`, `/services`, `/processes`, `/connections`, `POST /api/system/services/{name}/{action}`, `WS /ws/system`
+- **Chat**: `GET /api/messages`, `POST /api/messages` (compat curl/scripts), `WS /ws` topic `agent` + action `send_message`
+- **Agent control**: `GET /api/agent/status` (incluye plan + usage local), `GET /api/agent/engines`, `POST /api/agent/engine` (compat) + WS action `set_engine`
+- **System**: `GET /api/system/stats`, `/services`, `/processes`, `/connections`, `POST /api/system/services/{name}/{action}` (compat) + `WS /ws` topic `system` + action `service_action` con `{name, op}`
 - **Uploads**: `POST /api/upload` (max 50MB), `DELETE /api/uploads/{id}`
 - **Health**: `GET /healthz`
 - **Frontend SPA**: `GET /` y `/*` sirven `frontend/dist/`
@@ -99,7 +100,7 @@ Migrations idempotentes via tabla `__migrations(name, applied_at)`.
 - **systemd**: una sola unit `agenthub.service` con `Restart=always`
 - **cron interno** (robfig/cron): session-snapshot cada 5min, jwt-cleanup cada 24h
 - **scheduler runtime**: tick cada 30s lee `agent_schedules` y dispara cliengine.Run
-- **WS hub**: pub/sub liviano con filtro por topic (refactor a unificado pendiente)
+- **WS hub**: `/ws` unificado con pub/sub por topic, RPC bidireccional con acks correlacionados y legacy `/ws/agent` + `/ws/system`.
 
 ### Frontend completo
 
@@ -133,12 +134,16 @@ Bundle: ~478 KB JS / 147 KB gz. Build: `cd frontend && pnpm run build`.
 
 > Esta es la fuente de verdad de las tareas. Las TaskList del runtime de Claude Code se pierden con `/compact`; este bloque NO. Si retomás, **leé esto y volvé a crear las tasks abiertas con `TaskCreate`** para tener trazabilidad en la sesión.
 
-### ✅ Completadas (14 — actualizado al cierre)
+### ✅ Completadas (18 — actualizado al cierre)
 
 **Cerradas en esta sesión post-compact**:
 - #32 (#37) WS unificado `/ws` con routing por topic
 - #33 (#38) Push de agent_status por WS
 - #34 (#39) System Manager push (service_event + skip work cuando nadie escucha)
+- #35 RPC bidireccional sobre `/ws` para `send_message`, `set_engine`, `service_action` (`op`)
+- #30 Warning visible cuando el engine devuelve body vacío
+- #28 Codex smoke E2E validado y expuesto como `codex · gpt-5.5`
+- #36 Usage local desde JSONLs (5h + 7d) persistido en settings y mostrado en StatusBar
 
 
 
@@ -156,7 +161,7 @@ Bundle: ~478 KB JS / 147 KB gz. Build: `cd frontend && pnpm run build`.
 | 26 | Streaming claude stream-json + broadcast WS por chunks |
 | 27 | Backend: upload + agent/status + messages con attachments |
 
-### 🔲 Abiertas (9) — orden de prioridad recomendado
+### 🔲 Abiertas (5) — orden de prioridad recomendado
 
 #### Crítico — refactor de transporte WS (hacer primero, en este orden)
 
@@ -210,22 +215,20 @@ Para cambios de servicios (start/stop/restart), también pushear `{ type:'servic
 
 ---
 
-**#35 — RPC bidireccional sobre `/ws` para acciones del frontend** *(bloqueado por #32)*
+**#35 — RPC bidireccional sobre `/ws` para acciones del frontend** ✅ COMPLETADA
 
 Una vez que el WS sea unificado y bidireccional, mover acciones HTTP que son cortas a WS:
 - `POST /api/messages` (chat) → `{ action: 'send_message', body, attachments }`
 - `POST /api/agent/engine` → `{ action: 'set_engine', engine, model }`
-- `POST /api/system/services/{name}/{action}` → `{ action: 'service_action', name, action }`
+- `POST /api/system/services/{name}/{action}` → `{ action: 'service_action', name, op }` (`op` evita chocar con el `action` RPC)
 
-Server responde con un `message_id` correlation token y emite el resultado en el evento correspondiente. Los handlers HTTP siguen existiendo para curl/scripts, pero el frontend los abandona en favor de WS RPC.
-
-Beneficio: latencia menor, errores en banda con el stream del agente, trazabilidad unificada.
+Implementado con `type: "ack"` y `payload.id` correlacionado. `send_message` persiste y ACKea rápido con `message_id`; el engine corre async y sigue emitiendo `stream`/`message`. Handlers HTTP siguen existiendo para curl/scripts.
 
 #### Engines
 
-**#28 — Habilitar codex en el picker (smoke test E2E)**
+**#28 — Habilitar codex en el picker (smoke test E2E)** ✅ COMPLETADA
 
-`codex` CLI con resume tiene casos borde. Validar: spawn limpio, `--resume` con session_id válido, parsing de eventos JSONL del codex (no del claude), errores claros. Cuando funcione bien, agregar `'codex'` a `availableEngines` en `internal/server/engines.go`.
+`codex` CLI 0.124.0 validado: spawn limpio, resume con `codex exec resume <thread_id>`, parsing de `thread.started`/`item.completed`/`turn.completed`. `gpt-5-codex` no está habilitado en esta cuenta; se expuso `codex · gpt-5.5`.
 
 ---
 
@@ -235,24 +238,17 @@ Verificar que ollama está corriendo en `localhost:11434` con modelo descargado.
 
 ---
 
-**#30 — Frontend: mostrar warning si engine devuelve body vacío**
+**#30 — Frontend: mostrar warning si engine devuelve body vacío** ✅ COMPLETADA
 
-Cuando un engine responde con `body=[vacío]` o solo espacios, `MessageBubble` debe mostrar un mensaje rojo claro tipo "el engine no respondió" en vez de un bubble vacío que confunde al user. Ya pasó con ollama.
+Cuando un engine responde con `body=[vacío]` o solo espacios, `MessageBubble` muestra `⚠ El engine no devolvió respuesta. Probá cambiar de modelo o reintentar.` manteniendo header engine/model.
 
 #### Usage
 
-**#36 — Calcular usage local desde JSONLs (alternativo a Cloudflare)**
+**#36 — Calcular usage local desde JSONLs (alternativo a Cloudflare)** ✅ COMPLETADA
 
 Para mostrar 'sesión 66% · semanal 63%' como en `claude.ai/settings/usage`. NO se puede consumir el endpoint directo (Cloudflare JS challenge). Plan B local:
 
-1. Walk `~/.claude/projects/` y parsear cada JSONL buscando entries con `usage.input_tokens` + timestamp
-2. Sumar tokens en ventanas: últimas 5h (sesión), 7d (semanal)
-3. Comparar contra límites estimados del plan Max5x:
-   - Sesión: ~88K tokens/5h (estimado para Max5x sonnet)
-   - Semanal: tomar de docs Anthropic actuales o reverse engineering
-4. Cron interno cada 30min calcula y persiste en settings (`key='usage_session_pct'`, `'usage_week_pct'`, `'usage_calculated_at'`)
-5. `agent_status` response los incluye junto con `plan`/`plan_tier`
-6. Frontend StatusBar muestra `'sesión 66% · semana 63%'` después del plan badge
+Implementado: walk streaming de `~/.claude/projects/**/*.jsonl`, ignora líneas inválidas, suma `usage.input_tokens` en ventanas 5h/7d, cron cada 30m + cálculo inicial al startup, persiste `usage_session_pct`, `usage_week_pct`, `usage_calculated_at`, `usage_session_tokens`, `usage_week_tokens`; `agent_status` los expone y StatusBar muestra `sesión N% · semana N%`.
 
 Inspiración: https://github.com/ryoppippi/ccusage
 
@@ -304,12 +300,13 @@ Cosas que decidí o ajusté durante la implementación que no llegaron a doc:
 
 1. **Modelo default = `sonnet`** (no `opus-4-7` como decía la doc — ese alias el CLI no lo resuelve)
 2. **`opus-1m`** es el alias interno; el cliengine lo traduce a `claude-opus-4-7[1m]` que es el ID real
-3. **codex y ollama deshabilitados** en el picker hasta smoke test E2E (tasks #28/#29). Quedan en el código.
+3. **codex habilitado** en el picker como `gpt-5.5` tras smoke E2E; `gpt-5-codex` fue rechazado por la cuenta ChatGPT actual. Ollama sigue deshabilitado hasta #29.
 4. **Plan info** se lee de `~/.claude/.credentials.json` (subscriptionType + rateLimitTier). Best-effort, sin auth a claude.ai.
-5. **Cloudflare bloquea `/api/usage` de claude.ai** con JS challenge — no se puede consumir directo. Plan B: parsear JSONLs locales (task #36).
+5. **Cloudflare bloquea `/api/usage` de claude.ai** con JS challenge — se implementó Plan B local: parsear JSONLs y estimar 5h/7d. Límites configurables: `AGENTHUB_USAGE_SESSION_TOKEN_LIMIT` (default 88K) y `AGENTHUB_USAGE_WEEK_TOKEN_LIMIT` (default 3M, estimación gruesa).
 6. **`NoNewPrivileges=true`** del systemd unit fue deshabilitado para permitir sudo NOPASSWD en service_action.
 7. **`data/` está en `.gitignore`** (uploads + db + snapshots). Si retomás, no esperés ver `data/agenthub.db` versionado.
 8. **Migrations idempotentes** vía tabla `__migrations(name, applied_at)`. No re-aplica las ya corridas.
+9. **WS RPC service_action usa `op`**, no `action`, para evitar colisión con el campo action del envelope RPC.
 
 ## 🛠 Cómo trabajar después de retomar
 
