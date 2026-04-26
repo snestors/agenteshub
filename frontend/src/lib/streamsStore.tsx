@@ -34,7 +34,13 @@ interface StreamsState {
   agentGhosts: Record<string, GhostBubbleData>;
   /** Ordered list (Object.values) — convenient for rendering. */
   agentGhostsList: GhostBubbleData[];
+  /** Add a "pending" ghost for the agent topic the moment the user sends. */
+  markAgentPending: () => void;
+  /** Drop a ghost once the persisted message has reached the consumer. */
+  dismissAgentGhost: (sessionId: string) => void;
 }
+
+const PENDING_KEY = "__pending__";
 
 const Ctx = React.createContext<StreamsState | null>(null);
 
@@ -56,14 +62,30 @@ function applyChunk(curr: GhostsByTopic, topic: string, chunk: WsStreamPayload):
   const inner = curr[topic] ?? {};
   const sid = chunk.session_id || "default";
 
-  if (chunk.final) {
-    if (!(sid in inner)) return curr;
-    const nextInner = { ...inner };
-    delete nextInner[sid];
-    return { ...curr, [topic]: nextInner };
+  // First real chunk: drop the placeholder if any (it's been promoted to a
+  // real ghost keyed by session_id).
+  let workingInner = inner;
+  if (PENDING_KEY in workingInner) {
+    workingInner = { ...workingInner };
+    delete workingInner[PENDING_KEY];
   }
 
-  const existing: GhostBubbleData = inner[sid] ?? {
+  if (chunk.final) {
+    // Don't drop yet — keep the ghost visible until the persisted message
+    // arrives. ChatMain will call dismissAgentGhost(sid) then.
+    const existing: GhostBubbleData = workingInner[sid] ?? {
+      id: `stream-${sid}`,
+      thinking: "",
+      text: "",
+      tools: [],
+    };
+    return {
+      ...curr,
+      [topic]: { ...workingInner, [sid]: { ...existing, done: true, pending: false } },
+    };
+  }
+
+  const existing: GhostBubbleData = workingInner[sid] ?? {
     id: `stream-${sid}`,
     thinking: "",
     text: "",
@@ -75,14 +97,14 @@ function applyChunk(curr: GhostsByTopic, topic: string, chunk: WsStreamPayload):
       if (!chunk.text) return curr;
       return {
         ...curr,
-        [topic]: { ...inner, [sid]: { ...existing, text: existing.text + chunk.text } },
+        [topic]: { ...workingInner, [sid]: { ...existing, pending: false, text: existing.text + chunk.text } },
       };
     }
     case "thinking": {
       if (!chunk.text) return curr;
       return {
         ...curr,
-        [topic]: { ...inner, [sid]: { ...existing, thinking: existing.thinking + chunk.text } },
+        [topic]: { ...workingInner, [sid]: { ...existing, pending: false, thinking: existing.thinking + chunk.text } },
       };
     }
     case "tool_use": {
@@ -98,7 +120,7 @@ function applyChunk(curr: GhostsByTopic, topic: string, chunk: WsStreamPayload):
         : [...existing.tools, newCall];
       return {
         ...curr,
-        [topic]: { ...inner, [sid]: { ...existing, tools } },
+        [topic]: { ...workingInner, [sid]: { ...existing, pending: false, tools } },
       };
     }
     case "tool_result": {
@@ -120,11 +142,11 @@ function applyChunk(curr: GhostsByTopic, topic: string, chunk: WsStreamPayload):
       }
       return {
         ...curr,
-        [topic]: { ...inner, [sid]: { ...existing, tools } },
+        [topic]: { ...workingInner, [sid]: { ...existing, pending: false, tools } },
       };
     }
     default:
-      return curr;
+      return { ...curr, [topic]: workingInner };
   }
 }
 
@@ -142,12 +164,52 @@ export function StreamsProvider({ children }: { children: React.ReactNode }) {
   // navigating away from /chat during an in-flight turn.
   useTopic("agent", handleAgent);
 
+  const markAgentPending = React.useCallback(() => {
+    setByTopic((curr) => {
+      const inner = curr.agent ?? {};
+      // If there's already a real ghost, don't overwrite it with a placeholder
+      const hasReal = Object.keys(inner).some((k) => k !== PENDING_KEY);
+      if (hasReal) return curr;
+      return {
+        ...curr,
+        agent: {
+          ...inner,
+          [PENDING_KEY]: {
+            id: "stream-pending",
+            thinking: "",
+            text: "",
+            tools: [],
+            pending: true,
+          },
+        },
+      };
+    });
+  }, []);
+
+  const dismissAgentGhost = React.useCallback((sessionId: string) => {
+    setByTopic((curr) => {
+      const inner = curr.agent ?? {};
+      let next: Record<string, GhostBubbleData> | null = null;
+      if (sessionId in inner) {
+        next = { ...inner };
+        delete next[sessionId];
+      }
+      // also clear any leftover placeholder
+      if (PENDING_KEY in (next ?? inner)) {
+        next = next ?? { ...inner };
+        delete next[PENDING_KEY];
+      }
+      if (!next) return curr;
+      return { ...curr, agent: next };
+    });
+  }, []);
+
   const agentGhosts = byTopic.agent ?? {};
   const agentGhostsList = React.useMemo(() => Object.values(agentGhosts), [agentGhosts]);
 
   const value = React.useMemo<StreamsState>(
-    () => ({ agentGhosts, agentGhostsList }),
-    [agentGhosts, agentGhostsList]
+    () => ({ agentGhosts, agentGhostsList, markAgentPending, dismissAgentGhost }),
+    [agentGhosts, agentGhostsList, markAgentPending, dismissAgentGhost]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

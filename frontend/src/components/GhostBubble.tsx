@@ -24,6 +24,10 @@ export interface GhostBubbleData {
   text: string;
   /** tool calls in order */
   tools: ToolCall[];
+  /** true while the user is waiting for the first chunk (no stream yet) */
+  pending?: boolean;
+  /** true once 'final' arrived — kept until the persisted message reaches us */
+  done?: boolean;
 }
 
 // minimal markdown components (reused styling, lighter version)
@@ -163,7 +167,11 @@ export function GhostBubble({ data }: { data: GhostBubbleData }) {
             ◂ MAIN
           </span>
           <span className="font-mono text-[9px] text-[var(--color-dim)] tracking-hud-tight animate-pulse">
-            streaming…
+            {data.pending
+              ? "esperando engine…"
+              : data.done
+              ? "finalizando…"
+              : "streaming…"}
           </span>
         </div>
 

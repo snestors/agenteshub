@@ -80,7 +80,7 @@ function fromWs(m: WsAgentPayload): AgentMessage {
 export function ChatMain() {
   // Live ghost bubbles for in-flight turns are managed by the global
   // StreamsProvider so they survive cross-navigation. We only read from it.
-  const { agentGhostsList: ghostList } = useStreams();
+  const { agentGhostsList: ghostList, markAgentPending, dismissAgentGhost } = useStreams();
   const [messages, setMessages] = React.useState<AgentMessage[]>([]);
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
@@ -139,9 +139,19 @@ export function ChatMain() {
         return next;
       });
       lastIdRef.current = Math.max(lastIdRef.current, incoming.id);
+      // The persisted agent reply just arrived — dismiss its ghost (if any).
+      // We don't know the session_id from the message envelope itself, so
+      // we drop every ghost on 'out' direction since there's typically only
+      // one in-flight turn per session here.
+      if (incoming.direction === "out") {
+        for (const g of Object.values(ghostList)) {
+          const sid = g.id.replace(/^stream-/, "");
+          dismissAgentGhost(sid);
+        }
+      }
       setError(null);
     },
-    []
+    [ghostList, dismissAgentGhost]
   );
 
   // subscribe to the unified /ws endpoint, topic "agent"
@@ -180,6 +190,9 @@ export function ChatMain() {
   // ─── send ──────────────────────────────────────
   async function handleSend(body: string, attachments: MessageAttachmentRef[]) {
     setPending(true);
+    // Show the "thinking" ghost immediately so the user sees activity even
+    // before the first stream chunk lands (system init can take ~3s).
+    markAgentPending();
     const optimisticId = -Date.now();
     setMessages((curr) => [
       ...curr,
