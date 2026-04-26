@@ -6,6 +6,7 @@ import {
   GitBranch,
   Activity,
   LogOut,
+  Bell,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -39,7 +40,7 @@ const ACCENT_VAR: Record<NavItem["accent"], string> = {
 };
 
 export function Sidebar({ username }: { username?: string }) {
-  const { unreadByKindPrefix, markAllRead } = useNotifications();
+  const { unreadByKindPrefix, markAllRead, unreadCount, openDrawer } = useNotifications();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -159,6 +160,31 @@ export function Sidebar({ username }: { username?: string }) {
 
       {/* live system stats */}
       <SidebarStats />
+
+      {/* notifications button */}
+      <div className="px-3 pt-2">
+        <button
+          type="button"
+          onClick={openDrawer}
+          className="relative w-full flex items-center gap-2 px-3 py-1.5 clip-tag font-mono text-[10px] uppercase tracking-hud-tight border text-[var(--color-dim)] hover:text-[var(--color-fg)] cursor-pointer transition-colors"
+          style={{ borderColor: "var(--color-line)" }}
+          title="Notificaciones"
+        >
+          <Bell size={12} strokeWidth={1.6} />
+          <span className="flex-1 text-left">notificaciones</span>
+          {unreadCount > 0 && (
+            <span
+              className="font-display font-bold text-[10px] px-1.5"
+              style={{
+                color: "var(--color-orange)",
+                background: "rgba(255,184,108,0.15)",
+              }}
+            >
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+        </button>
+      </div>
 
       {/* user footer */}
       <div className="px-3 py-3 border-t border-[var(--color-line)]">

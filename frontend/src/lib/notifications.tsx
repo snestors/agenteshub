@@ -59,10 +59,17 @@ export interface Notification {
 
 interface NotificationsState {
   items: Notification[];
+  unreadCount: number;
   unreadByKindPrefix: (prefix: string) => number;
   markAllRead: () => void;
+  markRead: (id: string) => void;
   dismiss: (id: string) => void;
+  clearRead: () => void;
   push: (n: Notification) => void;
+  /** open the drawer programmatically (e.g. from the sidebar bell). */
+  openDrawer: () => void;
+  isDrawerOpen: boolean;
+  closeDrawer: () => void;
 }
 
 const Ctx = React.createContext<NotificationsState | null>(null);
@@ -84,6 +91,7 @@ function parsePayload(payload: unknown): Notification | null {
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = React.useState<Notification[]>([]);
+  const [isDrawerOpen, setDrawerOpen] = React.useState(false);
 
   const push = React.useCallback((n: Notification) => {
     setItems((curr) => {
@@ -99,6 +107,22 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const markAllRead = React.useCallback(() => {
     setItems((curr) => curr.map((i) => ({ ...i, read: true })));
   }, []);
+
+  const markRead = React.useCallback((id: string) => {
+    setItems((curr) => curr.map((i) => (i.id === id ? { ...i, read: true } : i)));
+  }, []);
+
+  const clearRead = React.useCallback(() => {
+    setItems((curr) => curr.filter((i) => !i.read));
+  }, []);
+
+  const openDrawer = React.useCallback(() => setDrawerOpen(true), []);
+  const closeDrawer = React.useCallback(() => setDrawerOpen(false), []);
+
+  const unreadCount = React.useMemo(
+    () => items.reduce((acc, i) => (!i.read ? acc + 1 : acc), 0),
+    [items]
+  );
 
   const unreadByKindPrefix = React.useCallback(
     (prefix: string) =>
@@ -119,14 +143,48 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }, [push]);
 
   const value = React.useMemo<NotificationsState>(
-    () => ({ items, unreadByKindPrefix, markAllRead, dismiss, push }),
-    [items, unreadByKindPrefix, markAllRead, dismiss, push]
+    () => ({
+      items,
+      unreadCount,
+      unreadByKindPrefix,
+      markAllRead,
+      markRead,
+      dismiss,
+      clearRead,
+      push,
+      openDrawer,
+      isDrawerOpen,
+      closeDrawer,
+    }),
+    [
+      items,
+      unreadCount,
+      unreadByKindPrefix,
+      markAllRead,
+      markRead,
+      dismiss,
+      clearRead,
+      push,
+      openDrawer,
+      isDrawerOpen,
+      closeDrawer,
+    ]
   );
 
   return (
     <Ctx.Provider value={value}>
       {children}
       <RoutedToastStack items={items} dismiss={dismiss} />
+      {isDrawerOpen && (
+        <NotificationDrawer
+          items={items}
+          onClose={closeDrawer}
+          onDismiss={dismiss}
+          onMarkRead={markRead}
+          onMarkAllRead={markAllRead}
+          onClearRead={clearRead}
+        />
+      )}
     </Ctx.Provider>
   );
 }
@@ -138,6 +196,233 @@ interface ConfirmModalProps {
   route: string;
   onConfirm: () => void;
   onCancel: () => void;
+}
+
+// ─── Notification drawer (history of unread + recently read) ────
+
+interface DrawerProps {
+  items: Notification[];
+  onClose: () => void;
+  onDismiss: (id: string) => void;
+  onMarkRead: (id: string) => void;
+  onMarkAllRead: () => void;
+  onClearRead: () => void;
+}
+
+function NotificationDrawer({
+  items,
+  onClose,
+  onDismiss,
+  onMarkRead,
+  onMarkAllRead,
+  onClearRead,
+}: DrawerProps) {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const [confirming, setConfirming] = React.useState<{ notif: Notification; route: string } | null>(
+    null
+  );
+
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const unread = items.filter((i) => !i.read);
+  const read = items.filter((i) => i.read);
+
+  function handleEntryClick(n: Notification) {
+    const route = routeForKind(n.kind);
+    if (!route || pathname === route || pathname.startsWith(route + "/")) {
+      onMarkRead(n.id);
+      return;
+    }
+    setConfirming({ notif: n, route });
+  }
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-[55]"
+        style={{ background: "rgba(2, 4, 14, 0.55)", backdropFilter: "blur(2px)" }}
+        onClick={onClose}
+      >
+        <div
+          className="absolute right-0 top-0 h-full w-[380px] max-w-[92vw] flex flex-col border-l"
+          style={{
+            background: "rgba(10, 15, 36, 0.97)",
+            borderColor: "var(--color-line)",
+            boxShadow: "-8px 0 24px rgba(0,0,0,0.5)",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* header */}
+          <div className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: "var(--color-line)" }}>
+            <div>
+              <div className="font-display font-semibold text-[12px] uppercase tracking-hud" style={{ color: "var(--color-cyan)" }}>
+                ◂ notificaciones
+              </div>
+              <div className="font-mono text-[9px] text-[var(--color-dim)] tracking-hud-tight uppercase mt-0.5">
+                {unread.length} sin leer · {read.length} leídas
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-[var(--color-dim)] hover:text-[var(--color-fg)] cursor-pointer p-1 transition-colors"
+              aria-label="cerrar"
+            >
+              <X size={14} strokeWidth={1.8} />
+            </button>
+          </div>
+
+          {/* actions */}
+          <div className="px-4 py-2 flex gap-2 border-b" style={{ borderColor: "var(--color-line)" }}>
+            <button
+              type="button"
+              onClick={onMarkAllRead}
+              disabled={unread.length === 0}
+              className="px-2 py-1 clip-tag font-mono text-[10px] uppercase tracking-hud-tight border text-[var(--color-dim)] hover:text-[var(--color-fg)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              style={{ borderColor: "var(--color-line)" }}
+            >
+              marcar todas
+            </button>
+            <button
+              type="button"
+              onClick={onClearRead}
+              disabled={read.length === 0}
+              className="px-2 py-1 clip-tag font-mono text-[10px] uppercase tracking-hud-tight border text-[var(--color-dim)] hover:text-[var(--color-fg)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              style={{ borderColor: "var(--color-line)" }}
+            >
+              limpiar leídas
+            </button>
+          </div>
+
+          {/* list */}
+          <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1.5">
+            {items.length === 0 && (
+              <div className="px-2 py-8 text-center font-mono text-[11px] text-[var(--color-dim)] italic">
+                sin notificaciones
+              </div>
+            )}
+            {unread.map((n) => (
+              <DrawerEntry
+                key={n.id}
+                n={n}
+                emphasis
+                onClick={() => handleEntryClick(n)}
+                onDismiss={() => onDismiss(n.id)}
+              />
+            ))}
+            {unread.length > 0 && read.length > 0 && (
+              <div className="my-2 mx-2 h-px" style={{ background: "var(--color-line)" }} />
+            )}
+            {read.map((n) => (
+              <DrawerEntry
+                key={n.id}
+                n={n}
+                emphasis={false}
+                onClick={() => handleEntryClick(n)}
+                onDismiss={() => onDismiss(n.id)}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {confirming && (
+        <ConfirmModal
+          notif={confirming.notif}
+          route={confirming.route}
+          onConfirm={() => {
+            navigate(confirming.route);
+            onMarkRead(confirming.notif.id);
+            setConfirming(null);
+            onClose();
+          }}
+          onCancel={() => {
+            setConfirming(null);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function DrawerEntry({
+  n,
+  emphasis,
+  onClick,
+  onDismiss,
+}: {
+  n: Notification;
+  emphasis: boolean;
+  onClick: () => void;
+  onDismiss: () => void;
+}) {
+  const accent =
+    n.severity === "error"
+      ? "var(--color-danger)"
+      : n.severity === "warn"
+      ? "var(--color-orange)"
+      : "var(--color-cyan)";
+  const Icon = n.severity === "error" ? AlertTriangle : n.kind.startsWith("agent_run") ? Bot : Info;
+  const elapsed = Math.max(0, Math.floor((Date.now() / 1000 - n.ts)));
+  const elapsedStr =
+    elapsed < 60 ? `${elapsed}s` : elapsed < 3600 ? `${Math.floor(elapsed / 60)}m` : `${Math.floor(elapsed / 3600)}h`;
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className={`flex gap-2 px-2 py-2 clip-tag border cursor-pointer transition-colors ${
+        emphasis ? "" : "opacity-60"
+      } hover:bg-[rgba(94,240,255,0.04)]`}
+      style={{
+        borderColor: emphasis ? accent + "60" : "var(--color-line)",
+        background: emphasis ? `${accent}08` : "transparent",
+      }}
+    >
+      <Icon size={13} strokeWidth={1.6} style={{ color: accent, marginTop: 2 }} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline justify-between gap-2">
+          <div
+            className="font-mono text-[10px] uppercase tracking-hud-tight truncate"
+            style={{ color: accent }}
+          >
+            {n.title}
+          </div>
+          <div className="font-mono text-[9px] text-[var(--color-dim)] shrink-0">{elapsedStr}</div>
+        </div>
+        {n.body && (
+          <div className="font-mono text-[11px] text-[var(--color-fg)] mt-0.5 break-words line-clamp-2">
+            {n.body}
+          </div>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDismiss();
+        }}
+        className="text-[var(--color-dim)] hover:text-[var(--color-danger)] cursor-pointer p-0.5 self-start transition-colors"
+        aria-label="descartar"
+      >
+        <X size={11} strokeWidth={1.8} />
+      </button>
+    </div>
+  );
 }
 
 function ConfirmModal({ notif, route, onConfirm, onCancel }: ConfirmModalProps) {
