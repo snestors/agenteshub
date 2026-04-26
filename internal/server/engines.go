@@ -15,9 +15,8 @@ type engineDef struct {
 }
 
 // availableEngines is the source of truth for the picker UI and POST validation.
-// codex + ollama están conceptualmente soportados (cliengine los acepta) pero
-// hoy no los exponemos: codex requiere validar el flow --resume y ollama
-// requiere setup local. TODO: re-incluirlos cuando cada uno tenga smoke test
+// ollama está conceptualmente soportado (cliengine lo acepta) pero hoy no lo
+// exponemos: requiere setup local. TODO: re-incluirlo cuando tenga smoke test
 // E2E pasando.
 //
 // El "model" del JSON es el alias que el frontend muestra; algunos pasan por
@@ -32,6 +31,13 @@ var availableEngines = []engineDef{
 			"opus":    200_000,
 			"haiku":   200_000,
 			"opus-1m": 1_000_000,
+		},
+	},
+	{
+		Engine: "codex",
+		Models: []string{"gpt-5.5"},
+		CtxWindows: map[string]int{
+			"gpt-5.5": 400_000,
 		},
 	},
 }

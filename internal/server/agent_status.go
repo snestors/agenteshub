@@ -41,6 +41,8 @@ func modelCtxWindow(model string) int {
 		return 200_000
 	case "opus", "opus-4-7", "claude-opus-4-7":
 		return 200_000
+	case "gpt-5.5":
+		return 400_000
 	}
 	return 200_000
 }
@@ -172,8 +174,8 @@ func readLastInputTokens(projectsDir, sessionID string) int64 {
 		var entry struct {
 			Message struct {
 				Usage struct {
-					InputTokens             int64 `json:"input_tokens"`
-					CacheReadInputTokens    int64 `json:"cache_read_input_tokens"`
+					InputTokens              int64 `json:"input_tokens"`
+					CacheReadInputTokens     int64 `json:"cache_read_input_tokens"`
 					CacheCreationInputTokens int64 `json:"cache_creation_input_tokens"`
 				} `json:"usage"`
 			} `json:"message"`
