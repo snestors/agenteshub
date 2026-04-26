@@ -21,6 +21,11 @@ type agentStatus struct {
 	CtxPct    float64 `json:"ctx_pct"`
 	SessionID string  `json:"session_id"`
 	WAEnabled bool    `json:"wa_enabled"`
+
+	// plan info read from ~/.claude/.credentials.json (best-effort).
+	// Empty strings if the file is missing or unreadable.
+	Plan     string `json:"plan"`      // 'max' | 'pro' | ...
+	PlanTier string `json:"plan_tier"` // 'default_claude_max_5x' | ...
 }
 
 // modelCtxWindow returns the documented context window for a model alias.
@@ -66,6 +71,7 @@ func (s *Server) handleAgentStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	used := readLastInputTokens(s.cfg.ClaudeProjectsDir, sid)
 	window := modelCtxWindow(model)
+	plan, tier := readClaudePlan()
 	pct := 0.0
 	if window > 0 && used > 0 {
 		pct = float64(used) / float64(window)
@@ -82,7 +88,32 @@ func (s *Server) handleAgentStatus(w http.ResponseWriter, r *http.Request) {
 		CtxPct:    pct,
 		SessionID: sid,
 		WAEnabled: s.cfg.WAEnabled,
+		Plan:      plan,
+		PlanTier:  tier,
 	})
+}
+
+// readClaudePlan returns (subscriptionType, rateLimitTier) from
+// ~/.claude/.credentials.json. Empty strings on any error.
+func readClaudePlan() (string, string) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", ""
+	}
+	raw, err := os.ReadFile(filepath.Join(home, ".claude", ".credentials.json"))
+	if err != nil {
+		return "", ""
+	}
+	var creds struct {
+		ClaudeAiOauth struct {
+			SubscriptionType string `json:"subscriptionType"`
+			RateLimitTier    string `json:"rateLimitTier"`
+		} `json:"claudeAiOauth"`
+	}
+	if err := json.Unmarshal(raw, &creds); err != nil {
+		return "", ""
+	}
+	return creds.ClaudeAiOauth.SubscriptionType, creds.ClaudeAiOauth.RateLimitTier
 }
 
 // readLastInputTokens scans the Claude JSONL of `sessionID` and returns the

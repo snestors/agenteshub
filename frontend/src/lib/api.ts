@@ -26,10 +26,14 @@ export interface AgentStatus {
   ctx_window: number;
   ctx_used: number;
   ctx_pct: number;
-  cost_usd: number;
+  cost_usd?: number;
   session_id?: string;
   wa_enabled?: boolean;
-  permissions: string;
+  permissions?: string;
+  /** Subscription plan from ~/.claude/.credentials.json (e.g. 'max', 'pro'). */
+  plan?: string;
+  /** Rate-limit tier (e.g. 'default_claude_max_5x'). */
+  plan_tier?: string;
 }
 
 export interface EngineDef {

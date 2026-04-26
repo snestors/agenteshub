@@ -154,6 +154,25 @@ export function StatusBar({ transportLabel }: StatusBarProps) {
         ctx:{ctxPctStr}
       </span>
 
+      {/* plan badge — leído de ~/.claude/.credentials.json */}
+      {status.plan ? (
+        <>
+          <span className="text-[var(--color-dim)]">·</span>
+          <span
+            className="inline-flex items-center px-2 py-0.5 clip-tag"
+            style={{
+              background: "rgba(163, 255, 78, 0.10)",
+              border: "1px solid rgba(163, 255, 78, 0.45)",
+              color: "var(--color-lime)",
+            }}
+            title={`plan ${status.plan}${status.plan_tier ? ` · ${status.plan_tier}` : ""}`}
+          >
+            plan · {status.plan}
+            {status.plan_tier?.includes("5x") ? " 5x" : ""}
+          </span>
+        </>
+      ) : null}
+
       <span className="ml-auto text-[var(--color-dim)]">
         {transportLabel ?? ""}
       </span>
