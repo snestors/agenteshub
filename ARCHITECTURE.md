@@ -822,7 +822,17 @@ agenthub/
 - [x] Cerrado: default `notify_target` = `main-agent`
 - [x] Cerrado: skills a usar (8 elegidas + propias en `.claude/skills/`)
 - [x] Mockups UI completos (chat, proyectos, sub-agentes, mini-agentes, topics, system manager)
-- [ ] **Fase 0** — esqueleto + auth ← siguiente paso
+- [x] **Fase 0** — esqueleto + auth ✓
+- [x] **Fase 1** — bridge WhatsApp con whatsmeow (apagado en dev hasta cutover)
+- [x] **Fase 2** — CLIEngine + comandos slash + session main
+- [x] **Fase 3** — MCP Go embebido (22 tools)
+- [x] **Fase 4** — persistencia 4 capas + snapshots automáticos
+- [x] **Fase 5** — frontend completo (chat, system manager, login)
+- [x] Bloque 2 — chat con main UI + WS streaming + ghost bubble + markdown + composer rico
+- [x] Engine picker UI + opus-1m funcional + plan badge
+- [ ] **Próximo: refactor WS unificado** (task #32) — luego topics (Fase 6) — luego mini-agentes UI
+
+**Para detalle exacto del estado de implementación, ver `IMPLEMENTATION-STATUS.md`.**
 
 ---
 
