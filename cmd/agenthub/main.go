@@ -13,6 +13,7 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"github.com/snestors/agenthub/internal/cliengine"
 	"github.com/snestors/agenthub/internal/config"
 	"github.com/snestors/agenthub/internal/server"
 	"github.com/snestors/agenthub/internal/setup"
@@ -99,8 +100,9 @@ func runServe() {
 	}
 	defer db.Close()
 	repos := store.NewRepos(db)
+	engines := cliengine.New(cfg, repos, logger)
 
-	srv, err := server.New(cfg, repos, logger)
+	srv, err := server.New(cfg, repos, engines, logger)
 	if err != nil {
 		logger.Error("server new", "err", err)
 		os.Exit(1)

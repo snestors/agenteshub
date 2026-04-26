@@ -18,6 +18,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/snestors/agenthub/internal/auth"
+	"github.com/snestors/agenthub/internal/cliengine"
 	"github.com/snestors/agenthub/internal/config"
 	"github.com/snestors/agenthub/internal/store"
 )
@@ -26,17 +27,18 @@ const cookieName = "agenthub_token"
 
 // Server owns the HTTP server + dependencies.
 type Server struct {
-	cfg    *config.Config
-	repos  *store.Repos
-	tokens *auth.TokenService
-	log    *slog.Logger
+	cfg     *config.Config
+	repos   *store.Repos
+	tokens  *auth.TokenService
+	engines *cliengine.Manager
+	log     *slog.Logger
 	httpSrv *http.Server
 }
 
 // New constructs a Server.
-func New(cfg *config.Config, repos *store.Repos, log *slog.Logger) (*Server, error) {
+func New(cfg *config.Config, repos *store.Repos, engines *cliengine.Manager, log *slog.Logger) (*Server, error) {
 	tokens := auth.NewTokenService(cfg, repos.Auth)
-	s := &Server{cfg: cfg, repos: repos, tokens: tokens, log: log}
+	s := &Server{cfg: cfg, repos: repos, tokens: tokens, engines: engines, log: log}
 	s.httpSrv = &http.Server{
 		Addr:    cfg.HTTPAddr,
 		Handler: s.routes(),
@@ -259,14 +261,45 @@ func (s *Server) handleMessagesSend(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// Cliengine no integrado todavía — solo eco para validar pipe E2E.
+
+	// Resume id of the main agent's session (persisted between turns).
+	mainSess, _ := s.repos.Sessions.GetAgentSession(r.Context(), "main-agent")
+	prev := ""
+	if mainSess != nil {
+		prev = mainSess.SessionID
+	}
+
+	// Run via cliengine (Claude default). cwd=agenthub repo so .claude/skills/ is discovered.
+	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+	defer cancel()
+	res, err := s.engines.Run(ctx, cliengine.RunOpts{
+		Prompt:    req.Body,
+		SessionID: prev,
+		Channel:   "web",
+		Cwd:       ".",
+		Engine:    s.cfg.DefaultEngine,
+		Scope:     "main",
+		AgentName: "main-agent",
+	})
+	if err != nil {
+		s.log.Error("cliengine", "err", err)
+		http.Error(w, "engine: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if res.SessionID != "" && res.SessionID != prev {
+		_ = s.repos.Sessions.UpsertAgentSession(r.Context(), store.AgentSession{
+			AgentName: "main-agent",
+			Engine:    s.cfg.DefaultEngine,
+			SessionID: res.SessionID,
+		})
+	}
 	_, _ = s.repos.Messages.Insert(r.Context(), store.Message{
 		Channel:   "web",
 		Direction: "out",
-		Body:      sqlStr("✓ recibido [eco · cliengine pendiente]: " + req.Body),
+		Body:      sqlStr(res.Text),
 		TS:        time.Now().Unix(),
 	})
-	writeJSON(w, http.StatusOK, map[string]any{"id": id, "echoed": true})
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "reply": res.Text, "session_id": res.SessionID, "tokens": res.CostTokens})
 }
 
 // ---------- frontend / static ----------
