@@ -170,6 +170,26 @@ export interface ProjectSession {
   created_at: number;
 }
 
+export interface ProjectServiceStatus {
+  kind: "systemd" | "docker" | "cloudflare-tunnel" | "process" | string;
+  description?: string;
+  unit?: string;
+  container?: string;
+  health_cmd?: string;
+  hostname?: string;
+  target?: string;
+  command?: string;
+  cwd?: string;
+  health_url?: string;
+  public_url?: string;
+  status: "active" | "stopped" | "failed" | "unknown" | string;
+  since?: number;
+  cpu_pct?: number;
+  mem_mb?: number;
+  health_ok: boolean;
+  health_error?: string;
+}
+
 export interface ProjectMessage {
   id: number;
   scope: string;
@@ -506,6 +526,32 @@ export const api = {
     return request<{ accepted: boolean; topic: string }>(
       `/api/projects/${projectId}/sessions/${sessionId}/messages`,
       { method: "POST", body: JSON.stringify({ body }) },
+    );
+  },
+
+  async listProjectServices(projectId: number): Promise<ProjectServiceStatus[]> {
+    const res = await request<{ services: ProjectServiceStatus[] | null }>(
+      `/api/projects/${projectId}/services`,
+    );
+    return res.services ?? [];
+  },
+
+  async reloadProjectServices(projectId: number): Promise<ProjectServiceStatus[]> {
+    const res = await request<{ services: ProjectServiceStatus[] | null }>(
+      `/api/projects/${projectId}/services/reload`,
+      { method: "POST" },
+    );
+    return res.services ?? [];
+  },
+
+  async projectServiceAction(
+    projectId: number,
+    index: number,
+    action: "start" | "stop" | "restart",
+  ): Promise<void> {
+    await request<{ ok: boolean }>(
+      `/api/projects/${projectId}/services/${index}/${action}`,
+      { method: "POST" },
     );
   },
 
