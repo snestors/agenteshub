@@ -104,7 +104,7 @@ func (s *Server) routes() http.Handler {
 	r.Use(middleware.RequestID, middleware.RealIP, requestLogger(s.log), middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"*"},
 		AllowCredentials: true,
 	}))
@@ -133,7 +133,9 @@ func (s *Server) routes() http.Handler {
 
 		// Uploads — adjuntar archivos al prompt
 		pr.Post("/api/upload", s.handleUpload)
+		pr.Get("/api/uploads/{id}", s.handleGetUpload)
 		pr.Delete("/api/uploads/{id}", s.handleDeleteUpload)
+		pr.Get("/api/file", s.handleGetFile)
 
 		// Projects — coding workspaces + browser sessions
 		pr.Get("/api/projects", s.handleProjectsList)
@@ -143,6 +145,14 @@ func (s *Server) routes() http.Handler {
 		pr.Post("/api/projects/{id}/sessions", s.handleProjectSessionsCreate)
 		pr.Get("/api/projects/{id}/sessions/{sid}/messages", s.handleProjectSessionMessagesList)
 		pr.Post("/api/projects/{id}/sessions/{sid}/messages", s.handleProjectSessionMessagesSend)
+
+		// Diagrams — Mermaid + Excalidraw
+		pr.Get("/api/diagrams", s.handleDiagramsList)
+		pr.Post("/api/diagrams", s.handleDiagramsCreate)
+		pr.Post("/api/diagrams/generate", s.handleDiagramsGenerate)
+		pr.Get("/api/diagrams/{id}", s.handleDiagramGet)
+		pr.Put("/api/diagrams/{id}", s.handleDiagramUpdate)
+		pr.Delete("/api/diagrams/{id}", s.handleDiagramDelete)
 
 		// Mini-agents — persistent scheduled/manual agents
 		pr.Get("/api/agents", s.handleAgentsList)

@@ -46,10 +46,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dir := s.cfg.UploadDir
-	if dir == "" {
-		dir = "data/uploads"
-	}
+	dir := s.uploadDir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		http.Error(w, "ensure dir: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -99,6 +96,106 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, meta)
 }
 
+// handleGetUpload streams a previously uploaded file by id.
+func (s *Server) handleGetUpload(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		http.Error(w, "id required", http.StatusBadRequest)
+		return
+	}
+	dir := s.uploadDir()
+	sidecar := filepath.Join(dir, id+".json")
+	raw, err := os.ReadFile(sidecar)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	var meta uploadMeta
+	if err := json.Unmarshal(raw, &meta); err != nil {
+		http.Error(w, "bad upload metadata", http.StatusInternalServerError)
+		return
+	}
+	path, ok := s.safeUploadPath(meta.Path)
+	if !ok {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	s.serveImmutableFile(w, r, path)
+}
+
+// handleGetFile streams legacy media by filesystem path after constraining it
+// to the configured upload root. This covers WhatsApp media rows that only
+// store media_path, not an upload id sidecar.
+func (s *Server) handleGetFile(w http.ResponseWriter, r *http.Request) {
+	rawPath := strings.TrimSpace(r.URL.Query().Get("path"))
+	if rawPath == "" {
+		http.Error(w, "path required", http.StatusBadRequest)
+		return
+	}
+	path, ok := s.safeUploadPath(rawPath)
+	if !ok {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	s.serveImmutableFile(w, r, path)
+}
+
+func (s *Server) uploadDir() string {
+	dir := s.cfg.UploadDir
+	if dir == "" {
+		dir = "data/uploads"
+	}
+	return dir
+}
+
+func (s *Server) safeUploadPath(rawPath string) (string, bool) {
+	base, err := filepath.Abs(s.uploadDir())
+	if err != nil {
+		return "", false
+	}
+	path, err := filepath.Abs(rawPath)
+	if err != nil {
+		return "", false
+	}
+	rel, err := filepath.Rel(base, path)
+	if err != nil || rel == "." || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
+		return "", false
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return "", false
+	}
+	return path, true
+}
+
+func (s *Server) serveImmutableFile(w http.ResponseWriter, r *http.Request, path string) {
+	f, err := os.Open(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil || info.IsDir() {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	buf := make([]byte, 512)
+	n, _ := io.ReadFull(f, buf)
+	_, _ = f.Seek(0, io.SeekStart)
+	w.Header().Set("Content-Type", http.DetectContentType(buf[:n]))
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	http.ServeContent(w, r, info.Name(), info.ModTime(), f)
+}
+
 // handleDeleteUpload removes a previously uploaded file by id.
 func (s *Server) handleDeleteUpload(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
@@ -106,10 +203,7 @@ func (s *Server) handleDeleteUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "id required", http.StatusBadRequest)
 		return
 	}
-	dir := s.cfg.UploadDir
-	if dir == "" {
-		dir = "data/uploads"
-	}
+	dir := s.uploadDir()
 	sidecar := filepath.Join(dir, id+".json")
 	raw, err := os.ReadFile(sidecar)
 	if err != nil {
