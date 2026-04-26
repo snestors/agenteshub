@@ -1,0 +1,35 @@
+# Go
+bin/
+*.exe
+*.test
+*.out
+
+# Local data
+agenthub.db
+agenthub.db-shm
+agenthub.db-wal
+*.bak
+.env
+.env.local
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+
+# Design handoff (reference, not committed)
+systemdasboard/
+systemdegin.tar.gz
+
+# Server preview
+ui/_*.html

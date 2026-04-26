@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>AgentHub UI — Mockup</title>
+<style>
+  body {
+    background: #0b0f14;
+    color: #cbd5e1;
+    font-family: 'JetBrains Mono', Menlo, monospace;
+    margin: 0;
+    padding: 24px;
+  }
+  header {
+    max-width: 1700px;
+    margin: 0 auto 16px;
+    border-bottom: 2px solid #2dd4bf;
+    padding-bottom: 12px;
+  }
+  h1 {
+    color: #f1f5f9;
+    font-size: 20px;
+    letter-spacing: 3px;
+    margin: 0 0 4px;
+  }
+  .sub { color: #64748b; font-size: 12px; }
+  .links { margin-top: 8px; }
+  .links a {
+    color: #38bdf8;
+    text-decoration: none;
+    font-size: 12px;
+    margin-right: 16px;
+  }
+  .links a:hover { color: #2dd4bf; text-decoration: underline; }
+  main { max-width: 1700px; margin: 0 auto; }
+  img {
+    width: 100%;
+    height: auto;
+    border-radius: 6px;
+    border: 1px solid #1e2a3a;
+    box-shadow: 0 0 24px rgba(45,212,191,0.08);
+    display: block;
+  }
+  .legend {
+    margin-top: 18px;
+    padding: 14px 18px;
+    background: #131c27;
+    border-radius: 8px;
+    border: 1px solid #1e2a3a;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .legend h3 {
+    color: #2dd4bf;
+    margin: 0 0 8px;
+    letter-spacing: 1px;
+    font-size: 13px;
+  }
+  .legend code {
+    color: #38bdf8;
+    background: rgba(56,189,248,0.08);
+    padding: 0 4px;
+    border-radius: 3px;
+    font-size: 11px;
+  }
+  .legend ul { margin: 4px 0; padding-left: 20px; }
+  .legend .ver {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 6px;
+    margin-right: 6px;
+  }
+  .legend .ver.v0 { background: rgba(74,222,128,0.15); color: #4ade80; }
+  .legend .ver.v1 { background: rgba(56,189,248,0.15); color: #38bdf8; }
+  .legend .ver.v2 { background: rgba(129,140,248,0.15); color: #818cf8; }
+</style>
+</head>
+<body>
+<header>
+  <h1>AGENTHUB UI — MOCKUP</h1>
+  <div class="sub">
+    Wireframe del cliente web · React + Vite + Tailwind + shadcn ·
+    estado en server, full WebSocket
+  </div>
+  <div class="links">
+    <a href="agenthub-ui-mockup.png" target="_blank">Mockup principal PNG ↗</a>
+    <a href="agenthub-ui-system.png" target="_blank">System Manager PNG ↗</a>
+    <a href="../">← volver al diagrama de arquitectura</a>
+    <a href="../ARCHITECTURE.md" target="_blank">ARCHITECTURE.md ↗</a>
+  </div>
+</header>
+<main>
+  <h2 style="color: #2dd4bf; font-size: 14px; margin-bottom: 8px; letter-spacing: 1px;">Pantallas principales (chat, proyectos, sub-agentes, mini-agentes, topics, login)</h2>
+  <img src="agenthub-ui-mockup.png" alt="Mockup de pantallas AgentHub UI">
+
+  <h2 style="color: #2dd4bf; font-size: 14px; margin: 24px 0 8px; letter-spacing: 1px;">System / Health Manager</h2>
+  <img src="agenthub-ui-system.png" alt="Mockup System Manager">
+
+  <div class="legend">
+    <h3>Anatomía del mockup</h3>
+    <p>Seis pantallas agrupadas por versión de release:</p>
+    <ul>
+      <li><span class="ver v0">v0</span><b>Login</b> y <b>Chat con el main</b> — la base mínima (auth + chat).</li>
+      <li><span class="ver v1">v1</span><b>Lista de proyectos</b> y <b>Sesión activa</b> — el reemplazo del SSH para coding desde la oficina.</li>
+      <li><span class="ver v2">v2</span><b>Mini-agentes</b> y <b>Topics</b> — orquestación visible y memoria del main.</li>
+    </ul>
+
+    <h3 style="margin-top: 14px;">Patrones visuales clave</h3>
+    <ul>
+      <li><b>Sidebar fijo</b> con navegación entre secciones + badge contador (proyectos, mini-agentes, topics).</li>
+      <li><b>Topbar contextual</b> con breadcrumb y botones de acción específicos por pantalla.</li>
+      <li><b>Topic pills</b> rosa al pie de mensajes del main — indica el contexto cargado / delegación silenciosa.</li>
+      <li><b>Tool calls</b> con borde naranja en sesiones de coding — visibilidad de qué hace Claude por dentro.</li>
+      <li><b>Dark mode permanente</b>, monospace (JetBrains Mono), acentos teal/cyan/pink/indigo.</li>
+      <li><b>Sidebar contextual</b> en sesiones de proyecto — muestra hermanas + botón "volver".</li>
+    </ul>
+
+    <h3 style="margin-top: 14px;">Decisiones que se traducen al frontend</h3>
+    <ul>
+      <li>Stack: <code>Vite + React 19 + Tailwind v4 + shadcn/ui</code> · cookie httpOnly para JWT.</li>
+      <li>Conexiones: <code>WS /ws/agent</code> para el chat principal · <code>WS /ws/project-session/&lt;id&gt;</code> para sesiones de coding.</li>
+      <li>Cliente sin estado: todo viaja por WebSocket. Recargar página NO pierde nada (la session vive en server).</li>
+      <li>Componentes mínimos: chat panel, message list, composer, project card, agent card, topic card. Sin templates pesados.</li>
+    </ul>
+  </div>
+</main>
+</body>
+</html>
