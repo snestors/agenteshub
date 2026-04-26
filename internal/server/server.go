@@ -104,6 +104,8 @@ func (s *Server) routes() http.Handler {
 
 		// Agent status (StatusBar UI)
 		pr.Get("/api/agent/status", s.handleAgentStatus)
+		pr.Get("/api/agent/engines", s.handleListEngines)
+		pr.Post("/api/agent/engine", s.handleSetEngine)
 
 		// Uploads — adjuntar archivos al prompt
 		pr.Post("/api/upload", s.handleUpload)
@@ -358,7 +360,17 @@ func (s *Server) handleMessagesSend(w http.ResponseWriter, r *http.Request) {
 		prev = mainSess.SessionID
 	}
 
-	// Run via cliengine (Claude default). cwd=agenthub repo so .claude/skills/ is discovered.
+	// Read engine/model from settings (set by /api/agent/engine), with config fallback.
+	engine := s.cfg.DefaultEngine
+	model := s.cfg.DefaultModel
+	if v, _ := s.repos.Settings.Get(r.Context(), "engine"); v != "" {
+		engine = v
+	}
+	if v, _ := s.repos.Settings.Get(r.Context(), "model"); v != "" {
+		model = v
+	}
+
+	// Run via cliengine. cwd=agenthub repo so .claude/skills/ is discovered.
 	// Stream events to the WS hub so the browser shows the agent's reasoning + tool calls
 	// while the turn is still in flight.
 	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
@@ -368,7 +380,8 @@ func (s *Server) handleMessagesSend(w http.ResponseWriter, r *http.Request) {
 		SessionID: prev,
 		Channel:   "web",
 		Cwd:       ".",
-		Engine:    s.cfg.DefaultEngine,
+		Engine:    engine,
+		Model:     model,
 		Scope:     "main",
 		AgentName: "main-agent",
 		OnEvent:   s.streamEventBroadcaster(),
@@ -390,11 +403,11 @@ func (s *Server) handleMessagesSend(w http.ResponseWriter, r *http.Request) {
 		Direction: "out",
 		Body:      sqlStr(res.Text),
 		TS:        time.Now().Unix(),
-		Engine:    sqlStr(s.cfg.DefaultEngine),
-		Model:     sqlStr(s.cfg.DefaultModel),
+		Engine:    sqlStr(engine),
+		Model:     sqlStr(model),
 	})
-	s.broadcastMessageWithModel(outID, "web", "out", res.Text, s.cfg.DefaultEngine, s.cfg.DefaultModel)
-	writeJSON(w, http.StatusOK, map[string]any{"id": id, "reply": res.Text, "session_id": res.SessionID, "tokens": res.CostTokens, "engine": s.cfg.DefaultEngine, "model": s.cfg.DefaultModel})
+	s.broadcastMessageWithModel(outID, "web", "out", res.Text, engine, model)
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "reply": res.Text, "session_id": res.SessionID, "tokens": res.CostTokens, "engine": engine, "model": model})
 }
 
 // ---------- frontend / static ----------

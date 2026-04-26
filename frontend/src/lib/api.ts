@@ -32,6 +32,30 @@ export interface AgentStatus {
   permissions: string;
 }
 
+export interface EngineDef {
+  engine: string;
+  models: string[];
+  ctx_windows?: Record<string, number>;
+}
+
+export const FALLBACK_ENGINES: EngineDef[] = [
+  {
+    engine: "claude",
+    models: ["sonnet", "opus", "haiku"],
+    ctx_windows: { sonnet: 200_000, opus: 200_000, haiku: 200_000 },
+  },
+  {
+    engine: "codex",
+    models: ["gpt-5.5"],
+    ctx_windows: { "gpt-5.5": 256_000 },
+  },
+  {
+    engine: "ollama",
+    models: ["gemma:2b"],
+    ctx_windows: { "gemma:2b": 8_192 },
+  },
+];
+
 export const AGENT_STATUS_FALLBACK: AgentStatus = {
   engine: "claude",
   model: "sonnet",
@@ -196,6 +220,18 @@ export const api = {
   // ─── agent status ───────────────────────────
   async agentStatus(): Promise<AgentStatus> {
     return request<AgentStatus>("/api/agent/status");
+  },
+
+  async listEngines(): Promise<EngineDef[]> {
+    const res = await request<{ engines: EngineDef[] | null }>("/api/agent/engines");
+    return res.engines ?? [];
+  },
+
+  async setEngine(engine: string, model: string): Promise<void> {
+    await request<{ ok: boolean; engine: string; model: string }>("/api/agent/engine", {
+      method: "POST",
+      body: JSON.stringify({ engine, model }),
+    });
   },
 
   // ─── uploads ────────────────────────────────
