@@ -82,6 +82,19 @@ func (r *ProjectsRepo) GetByID(ctx context.Context, id int64) (*Project, error) 
 	return &p, nil
 }
 
+// GetByPath looks up a project by its registered filesystem path.
+func (r *ProjectsRepo) GetByPath(ctx context.Context, path string) (*Project, error) {
+	var p Project
+	err := r.db.QueryRowContext(ctx, `
+		SELECT id, name, path, description, default_engine, created_at, updated_at
+		FROM projects WHERE path = ?
+	`, path).Scan(&p.ID, &p.Name, &p.Path, &p.Description, &p.DefaultEngine, &p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
 // Create inserts a new project.
 func (r *ProjectsRepo) Create(ctx context.Context, p Project) (int64, error) {
 	now := time.Now().Unix()
