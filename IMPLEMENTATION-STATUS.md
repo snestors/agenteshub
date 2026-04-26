@@ -89,7 +89,7 @@
 - **System**: `GET /api/system/stats`, `/services`, `/processes`, `/connections`, `POST /api/system/services/{name}/{action}` (compat) + `WS /ws` topic `system` + action `service_action` con `{name, op}`
 - **Uploads**: `POST /api/upload` (max 50MB), `DELETE /api/uploads/{id}`
 - **Health**: `GET /healthz`
-- **Frontend SPA**: `GET /` y `/*` sirven `frontend/dist/`
+- **Frontend SPA**: `GET /` y `/*` sirven `frontend/dist/`; `index.html`/fallback van con `Cache-Control: no-store`, `/assets/*` hasheados con `public, max-age=31536000, immutable`, otros estáticos con `public, max-age=3600`.
 
 #### Database (SQLite WAL)
 14 tablas + FTS5: auth_users, jwt_revocations, settings, wa_messages (con engine+model), wa_jid_map, topics, topic_state, projects, project_sessions, agents, agent_schedules, agent_runs, agent_sessions, agent_records, session_messages, subagent_runs, session_snapshots, __migrations.
@@ -100,7 +100,7 @@ Migrations idempotentes via tabla `__migrations(name, applied_at)`.
 - **systemd**: una sola unit `agenthub.service` con `Restart=always`
 - **cron interno** (robfig/cron): session-snapshot cada 5min, jwt-cleanup cada 24h
 - **scheduler runtime**: tick cada 30s lee `agent_schedules` y dispara cliengine.Run
-- **WS hub**: `/ws` unificado con pub/sub por topic, RPC bidireccional con acks correlacionados y legacy `/ws/agent` + `/ws/system`.
+- **WS hub**: `/ws` unificado con pub/sub por topic y RPC bidireccional con acks correlacionados. Endpoints legacy `/ws/agent` y `/ws/system` removidos (404).
 
 ### Frontend completo
 
@@ -119,9 +119,9 @@ Bundle: ~478 KB JS / 147 KB gz. Build: `cd frontend && pnpm run build`.
 - **`Composer.tsx`**: auto-resize hasta 5 filas, paste-collapse a chips `[Pasted #N +M lines]`, drag-drop de archivos, attachments con chips lime/`pending` orange
 - **`MessageBubble.tsx`**: render markdown completo (tablas, code blocks, headings, lists, blockquote) con paleta HUD; header muestra `engine · model` cuando es del agente
 - **`GhostBubble.tsx`**: bubble vivo durante streaming — thinking en cursivas grises, tool cards (running/ok/error con pulse), texto markdown streaming, cursor parpadeante
-- **`StatusBar.tsx`**: badge clickeable `[engine · model · ctx]`, `ctx:N%` con colores cyan/warn/danger, `plan · max 5x`, transport label (`ws · live` / `polling · 2s`)
+- **`StatusBar.tsx`**: badge clickeable `[engine · model · ctx]`, `ctx:N%` con colores cyan/warn/danger, `plan · max 5x`, transport label (`ws · live` / `ws · reconnect…`); agent_status llega 100% por WS.
 - **`EnginePicker.tsx`**: dropdown flotante para cambiar engine + model en runtime, validación contra catálogo del backend, toast de confirmación
-- **`useWebSocket`**: hook con backoff exponencial `[1s, 2s, 5s, 10s, 30s]`, status `connecting|open|closed|fallback`, fallback a polling automático
+- **`wsClient` + `useTopic`**: singleton `/ws` con subscribe/unsubscribe por topic, backoff exponencial y re-suscripción automática; el hook legacy `useWebSocket` fue removido.
 
 ### Skills internas (`.claude/skills/`)
 1. **`topic-routing`** — cómo el main detecta topic y delega
@@ -130,11 +130,11 @@ Bundle: ~478 KB JS / 147 KB gz. Build: `cd frontend && pnpm run build`.
 4. **`notifications`** — patrones de envío rico al user
 5. **`system-control`** — get_status
 
-## 📋 TODO List canónico — 20 tasks (11 done · 9 open)
+## 📋 TODO List canónico — actualizado
 
 > Esta es la fuente de verdad de las tareas. Las TaskList del runtime de Claude Code se pierden con `/compact`; este bloque NO. Si retomás, **leé esto y volvé a crear las tasks abiertas con `TaskCreate`** para tener trazabilidad en la sesión.
 
-### ✅ Completadas (18 — actualizado al cierre)
+### ✅ Completadas (actualizado al cierre)
 
 **Cerradas en esta sesión post-compact**:
 - #32 (#37) WS unificado `/ws` con routing por topic
@@ -144,6 +144,8 @@ Bundle: ~478 KB JS / 147 KB gz. Build: `cd frontend && pnpm run build`.
 - #30 Warning visible cuando el engine devuelve body vacío
 - #28 Codex smoke E2E validado y expuesto como `codex · gpt-5.5`
 - #36 Usage local desde JSONLs (5h + 7d) persistido en settings y mostrado en StatusBar
+- Limpieza WS legacy: removidos `/ws/agent`, `/ws/system`, `legacyTopic`, hook viejo `useWebSocket` y fallbacks de polling de Chat/System stats/StatusBar.
+- Cache headers frontend: HTML/fallback `no-store`, assets hasheados immutable 1 año, estáticos no hasheados 1 hora.
 
 
 
@@ -167,7 +169,7 @@ Bundle: ~478 KB JS / 147 KB gz. Build: `cd frontend && pnpm run build`.
 
 **#32 — WS unificado `/ws` con routing por topic + subscribe/unsubscribe**
 
-Refactor crítico: reemplazar `/ws/agent` + `/ws/system` por un único endpoint `/ws` con protocolo JSON pequeño:
+Refactor crítico completado: `/ws/agent` + `/ws/system` fueron reemplazados por un único endpoint `/ws` con protocolo JSON pequeño:
 
 ```
 CLIENT → SERVER:
@@ -186,16 +188,16 @@ Cambios backend:
 - `Broadcast` filtra: si `client.subscribed[env.Topic] || subscribed["*"]`
 
 Cambios frontend:
-- `useWebSocket` → `useUnifiedWS` (singleton del App)
+- Hook legacy `useWebSocket` removido → `wsClient` singleton + `useTopic`
 - Hook helper `useTopic(name, onMessage)` que sube/baja la suscripción al mount/unmount
 - `ChatMain`, `System`, `StatusBar` dejan de tener su propio WS — todos usan `useTopic`
 - Reconnect coordinado: cuando vuelve, re-suscribe a todos los topics activos
 
-Endpoints viejos `/ws/agent` y `/ws/system`: 410 Gone con mensaje "use /ws"
+Endpoints viejos `/ws/agent` y `/ws/system`: removidos; el catch-all SPA devuelve 404 para `/ws/*` desconocido.
 
 ---
 
-**#33 — Push de `agent_status` por WS (eliminar polling cada 5s)** *(bloqueado por #32)*
+**#33 — Push de `agent_status` por WS (eliminar polling cada 5s)** ✅ COMPLETADA
 
 Una vez en `/ws` unificado, eliminar el polling de `/api/agent/status` cada 5s. El server emite `{ type:'status', topic:'agent_status', payload:{...} }` cuando:
 1. Después de cada respuesta del agente (ctx_used cambió)
@@ -203,13 +205,13 @@ Una vez en `/ws` unificado, eliminar el polling de `/api/agent/status` cada 5s. 
 3. Heartbeat cada 60s (catch-all para drift por cambios externos)
 4. On-demand: cliente envía `{action:'status.refresh'}` y server emite
 
-`GET /api/agent/status` sigue existiendo para el primer fetch al conectar (no perder TTFB con un round-trip extra).
+`GET /api/agent/status` sigue existiendo para compat/curl, pero `StatusBar` ya no lo pollea; usa `useTopic("agent_status")` y heartbeat server cada 60s.
 
 ---
 
-**#34 — System Manager stats por WS (sustituir polling 2s)** *(bloqueado por #32)*
+**#34 — System Manager stats por WS (sustituir polling 2s)** ✅ COMPLETADA
 
-Análogo a #33: una vez en `/ws` unificado, sysman pushea stats al topic `'system'` cada 2s SOLO si hay clientes suscritos. Eliminar `startSystemPoller` del Run actual y el endpoint WS `/ws/system`.
+Implementado: `startSystemPoller` pushea stats al topic `'system'` cada 2s SOLO si hay clientes suscritos (`CountSubscribed("system")`). Endpoint legacy `/ws/system` removido; en frontend se removió el polling fallback de stats.
 
 Para cambios de servicios (start/stop/restart), también pushear `{ type:'service_event', topic:'system', payload:{name,action,result} }` al instante para refresh inmediato sin esperar el siguiente tick.
 
@@ -265,28 +267,11 @@ Sistema de detección automática de topic + delegación operativa por el agente
 
 ## 🔴 Pendientes (en orden de prioridad)
 
-### Crítico — refactor WS (siguiente)
-
-| # | Tarea | Bloqueado por |
-|---|---|---|
-| **32** | WS unificado `/ws` con routing topic + subscribe/unsubscribe | — |
-| **33** | Push de `agent_status` por WS (matar polling 5s) | #32 |
-| **34** | System Manager stats por WS (sustituir polling 2s) | #32 |
-| **35** | RPC bidireccional sobre `/ws` (mover POST messages, set_engine, service_action a WS actions) | #32 |
-
 ### Engines
 
 | # | Tarea |
 |---|---|
-| **28** | Smoke test E2E codex con resume → exponer en picker |
 | **29** | Smoke test E2E ollama → exponer en picker |
-| **30** | Frontend: warning rojo si engine devuelve body vacío |
-
-### Usage real
-
-| # | Tarea |
-|---|---|
-| **36** | Calcular usage local desde JSONLs (sesión 5h + semanal 7d), Max5x estimado |
 
 ### Modelo conceptual
 
@@ -307,6 +292,8 @@ Cosas que decidí o ajusté durante la implementación que no llegaron a doc:
 7. **`data/` está en `.gitignore`** (uploads + db + snapshots). Si retomás, no esperés ver `data/agenthub.db` versionado.
 8. **Migrations idempotentes** vía tabla `__migrations(name, applied_at)`. No re-aplica las ya corridas.
 9. **WS RPC service_action usa `op`**, no `action`, para evitar colisión con el campo action del envelope RPC.
+10. **Cache frontend explícito**: HTML/fallback con `no-store`; `/assets/*` de Vite con hash cacheados 1 año immutable; estáticos sin hash 1h.
+11. **Catch-all SPA no captura `/ws/*` desconocido**: tras remover legacy, `/ws/agent` y `/ws/system` deben responder 404, no `index.html`.
 
 ## 🛠 Cómo trabajar después de retomar
 
