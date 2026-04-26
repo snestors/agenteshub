@@ -57,6 +57,8 @@ func (s *Server) registerTools() {
 	s.srv.AddTool(mcp.NewTool("send_message",
 		mcp.WithDescription("Send a text message to the user via the active channel (WhatsApp or Web)."),
 		mcp.WithString("text", mcp.Required(), mcp.Description("Plain text body to send.")),
+		mcp.WithString("jid", mcp.Description("Optional WA JID. When set, also queues an outgoing WA text — useful when responding outside the live conversation context.")),
+		mcp.WithString("reply_to", mcp.Description("Optional WA stanza id to quote. Requires jid.")),
 	), s.handleSendMessage)
 
 	s.srv.AddTool(mcp.NewTool("send_image",
@@ -64,18 +66,21 @@ func (s *Server) registerTools() {
 		mcp.WithString("jid", mcp.Required(), mcp.Description("Target JID (digits or full '<phone>@s.whatsapp.net').")),
 		mcp.WithString("path", mcp.Required(), mcp.Description("Absolute path to the image on the daemon's filesystem.")),
 		mcp.WithString("caption", mcp.Description("Optional caption shown below the image.")),
+		mcp.WithString("reply_to", mcp.Description("WA stanza id of the message you are replying to (use the 'reply_to' field of an incoming message).")),
 	), s.handleSendImage)
 
 	s.srv.AddTool(mcp.NewTool("send_voice",
 		mcp.WithDescription("Send a voice note (PTT) to a WhatsApp JID. File should be opus-encoded .ogg."),
 		mcp.WithString("jid", mcp.Required()),
 		mcp.WithString("path", mcp.Required(), mcp.Description("Absolute path to the .ogg file.")),
+		mcp.WithString("reply_to", mcp.Description("WA stanza id of the message you are replying to.")),
 	), s.handleSendVoice)
 
 	s.srv.AddTool(mcp.NewTool("send_audio",
 		mcp.WithDescription("Send an audio file (music / non-PTT) to a WhatsApp JID."),
 		mcp.WithString("jid", mcp.Required()),
 		mcp.WithString("path", mcp.Required()),
+		mcp.WithString("reply_to", mcp.Description("WA stanza id of the message you are replying to.")),
 	), s.handleSendAudio)
 
 	s.srv.AddTool(mcp.NewTool("send_document",
@@ -83,6 +88,7 @@ func (s *Server) registerTools() {
 		mcp.WithString("jid", mcp.Required()),
 		mcp.WithString("path", mcp.Required()),
 		mcp.WithString("caption", mcp.Description("Optional caption.")),
+		mcp.WithString("reply_to", mcp.Description("WA stanza id of the message you are replying to.")),
 	), s.handleSendDocument)
 
 	s.srv.AddTool(mcp.NewTool("send_video",
@@ -90,6 +96,7 @@ func (s *Server) registerTools() {
 		mcp.WithString("jid", mcp.Required()),
 		mcp.WithString("path", mcp.Required()),
 		mcp.WithString("caption", mcp.Description("Optional caption.")),
+		mcp.WithString("reply_to", mcp.Description("WA stanza id of the message you are replying to.")),
 	), s.handleSendVideo)
 
 	s.srv.AddTool(mcp.NewTool("send_location",
@@ -98,6 +105,7 @@ func (s *Server) registerTools() {
 		mcp.WithNumber("lat", mcp.Required(), mcp.Description("Latitude in decimal degrees.")),
 		mcp.WithNumber("lng", mcp.Required(), mcp.Description("Longitude in decimal degrees.")),
 		mcp.WithString("name", mcp.Description("Optional place label shown next to the pin.")),
+		mcp.WithString("reply_to", mcp.Description("WA stanza id of the message you are replying to.")),
 	), s.handleSendLocation)
 
 	// ---------- input ----------
@@ -255,9 +263,9 @@ func (s *Server) handleSendMessage(ctx context.Context, req mcp.CallToolRequest)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	// In v0 we just persist as channel='web' direction='out' to surface in the UI.
-	// At connect time the WA writer (when WAEnabled) will also broadcast to the
-	// active jid. Here we route via DB only, which is what the chat UI consumes.
+	jid := strings.TrimSpace(req.GetString("jid", ""))
+	replyTo := strings.TrimSpace(req.GetString("reply_to", ""))
+	// Always persist as a web 'out' so the UI sees it.
 	id, err := s.repos.Messages.Insert(ctx, store.Message{
 		Channel:   "web",
 		Direction: "out",
@@ -266,6 +274,19 @@ func (s *Server) handleSendMessage(ctx context.Context, req mcp.CallToolRequest)
 	})
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
+	}
+	// When the agent supplies a jid, also queue an outgoing WA text — this
+	// is how it 'replies' through the WhatsApp channel from inside an MCP
+	// turn. The outbox worker dispatches it.
+	if jid != "" {
+		if _, oerr := s.repos.WaOutbox.Enqueue(ctx, store.WaOutboxItem{
+			JID:     jid,
+			Kind:    "text",
+			Body:    sqlStr(text),
+			ReplyTo: sqlStr(replyTo),
+		}); oerr != nil {
+			return mcp.NewToolResultError("queued web ok but wa enqueue failed: " + oerr.Error()), nil
+		}
 	}
 	return mcp.NewToolResultText(fmt.Sprintf("ok message_id=%d", id)), nil
 }
@@ -280,11 +301,13 @@ func (s *Server) handleSendImage(ctx context.Context, req mcp.CallToolRequest) (
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	caption := strings.TrimSpace(req.GetString("caption", ""))
+	replyTo := strings.TrimSpace(req.GetString("reply_to", ""))
 	id, err := s.repos.WaOutbox.Enqueue(ctx, store.WaOutboxItem{
 		JID:       jid,
 		Kind:      "image",
 		MediaPath: sqlStr(path),
 		Caption:   sqlStr(caption),
+		ReplyTo:   sqlStr(replyTo),
 	})
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -301,10 +324,12 @@ func (s *Server) handleSendVoice(ctx context.Context, req mcp.CallToolRequest) (
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
+	replyTo := strings.TrimSpace(req.GetString("reply_to", ""))
 	id, err := s.repos.WaOutbox.Enqueue(ctx, store.WaOutboxItem{
 		JID:       jid,
 		Kind:      "voice",
 		MediaPath: sqlStr(path),
+		ReplyTo:   sqlStr(replyTo),
 	})
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -321,10 +346,12 @@ func (s *Server) handleSendAudio(ctx context.Context, req mcp.CallToolRequest) (
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
+	replyTo := strings.TrimSpace(req.GetString("reply_to", ""))
 	id, err := s.repos.WaOutbox.Enqueue(ctx, store.WaOutboxItem{
 		JID:       jid,
 		Kind:      "audio",
 		MediaPath: sqlStr(path),
+		ReplyTo:   sqlStr(replyTo),
 	})
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -342,11 +369,13 @@ func (s *Server) handleSendDocument(ctx context.Context, req mcp.CallToolRequest
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	caption := strings.TrimSpace(req.GetString("caption", ""))
+	replyTo := strings.TrimSpace(req.GetString("reply_to", ""))
 	id, err := s.repos.WaOutbox.Enqueue(ctx, store.WaOutboxItem{
 		JID:       jid,
 		Kind:      "document",
 		MediaPath: sqlStr(path),
 		Caption:   sqlStr(caption),
+		ReplyTo:   sqlStr(replyTo),
 	})
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -364,11 +393,13 @@ func (s *Server) handleSendVideo(ctx context.Context, req mcp.CallToolRequest) (
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	caption := strings.TrimSpace(req.GetString("caption", ""))
+	replyTo := strings.TrimSpace(req.GetString("reply_to", ""))
 	id, err := s.repos.WaOutbox.Enqueue(ctx, store.WaOutboxItem{
 		JID:       jid,
 		Kind:      "video",
 		MediaPath: sqlStr(path),
 		Caption:   sqlStr(caption),
+		ReplyTo:   sqlStr(replyTo),
 	})
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -387,12 +418,14 @@ func (s *Server) handleSendLocation(ctx context.Context, req mcp.CallToolRequest
 		return mcp.NewToolResultError("lat and lng required"), nil
 	}
 	name := strings.TrimSpace(req.GetString("name", ""))
+	replyTo := strings.TrimSpace(req.GetString("reply_to", ""))
 	id, err := s.repos.WaOutbox.Enqueue(ctx, store.WaOutboxItem{
 		JID:     jid,
 		Kind:    "location",
 		LocLat:  sql.NullFloat64{Float64: lat, Valid: true},
 		LocLng:  sql.NullFloat64{Float64: lng, Valid: true},
 		LocName: sqlStr(name),
+		ReplyTo: sqlStr(replyTo),
 	})
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil

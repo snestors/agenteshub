@@ -66,42 +66,52 @@ func (c *Client) dispatchOutboxItem(ctx context.Context, item store.WaOutboxItem
 	if item.JID == "" {
 		return errors.New("missing jid")
 	}
+	var reply *ReplyContext
+	if item.ReplyTo.Valid && item.ReplyTo.String != "" {
+		reply = &ReplyContext{
+			StanzaID:    item.ReplyTo.String,
+			Participant: nsStr(item.ReplyParticipant),
+		}
+		if reply.Participant == "" {
+			reply.Participant = item.JID // 1-to-1 fallback
+		}
+	}
 	switch item.Kind {
 	case "text":
 		if !item.Body.Valid || item.Body.String == "" {
 			return errors.New("text outbox item missing body")
 		}
-		return c.SendText(ctx, item.JID, item.Body.String)
+		return c.SendText(ctx, item.JID, item.Body.String, reply)
 	case "image":
 		if !item.MediaPath.Valid {
 			return errors.New("image outbox item missing media_path")
 		}
-		return c.SendImage(ctx, item.JID, item.MediaPath.String, nsStr(item.Caption))
+		return c.SendImage(ctx, item.JID, item.MediaPath.String, nsStr(item.Caption), reply)
 	case "voice":
 		if !item.MediaPath.Valid {
 			return errors.New("voice outbox item missing media_path")
 		}
-		return c.SendVoice(ctx, item.JID, item.MediaPath.String)
+		return c.SendVoice(ctx, item.JID, item.MediaPath.String, reply)
 	case "audio":
 		if !item.MediaPath.Valid {
 			return errors.New("audio outbox item missing media_path")
 		}
-		return c.SendAudio(ctx, item.JID, item.MediaPath.String)
+		return c.SendAudio(ctx, item.JID, item.MediaPath.String, reply)
 	case "document":
 		if !item.MediaPath.Valid {
 			return errors.New("document outbox item missing media_path")
 		}
-		return c.SendDocument(ctx, item.JID, item.MediaPath.String, nsStr(item.Caption))
+		return c.SendDocument(ctx, item.JID, item.MediaPath.String, nsStr(item.Caption), reply)
 	case "video":
 		if !item.MediaPath.Valid {
 			return errors.New("video outbox item missing media_path")
 		}
-		return c.SendVideo(ctx, item.JID, item.MediaPath.String, nsStr(item.Caption))
+		return c.SendVideo(ctx, item.JID, item.MediaPath.String, nsStr(item.Caption), reply)
 	case "location":
 		if !item.LocLat.Valid || !item.LocLng.Valid {
 			return errors.New("location outbox item missing coords")
 		}
-		return c.SendLocation(ctx, item.JID, item.LocLat.Float64, item.LocLng.Float64, nsStr(item.LocName))
+		return c.SendLocation(ctx, item.JID, item.LocLat.Float64, item.LocLng.Float64, nsStr(item.LocName), reply)
 	default:
 		return errors.New("unknown kind: " + item.Kind)
 	}

@@ -14,37 +14,59 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// ReplyContext identifies a previous WhatsApp message to quote in a reply.
+// Both fields come from a previously received message (Info.ID and
+// Info.Sender.String() in whatsmeow's events.Message).
+type ReplyContext struct {
+	StanzaID    string // wa external message id we're quoting
+	Participant string // JID of the original sender (chat partner in 1-to-1)
+}
+
+func buildContextInfo(reply *ReplyContext) *waE2E.ContextInfo {
+	if reply == nil || strings.TrimSpace(reply.StanzaID) == "" {
+		return nil
+	}
+	ci := &waE2E.ContextInfo{StanzaID: proto.String(reply.StanzaID)}
+	if strings.TrimSpace(reply.Participant) != "" {
+		ci.Participant = proto.String(reply.Participant)
+	}
+	// QuotedMessage required by some clients; an empty conversation works as a stub.
+	ci.QuotedMessage = &waE2E.Message{Conversation: proto.String("")}
+	return ci
+}
+
 // SendImage uploads + sends an image. `caption` is optional. The MIME type is
-// sniffed from the bytes; falls back to image/jpeg.
-func (c *Client) SendImage(ctx context.Context, jid, path, caption string) error {
-	return c.sendMedia(ctx, jid, path, caption, mediaKindImage)
+// sniffed from the bytes; falls back to image/jpeg. Pass `reply` to quote a
+// previous message; pass nil for a non-reply send.
+func (c *Client) SendImage(ctx context.Context, jid, path, caption string, reply *ReplyContext) error {
+	return c.sendMedia(ctx, jid, path, caption, mediaKindImage, reply)
 }
 
 // SendVoice sends a voice note (PTT=true). The file should be opus-encoded
 // .ogg for best compatibility. WhatsApp will reject other codecs silently.
-func (c *Client) SendVoice(ctx context.Context, jid, path string) error {
-	return c.sendMedia(ctx, jid, path, "", mediaKindVoice)
+func (c *Client) SendVoice(ctx context.Context, jid, path string, reply *ReplyContext) error {
+	return c.sendMedia(ctx, jid, path, "", mediaKindVoice, reply)
 }
 
 // SendAudio sends a music/audio file (PTT=false).
-func (c *Client) SendAudio(ctx context.Context, jid, path string) error {
-	return c.sendMedia(ctx, jid, path, "", mediaKindAudio)
+func (c *Client) SendAudio(ctx context.Context, jid, path string, reply *ReplyContext) error {
+	return c.sendMedia(ctx, jid, path, "", mediaKindAudio, reply)
 }
 
 // SendDocument sends an arbitrary file as a document attachment. `caption`
 // optional. The displayed filename is the basename of `path`.
-func (c *Client) SendDocument(ctx context.Context, jid, path, caption string) error {
-	return c.sendMedia(ctx, jid, path, caption, mediaKindDocument)
+func (c *Client) SendDocument(ctx context.Context, jid, path, caption string, reply *ReplyContext) error {
+	return c.sendMedia(ctx, jid, path, caption, mediaKindDocument, reply)
 }
 
 // SendVideo sends a video file. `caption` optional.
-func (c *Client) SendVideo(ctx context.Context, jid, path, caption string) error {
-	return c.sendMedia(ctx, jid, path, caption, mediaKindVideo)
+func (c *Client) SendVideo(ctx context.Context, jid, path, caption string, reply *ReplyContext) error {
+	return c.sendMedia(ctx, jid, path, caption, mediaKindVideo, reply)
 }
 
 // SendLocation sends a static location pin. `name` is the place label
 // shown next to the map; pass "" for none.
-func (c *Client) SendLocation(ctx context.Context, jid string, lat, lng float64, name string) error {
+func (c *Client) SendLocation(ctx context.Context, jid string, lat, lng float64, name string, reply *ReplyContext) error {
 	if !c.Connected() {
 		return errors.New("wa not connected")
 	}
@@ -58,6 +80,9 @@ func (c *Client) SendLocation(ctx context.Context, jid string, lat, lng float64,
 	}
 	if strings.TrimSpace(name) != "" {
 		loc.Name = proto.String(name)
+	}
+	if ci := buildContextInfo(reply); ci != nil {
+		loc.ContextInfo = ci
 	}
 	_, err = c.wmClient.SendMessage(ctx, parsed, &waE2E.Message{LocationMessage: loc})
 	return err
@@ -74,8 +99,8 @@ const (
 )
 
 // sendMedia is the shared upload + envelope path. Each kind picks its
-// MediaType + builds the right *waE2E.Message variant.
-func (c *Client) sendMedia(ctx context.Context, jid, path, caption string, kind mediaKind) error {
+// MediaType + builds the right *waE2E.Message variant. `reply` is optional.
+func (c *Client) sendMedia(ctx context.Context, jid, path, caption string, kind mediaKind, reply *ReplyContext) error {
 	if !c.Connected() {
 		return errors.New("wa not connected")
 	}
@@ -112,6 +137,7 @@ func (c *Client) sendMedia(ctx context.Context, jid, path, caption string, kind 
 	}
 	size := uint64(len(data))
 
+	ci := buildContextInfo(reply)
 	msg := &waE2E.Message{}
 	switch kind {
 	case mediaKindImage:
@@ -131,6 +157,9 @@ func (c *Client) sendMedia(ctx context.Context, jid, path, caption string, kind 
 		if strings.TrimSpace(caption) != "" {
 			msg.ImageMessage.Caption = proto.String(caption)
 		}
+		if ci != nil {
+			msg.ImageMessage.ContextInfo = ci
+		}
 	case mediaKindVoice, mediaKindAudio:
 		if !strings.HasPrefix(mtype, "audio/") {
 			mtype = "audio/ogg; codecs=opus"
@@ -144,6 +173,9 @@ func (c *Client) sendMedia(ctx context.Context, jid, path, caption string, kind 
 			FileSHA256:    uploaded.FileSHA256,
 			FileLength:    proto.Uint64(size),
 			PTT:           proto.Bool(kind == mediaKindVoice),
+		}
+		if ci != nil {
+			msg.AudioMessage.ContextInfo = ci
 		}
 	case mediaKindDocument:
 		fname := filepath.Base(path)
@@ -161,6 +193,9 @@ func (c *Client) sendMedia(ctx context.Context, jid, path, caption string, kind 
 		if strings.TrimSpace(caption) != "" {
 			msg.DocumentMessage.Caption = proto.String(caption)
 		}
+		if ci != nil {
+			msg.DocumentMessage.ContextInfo = ci
+		}
 	case mediaKindVideo:
 		if !strings.HasPrefix(mtype, "video/") {
 			mtype = "video/mp4"
@@ -176,6 +211,9 @@ func (c *Client) sendMedia(ctx context.Context, jid, path, caption string, kind 
 		}
 		if strings.TrimSpace(caption) != "" {
 			msg.VideoMessage.Caption = proto.String(caption)
+		}
+		if ci != nil {
+			msg.VideoMessage.ContextInfo = ci
 		}
 	}
 	_, err = c.wmClient.SendMessage(ctx, parsed, msg)

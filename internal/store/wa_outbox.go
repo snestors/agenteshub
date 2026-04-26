@@ -10,20 +10,22 @@ import (
 // WaOutboxItem is an outgoing WhatsApp message queued by the MCP subprocess
 // for the daemon's outbox worker to dispatch.
 type WaOutboxItem struct {
-	ID         int64
-	JID        string
-	Kind       string // 'text'|'image'|'voice'|'audio'|'document'|'video'|'location'
-	Body       sql.NullString
-	MediaPath  sql.NullString
-	Caption    sql.NullString
-	LocLat     sql.NullFloat64
-	LocLng     sql.NullFloat64
-	LocName    sql.NullString
-	Status     string
-	Error      sql.NullString
-	Attempts   int
-	CreatedAt  int64
-	SentAt     sql.NullInt64
+	ID               int64
+	JID              string
+	Kind             string // 'text'|'image'|'voice'|'audio'|'document'|'video'|'location'
+	Body             sql.NullString
+	MediaPath        sql.NullString
+	Caption          sql.NullString
+	LocLat           sql.NullFloat64
+	LocLng           sql.NullFloat64
+	LocName          sql.NullString
+	ReplyTo          sql.NullString // WA stanza id we are quoting
+	ReplyParticipant sql.NullString // JID of the original sender (for groups)
+	Status           string
+	Error            sql.NullString
+	Attempts         int
+	CreatedAt        int64
+	SentAt           sql.NullInt64
 }
 
 type WaOutboxRepo struct{ db *sql.DB }
@@ -39,10 +41,11 @@ func (r *WaOutboxRepo) Enqueue(ctx context.Context, item WaOutboxItem) (int64, e
 		item.Status = "pending"
 	}
 	res, err := r.db.ExecContext(ctx, `
-		INSERT INTO wa_outbox(jid, kind, body, media_path, caption, loc_lat, loc_lng, loc_name, status, created_at)
-		VALUES(?,?,?,?,?,?,?,?,?,?)
+		INSERT INTO wa_outbox(jid, kind, body, media_path, caption, loc_lat, loc_lng, loc_name, reply_to, reply_participant, status, created_at)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
 	`, item.JID, item.Kind, item.Body, item.MediaPath, item.Caption,
-		item.LocLat, item.LocLng, item.LocName, item.Status, item.CreatedAt)
+		item.LocLat, item.LocLng, item.LocName, item.ReplyTo, item.ReplyParticipant,
+		item.Status, item.CreatedAt)
 	if err != nil {
 		return 0, fmt.Errorf("enqueue wa_outbox: %w", err)
 	}
@@ -55,7 +58,7 @@ func (r *WaOutboxRepo) PullPending(ctx context.Context, limit int) ([]WaOutboxIt
 		limit = 20
 	}
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, jid, kind, body, media_path, caption, loc_lat, loc_lng, loc_name, status, error, attempts, created_at, sent_at
+		SELECT id, jid, kind, body, media_path, caption, loc_lat, loc_lng, loc_name, reply_to, reply_participant, status, error, attempts, created_at, sent_at
 		FROM wa_outbox WHERE status = 'pending' ORDER BY created_at ASC LIMIT ?
 	`, limit)
 	if err != nil {
@@ -66,7 +69,8 @@ func (r *WaOutboxRepo) PullPending(ctx context.Context, limit int) ([]WaOutboxIt
 	for rows.Next() {
 		var x WaOutboxItem
 		if err := rows.Scan(&x.ID, &x.JID, &x.Kind, &x.Body, &x.MediaPath, &x.Caption,
-			&x.LocLat, &x.LocLng, &x.LocName, &x.Status, &x.Error, &x.Attempts, &x.CreatedAt, &x.SentAt); err != nil {
+			&x.LocLat, &x.LocLng, &x.LocName, &x.ReplyTo, &x.ReplyParticipant,
+			&x.Status, &x.Error, &x.Attempts, &x.CreatedAt, &x.SentAt); err != nil {
 			return nil, err
 		}
 		out = append(out, x)
@@ -93,12 +97,13 @@ func (r *WaOutboxRepo) MarkError(ctx context.Context, id int64, msg string) erro
 // GetByID returns one item or nil if not found.
 func (r *WaOutboxRepo) GetByID(ctx context.Context, id int64) (*WaOutboxItem, error) {
 	row := r.db.QueryRowContext(ctx, `
-		SELECT id, jid, kind, body, media_path, caption, loc_lat, loc_lng, loc_name, status, error, attempts, created_at, sent_at
+		SELECT id, jid, kind, body, media_path, caption, loc_lat, loc_lng, loc_name, reply_to, reply_participant, status, error, attempts, created_at, sent_at
 		FROM wa_outbox WHERE id = ?
 	`, id)
 	var x WaOutboxItem
 	if err := row.Scan(&x.ID, &x.JID, &x.Kind, &x.Body, &x.MediaPath, &x.Caption,
-		&x.LocLat, &x.LocLng, &x.LocName, &x.Status, &x.Error, &x.Attempts, &x.CreatedAt, &x.SentAt); err != nil {
+		&x.LocLat, &x.LocLng, &x.LocName, &x.ReplyTo, &x.ReplyParticipant,
+		&x.Status, &x.Error, &x.Attempts, &x.CreatedAt, &x.SentAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}

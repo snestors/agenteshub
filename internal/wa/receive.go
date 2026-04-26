@@ -44,6 +44,12 @@ func (c *Client) dispatchIncoming(ctx context.Context, evt *events.Message) {
 		Authorized: authorized,
 	}
 
+	// Extract reply context if this message quotes another. WA exposes it
+	// through *Message.ContextInfo.StanzaID — same structure across types.
+	if rid := extractQuotedID(evt.Message); rid != "" {
+		in.QuotedID = rid
+	}
+
 	// Pick the carrier that has actual content. WA wraps messages in
 	// nested envelopes (ephemeral, view-once, etc.); we unwrap when the
 	// outer one is just a wrapper.
@@ -176,6 +182,7 @@ func (c *Client) persistIncoming(in IncomingMessage) {
 			Valid:   in.LocLng != 0,
 		},
 		LocationName: sql.NullString{String: in.LocName, Valid: in.LocName != ""},
+		ReplyTo:      sql.NullString{String: in.QuotedID, Valid: in.QuotedID != ""},
 		TS:           in.TS.Unix(),
 	}
 	if row.TS == 0 {
@@ -184,6 +191,35 @@ func (c *Client) persistIncoming(in IncomingMessage) {
 	if _, err := c.repos.Messages.Insert(context.Background(), row); err != nil {
 		c.log.Warn("wa persist incoming", "err", err)
 	}
+}
+
+// extractQuotedID returns the StanzaID of the message being quoted, if any.
+// Each media message type carries its own ContextInfo pointer so we have to
+// peek at every variant. Returns "" when the message is not a reply.
+func extractQuotedID(m *waE2E.Message) string {
+	m = unwrap(m)
+	if m == nil {
+		return ""
+	}
+	if ext := m.GetExtendedTextMessage(); ext != nil && ext.GetContextInfo() != nil {
+		return ext.GetContextInfo().GetStanzaID()
+	}
+	if img := m.GetImageMessage(); img != nil && img.GetContextInfo() != nil {
+		return img.GetContextInfo().GetStanzaID()
+	}
+	if au := m.GetAudioMessage(); au != nil && au.GetContextInfo() != nil {
+		return au.GetContextInfo().GetStanzaID()
+	}
+	if doc := m.GetDocumentMessage(); doc != nil && doc.GetContextInfo() != nil {
+		return doc.GetContextInfo().GetStanzaID()
+	}
+	if vid := m.GetVideoMessage(); vid != nil && vid.GetContextInfo() != nil {
+		return vid.GetContextInfo().GetStanzaID()
+	}
+	if loc := m.GetLocationMessage(); loc != nil && loc.GetContextInfo() != nil {
+		return loc.GetContextInfo().GetStanzaID()
+	}
+	return ""
 }
 
 // unwrap peels off whatsmeow's container envelopes (ephemeral, view-once,

@@ -10,7 +10,17 @@ import (
 )
 
 // makeTextMessage wraps a plain string into a whatsmeow conversation message.
-func makeTextMessage(text string) *waE2E.Message {
+// When `reply` is non-nil it returns an ExtendedTextMessage carrying the
+// quote context — Conversation does not support ContextInfo.
+func makeTextMessage(text string, reply *ReplyContext) *waE2E.Message {
+	if ci := buildContextInfo(reply); ci != nil {
+		return &waE2E.Message{
+			ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+				Text:        proto.String(text),
+				ContextInfo: ci,
+			},
+		}
+	}
 	return &waE2E.Message{Conversation: proto.String(text)}
 }
 
