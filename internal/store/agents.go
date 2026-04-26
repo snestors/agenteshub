@@ -92,6 +92,21 @@ func (r *AgentsRepo) GetByName(ctx context.Context, name string) (*Agent, error)
 	return &a, nil
 }
 
+// GetByID looks up an agent by database id.
+func (r *AgentsRepo) GetByID(ctx context.Context, id int64) (*Agent, error) {
+	var a Agent
+	var en int
+	err := r.db.QueryRowContext(ctx, `
+		SELECT id, name, description, system_prompt, engine, enabled, created_by, project_id, created_at, updated_at
+		FROM agents WHERE id = ?
+	`, id).Scan(&a.ID, &a.Name, &a.Description, &a.SystemPrompt, &a.Engine, &en, &a.CreatedBy, &a.ProjectID, &a.CreatedAt, &a.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	a.Enabled = en == 1
+	return &a, nil
+}
+
 // Create inserts a new agent.
 func (r *AgentsRepo) Create(ctx context.Context, a Agent) (int64, error) {
 	now := time.Now().Unix()
@@ -125,6 +140,48 @@ func (r *AgentsRepo) AddSchedule(ctx context.Context, s AgentSchedule) (int64, e
 		return 0, fmt.Errorf("insert schedule: %w", err)
 	}
 	return res.LastInsertId()
+}
+
+// SchedulesForAgent returns schedules for one agent ordered by next_run.
+func (r *AgentsRepo) SchedulesForAgent(ctx context.Context, agentID int64) ([]AgentSchedule, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, agent_id, cron_expr, prompt_template, notify_target, enabled, last_run_at, next_run
+		FROM agent_schedules WHERE agent_id=? ORDER BY next_run ASC
+	`, agentID)
+	if err != nil {
+		return nil, fmt.Errorf("query schedules: %w", err)
+	}
+	defer rows.Close()
+	out := []AgentSchedule{}
+	for rows.Next() {
+		var s AgentSchedule
+		var en int
+		if err := rows.Scan(&s.ID, &s.AgentID, &s.CronExpr, &s.PromptTemplate, &s.NotifyTarget, &en, &s.LastRunAt, &s.NextRun); err != nil {
+			return nil, err
+		}
+		s.Enabled = en == 1
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// SetScheduleEnabled toggles one schedule for an agent.
+func (r *AgentsRepo) SetScheduleEnabled(ctx context.Context, agentID, scheduleID int64, enabled bool) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE agent_schedules SET enabled=? WHERE agent_id=? AND id=?`, boolToInt(enabled), agentID, scheduleID)
+	return err
+}
+
+// DeleteSchedule deletes one schedule for an agent.
+func (r *AgentsRepo) DeleteSchedule(ctx context.Context, agentID, scheduleID int64) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM agent_schedules WHERE agent_id=? AND id=?`, agentID, scheduleID)
+	return err
+}
+
+// RunsSinceCount counts runs started after a unix timestamp.
+func (r *AgentsRepo) RunsSinceCount(ctx context.Context, agentID, since int64) (int64, error) {
+	var n int64
+	err := r.db.QueryRowContext(ctx, `SELECT COUNT(1) FROM agent_runs WHERE agent_id=? AND started_at>=?`, agentID, since).Scan(&n)
+	return n, err
 }
 
 // PendingSchedules returns all enabled schedules whose next_run <= now.

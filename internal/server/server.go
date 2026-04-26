@@ -141,6 +141,17 @@ func (s *Server) routes() http.Handler {
 		pr.Get("/api/projects/{id}/sessions/{sid}/messages", s.handleProjectSessionMessagesList)
 		pr.Post("/api/projects/{id}/sessions/{sid}/messages", s.handleProjectSessionMessagesSend)
 
+		// Mini-agents — persistent scheduled/manual agents
+		pr.Get("/api/agents", s.handleAgentsList)
+		pr.Post("/api/agents", s.handleAgentsCreate)
+		pr.Get("/api/agents/{id}", s.handleAgentGet)
+		pr.Post("/api/agents/{id}/enabled", s.handleAgentSetEnabled)
+		pr.Post("/api/agents/{id}/run", s.handleAgentRunNow)
+		pr.Get("/api/agents/{id}/runs", s.handleAgentRuns)
+		pr.Post("/api/agents/{id}/schedules", s.handleAgentSchedulesAdd)
+		pr.Post("/api/agents/{id}/schedules/{sid}/enabled", s.handleAgentScheduleEnabled)
+		pr.Delete("/api/agents/{id}/schedules/{sid}", s.handleAgentScheduleDelete)
+
 		// System manager
 		pr.Get("/api/system/stats", s.handleSystemStats)
 		pr.Get("/api/system/services", s.handleSystemServices)

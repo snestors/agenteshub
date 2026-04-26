@@ -76,12 +76,12 @@ func (s *Scheduler) tick(ctx context.Context) {
 // dispatch fires a single schedule.
 //
 // Steps:
-//   1. Look up the agent by ID (via name fallback).
-//   2. Build the prompt: system_prompt + "\n\n" + prompt_template.
-//   3. Insert agent_runs row with status='running'.
-//   4. Run cliengine.
-//   5. FinishRun + route the result via NotifyTarget.
-//   6. SetNextRun based on cron expression.
+//  1. Look up the agent by ID (via name fallback).
+//  2. Build the prompt: system_prompt + "\n\n" + prompt_template.
+//  3. Insert agent_runs row with status='running'.
+//  4. Run cliengine.
+//  5. FinishRun + route the result via NotifyTarget.
+//  6. SetNextRun based on cron expression.
 //
 // Errors at any step are logged and the run is marked 'error'. We always
 // reschedule next_run so a transient failure doesn't stall the loop.
@@ -111,7 +111,7 @@ func (s *Scheduler) dispatch(ctx context.Context, sched store.AgentSchedule) {
 	runID, err := s.repos.Agents.InsertRun(ctx, store.AgentRun{
 		AgentID:    agent.ID,
 		ScheduleID: sql.NullInt64{Int64: sched.ID, Valid: true},
-		Trigger:    "schedule",
+		Trigger:    "cron",
 		StartedAt:  startedAt,
 		Status:     "running",
 		Prompt:     prompt,
