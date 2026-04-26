@@ -27,11 +27,32 @@ type RunOpts struct {
 	OutputFmt string // 'json' (final result) | 'stream-json' (chunks)
 
 	// scope identifiers for persisting session_messages
-	Scope          string // 'main' | 'topic' | 'project' | 'agent'
-	TopicID        int64
-	ProjectID      int64
-	ProjectSessID  int64
-	AgentName      string
+	Scope         string // 'main' | 'topic' | 'project' | 'agent'
+	TopicID       int64
+	ProjectID     int64
+	ProjectSessID int64
+	AgentName     string
+
+	// OnEvent receives intermediate stream-json events when set. When non-nil,
+	// the engine spawns claude with --output-format stream-json and pipes each
+	// useful event through this callback. The final aggregated text + cost
+	// still arrives in the returned Result.
+	//
+	// nil = legacy single-shot json mode (the engine does not stream).
+	OnEvent func(StreamEvent)
+}
+
+// StreamEvent is a single observable event during a turn.
+type StreamEvent struct {
+	Kind       string         `json:"kind"`              // 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'system' | 'final'
+	Text       string         `json:"text,omitempty"`
+	ToolName   string         `json:"tool_name,omitempty"`
+	ToolID     string         `json:"tool_use_id,omitempty"`
+	ToolArgs   map[string]any `json:"tool_args,omitempty"`
+	ToolResult string         `json:"tool_result,omitempty"`
+	SessionID  string         `json:"session_id,omitempty"`
+	Seq        int            `json:"seq"`
+	Final      bool           `json:"final,omitempty"`
 }
 
 // Result holds the outcome of a single turn.

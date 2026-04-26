@@ -319,6 +319,8 @@ func (s *Server) handleMessagesSend(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Run via cliengine (Claude default). cwd=agenthub repo so .claude/skills/ is discovered.
+	// Stream events to the WS hub so the browser shows the agent's reasoning + tool calls
+	// while the turn is still in flight.
 	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
 	defer cancel()
 	res, err := s.engines.Run(ctx, cliengine.RunOpts{
@@ -329,6 +331,7 @@ func (s *Server) handleMessagesSend(w http.ResponseWriter, r *http.Request) {
 		Engine:    s.cfg.DefaultEngine,
 		Scope:     "main",
 		AgentName: "main-agent",
+		OnEvent:   s.streamEventBroadcaster(),
 	})
 	if err != nil {
 		s.log.Error("cliengine", "err", err)
@@ -383,6 +386,21 @@ code{color:#38bdf8;background:rgba(56,189,248,.08);padding:2px 6px;border-radius
 </div>
 <p class=warn>⚠ Ejecutá <code>agenthub setup-user --password &lt;X&gt;</code> antes del primer login.</p>
 </body></html>`
+
+// streamEventBroadcaster returns a callback that wraps each StreamEvent into
+// a "stream"-typed envelope and broadcasts it on the agent topic.
+func (s *Server) streamEventBroadcaster() func(cliengine.StreamEvent) {
+	if s.hub == nil {
+		return func(cliengine.StreamEvent) {}
+	}
+	return func(ev cliengine.StreamEvent) {
+		raw, err := json.Marshal(ev)
+		if err != nil {
+			return
+		}
+		s.hub.Broadcast(ws.Envelope{Type: "stream", Topic: "agent", Payload: raw})
+	}
+}
 
 // broadcastMessage pushes a chat message envelope to all WS subscribers on /ws/agent.
 func (s *Server) broadcastMessage(id int64, channel, direction, body string) {

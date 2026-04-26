@@ -1,10 +1,12 @@
 package cliengine
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -40,12 +42,24 @@ type claudeJSONResp struct {
 	TotalCostUSD float64 `json:"total_cost_usd"`
 }
 
-// Run executes claude with the given prompt and returns the result.
+// Run executes claude with the given prompt. When opts.OnEvent is non-nil,
+// it spawns with --output-format stream-json and pipes events through the
+// callback in real time. Otherwise it stays in single-shot json mode.
 func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
+	streaming := opts.OnEvent != nil
+
+	outFmt := "json"
+	if streaming {
+		// stream-json requires --verbose to emit deltas; if absent the CLI errors out.
+		outFmt = "stream-json"
+	}
 	args := []string{
 		"-p",
 		"--dangerously-skip-permissions",
-		"--output-format", "json",
+		"--output-format", outFmt,
+	}
+	if streaming {
+		args = append(args, "--verbose")
 	}
 	if cfgPath, err := ensureMCPConfig(e.cfg); err == nil {
 		args = append(args, "--mcp-config", cfgPath)
@@ -68,17 +82,20 @@ func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 	}
 	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.Dir = opts.Cwd
+
+	if streaming {
+		return e.runStreaming(ctx, cmd, opts)
+	}
+
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-
 	if err := cmd.Run(); err != nil {
 		return nil, fmt.Errorf("claude run: %w (stderr=%s)", err, strings.TrimSpace(stderr.String()))
 	}
 
 	var resp claudeJSONResp
 	if err := json.Unmarshal(stdout.Bytes(), &resp); err != nil {
-		// fallback: maybe plain text on stdout
 		text := strings.TrimSpace(stdout.String())
 		if text == "" {
 			return nil, fmt.Errorf("claude empty output: %s", stderr.String())
@@ -93,6 +110,147 @@ func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 		SessionID:  resp.SessionID,
 		CostTokens: int64(resp.Usage.InputTokens + resp.Usage.OutputTokens),
 	}, nil
+}
+
+// streamEvent is a line in `claude --output-format stream-json --verbose`.
+type streamEvent struct {
+	Type      string          `json:"type"`        // 'system' | 'assistant' | 'user' | 'result'
+	Subtype   string          `json:"subtype"`     // for 'system' / 'result'
+	SessionID string          `json:"session_id"`
+	Message   json.RawMessage `json:"message"`     // for 'assistant' | 'user'
+	Result    string          `json:"result"`      // for 'result'
+	IsError   bool            `json:"is_error"`
+	Usage     struct {
+		InputTokens  int `json:"input_tokens"`
+		OutputTokens int `json:"output_tokens"`
+	} `json:"usage"`
+	TotalCostUSD float64 `json:"total_cost_usd"`
+}
+
+type contentBlock struct {
+	Type      string          `json:"type"` // 'text' | 'tool_use' | 'tool_result' | 'thinking'
+	Text      string          `json:"text"`
+	Thinking  string          `json:"thinking"`
+	ID        string          `json:"id"`
+	Name      string          `json:"name"`
+	Input     map[string]any  `json:"input"`
+	ToolUseID string          `json:"tool_use_id"`
+	Content   json.RawMessage `json:"content"` // for tool_result; can be string or []block
+}
+
+// runStreaming spawns the cmd, parses each JSONL event, fires opts.OnEvent for
+// each useful one, and returns the final Result when 'result' arrives.
+func (e *ClaudeEngine) runStreaming(ctx context.Context, cmd *exec.Cmd, opts RunOpts) (*Result, error) {
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("stdout pipe: %w", err)
+	}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("start claude: %w", err)
+	}
+
+	res := &Result{SessionID: opts.SessionID}
+	seq := 0
+	emit := func(ev StreamEvent) {
+		seq++
+		ev.Seq = seq
+		if ev.SessionID == "" {
+			ev.SessionID = res.SessionID
+		}
+		opts.OnEvent(ev)
+	}
+
+	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 1024*1024), 8*1024*1024)
+	for scanner.Scan() {
+		raw := scanner.Bytes()
+		if len(raw) == 0 {
+			continue
+		}
+		var ev streamEvent
+		if err := json.Unmarshal(raw, &ev); err != nil {
+			continue
+		}
+		if ev.SessionID != "" {
+			res.SessionID = ev.SessionID
+		}
+		switch ev.Type {
+		case "system":
+			emit(StreamEvent{Kind: "system", Text: ev.Subtype})
+		case "assistant", "user":
+			// Decode message.content as []contentBlock
+			var msg struct {
+				Content []contentBlock `json:"content"`
+			}
+			if err := json.Unmarshal(ev.Message, &msg); err != nil {
+				continue
+			}
+			for _, b := range msg.Content {
+				switch b.Type {
+				case "text":
+					if b.Text != "" {
+						emit(StreamEvent{Kind: "text", Text: b.Text})
+					}
+				case "thinking":
+					if b.Thinking != "" {
+						emit(StreamEvent{Kind: "thinking", Text: b.Thinking})
+					}
+				case "tool_use":
+					emit(StreamEvent{Kind: "tool_use", ToolName: b.Name, ToolID: b.ID, ToolArgs: b.Input})
+				case "tool_result":
+					emit(StreamEvent{Kind: "tool_result", ToolID: b.ToolUseID, ToolResult: rawToText(b.Content)})
+				}
+			}
+		case "result":
+			if ev.IsError {
+				_ = cmd.Wait()
+				return nil, fmt.Errorf("claude stream error: %s (stderr=%s)", ev.Result, strings.TrimSpace(stderr.String()))
+			}
+			res.Text = ev.Result
+			res.CostTokens = int64(ev.Usage.InputTokens + ev.Usage.OutputTokens)
+			emit(StreamEvent{Kind: "final", Text: ev.Result, Final: true})
+		}
+	}
+	if err := scanner.Err(); err != nil && err != io.EOF {
+		_ = cmd.Wait()
+		return nil, fmt.Errorf("stream scan: %w", err)
+	}
+	if err := cmd.Wait(); err != nil {
+		return nil, fmt.Errorf("claude wait: %w (stderr=%s)", err, strings.TrimSpace(stderr.String()))
+	}
+	if res.Text == "" {
+		return nil, fmt.Errorf("claude stream produced no result")
+	}
+	return res, nil
+}
+
+// rawToText flattens tool_result content (string or []block) into a single string.
+func rawToText(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	// case 1: plain string
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s
+	}
+	// case 2: array of {type:'text', text:'...'} blocks
+	var blocks []contentBlock
+	if err := json.Unmarshal(raw, &blocks); err == nil {
+		out := strings.Builder{}
+		for i, b := range blocks {
+			if i > 0 {
+				out.WriteString("\n")
+			}
+			if b.Text != "" {
+				out.WriteString(b.Text)
+			}
+		}
+		return out.String()
+	}
+	return string(raw)
 }
 
 func chooseModel(opt, fallback string) string {
