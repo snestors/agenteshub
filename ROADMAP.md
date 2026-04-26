@@ -332,4 +332,5 @@ Política: **antes de importar**, el `agent-builder` o vos mismo revisan la skil
 
 | Fecha | Cambio |
 | --- | --- |
+| 2026-04-26 | Fase 0 implementada: render Mermaid inline en chat, previews de imágenes protegidas por auth, endpoint de uploads/file, CRUD + generate de diagramas, pantalla `/diagrams` con Excalidraw, y skill `diagram-architect` skeleton. |
 | 2026-04-26 | Documento creado. Decisiones congeladas: 3 niveles, engines por rol (opus/sonnet/codex/ollama), SDD con gates, OpenSpec format, Excalidraw para diagramas. Fase 0 = render de mermaid + UI Excalidraw. |
