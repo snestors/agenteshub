@@ -133,7 +133,14 @@ Bundle: ~478 KB JS / 147 KB gz. Build: `cd frontend && pnpm run build`.
 
 > Esta es la fuente de verdad de las tareas. Las TaskList del runtime de Claude Code se pierden con `/compact`; este bloque NO. Si retomás, **leé esto y volvé a crear las tasks abiertas con `TaskCreate`** para tener trazabilidad en la sesión.
 
-### ✅ Completadas (11)
+### ✅ Completadas (14 — actualizado al cierre)
+
+**Cerradas en esta sesión post-compact**:
+- #32 (#37) WS unificado `/ws` con routing por topic
+- #33 (#38) Push de agent_status por WS
+- #34 (#39) System Manager push (service_event + skip work cuando nadie escucha)
+
+
 
 | # | Tarea |
 |---|---|
