@@ -108,6 +108,20 @@ func (s *Server) registerTools() {
 		mcp.WithString("next_action_hint"),
 	), s.handleUpdateTopicState)
 
+	s.srv.AddTool(mcp.NewTool("topic_create",
+		mcp.WithDescription("Create a new conversational topic. The session_id starts empty and is filled on the first run_in_topic."),
+		mcp.WithString("name", mcp.Required(), mcp.Description("Unique topic name, e.g. 'grid-bot'.")),
+		mcp.WithString("description"),
+		mcp.WithString("keywords", mcp.Description("JSON array of strings.")),
+		mcp.WithString("engine", mcp.Description("'claude' (default) | 'codex' | 'ollama'.")),
+	), s.handleTopicCreate)
+
+	s.srv.AddTool(mcp.NewTool("run_in_topic",
+		mcp.WithDescription("Delegate a turn to the topic's session. Resumes the topic's session_id if any, otherwise starts a fresh one and persists it. Returns the assistant's reply."),
+		mcp.WithString("topic", mcp.Required(), mcp.Description("Topic name.")),
+		mcp.WithString("message", mcp.Required(), mcp.Description("Prompt to send to the topic session.")),
+	), s.handleRunInTopic)
+
 	// ---------- system ----------
 	s.srv.AddTool(mcp.NewTool("get_status",
 		mcp.WithDescription("Returns a quick status snapshot of AgentHub."),
@@ -317,6 +331,92 @@ func (s *Server) handleUpdateTopicState(ctx context.Context, req mcp.CallToolReq
 	}
 	_ = s.repos.Topics.Touch(ctx, t.ID)
 	return mcp.NewToolResultText("ok"), nil
+}
+
+func (s *Server) handleTopicCreate(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	name, err := req.RequireString("name")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return mcp.NewToolResultError("name required"), nil
+	}
+	if existing, _ := s.repos.Topics.GetByName(ctx, name); existing != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("topic %q already exists", name)), nil
+	}
+	engine := strings.TrimSpace(req.GetString("engine", ""))
+	if engine == "" {
+		engine = "claude"
+	}
+	t := store.Topic{
+		Name:      name,
+		Engine:    engine,
+		CreatedAt: time.Now().Unix(),
+	}
+	if d := strings.TrimSpace(req.GetString("description", "")); d != "" {
+		t.Description = sqlStr(d)
+	}
+	if k := strings.TrimSpace(req.GetString("keywords", "")); k != "" {
+		t.Keywords = sqlStr(k)
+	}
+	id, err := s.repos.Topics.Create(ctx, t)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return jsonResult(map[string]any{"id": id, "name": name, "engine": engine})
+}
+
+func (s *Server) handleRunInTopic(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if s.engines == nil {
+		return mcp.NewToolResultError("cliengine not wired"), nil
+	}
+	name, err := req.RequireString("topic")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	message, err := req.RequireString("message")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	t, err := s.repos.Topics.GetByName(ctx, name)
+	if err != nil || t == nil {
+		return mcp.NewToolResultError("topic not found: " + name), nil
+	}
+
+	prevSID := t.SessionID
+	res, err := s.engines.Run(ctx, cliengine.RunOpts{
+		Prompt:    message,
+		SessionID: prevSID,
+		Channel:   "topic",
+		Cwd:       ".",
+		Engine:    t.Engine,
+		Scope:     "topic",
+		TopicID:   t.ID,
+	})
+	if err != nil {
+		return mcp.NewToolResultError("run_in_topic: " + err.Error()), nil
+	}
+	// Auto-persist the session_id when the topic was fresh OR when the engine
+	// returned a different id (rare, but supported).
+	if res.SessionID != "" && res.SessionID != prevSID {
+		if err := s.repos.Topics.SetSessionID(ctx, t.ID, res.SessionID); err != nil {
+			// non-fatal: log via the result but don't fail the whole call
+			return jsonResult(map[string]any{
+				"topic":      name,
+				"session_id": res.SessionID,
+				"reply":      res.Text,
+				"warning":    "could not persist session_id: " + err.Error(),
+			})
+		}
+	}
+	_ = s.repos.Topics.Touch(ctx, t.ID)
+	return jsonResult(map[string]any{
+		"topic":      name,
+		"session_id": res.SessionID,
+		"reply":      res.Text,
+		"tokens":     res.CostTokens,
+	})
 }
 
 func (s *Server) handleGetStatus(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
