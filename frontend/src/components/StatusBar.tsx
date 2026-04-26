@@ -5,6 +5,7 @@ import {
   ApiError,
   type AgentStatus,
 } from "@/lib/api";
+import { EnginePicker } from "./EnginePicker";
 
 interface StatusBarProps {
   /** transport status text — e.g. "ws · live" / "polling · 2s" */
@@ -12,6 +13,7 @@ interface StatusBarProps {
 }
 
 const POLL_MS = 5_000;
+const TOAST_MS = 2_000;
 
 function fmtCtxWindow(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(0)}M ctx`;
@@ -42,6 +44,18 @@ function ctxColor(pct: number): string {
  */
 export function StatusBar({ transportLabel }: StatusBarProps) {
   const [status, setStatus] = React.useState<AgentStatus>(AGENT_STATUS_FALLBACK);
+  const [pickerOpen, setPickerOpen] = React.useState(false);
+  const [toast, setToast] = React.useState<string | null>(null);
+
+  // immediate refresh helper — used after a successful engine swap
+  const refreshStatus = React.useCallback(async () => {
+    try {
+      const next = await api.agentStatus();
+      setStatus(next);
+    } catch {
+      // ignore — keep current
+    }
+  }, []);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -70,12 +84,27 @@ export function StatusBar({ transportLabel }: StatusBarProps) {
     };
   }, []);
 
+  // auto-dismiss toast
+  React.useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), TOAST_MS);
+    return () => window.clearTimeout(t);
+  }, [toast]);
+
   const ctxPctStr = fmtPct(status.ctx_pct ?? 0);
   const ctxClr = ctxColor(status.ctx_pct ?? 0);
   const ctxUsedStr = fmtTokens(status.ctx_used ?? 0);
   const engineBadge = `${status.engine} · ${status.model} · ${fmtCtxWindow(
     status.ctx_window
   )}`;
+
+  function handleApplied(engine: string, model: string) {
+    setPickerOpen(false);
+    setToast(`engine cambiado a ${engine} · ${model}`);
+    // Optimistic update + immediate fetch to reflect ctx_window etc.
+    setStatus((s) => ({ ...s, engine, model }));
+    void refreshStatus();
+  }
 
   return (
     <div
@@ -85,18 +114,35 @@ export function StatusBar({ transportLabel }: StatusBarProps) {
         minHeight: 26,
       }}
     >
-      {/* engine · model · ctx-window */}
-      <span
-        className="inline-flex items-center px-2 py-0.5 clip-tag"
-        style={{
-          background: "rgba(94, 240, 255, 0.10)",
-          border: "1px solid rgba(94, 240, 255, 0.45)",
-          color: "var(--color-cyan)",
-        }}
-        title="engine · model · context window"
-      >
-        [{engineBadge}]
-      </span>
+      {/* engine · model · ctx-window — clickable badge */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setPickerOpen((v) => !v)}
+          className="inline-flex items-center px-2 py-0.5 clip-tag cursor-pointer hover:opacity-80 transition-opacity"
+          style={{
+            background: "rgba(94, 240, 255, 0.10)",
+            border: "1px solid rgba(94, 240, 255, 0.45)",
+            color: "var(--color-cyan)",
+            font: "inherit",
+            letterSpacing: "inherit",
+          }}
+          title="cambiar engine · model"
+          aria-haspopup="dialog"
+          aria-expanded={pickerOpen}
+        >
+          [{engineBadge}]
+        </button>
+
+        {pickerOpen ? (
+          <EnginePicker
+            currentEngine={status.engine}
+            currentModel={status.model}
+            onApplied={handleApplied}
+            onClose={() => setPickerOpen(false)}
+          />
+        ) : null}
+      </div>
 
       <span className="text-[var(--color-dim)]">·</span>
 
@@ -111,6 +157,22 @@ export function StatusBar({ transportLabel }: StatusBarProps) {
       <span className="ml-auto text-[var(--color-dim)]">
         {transportLabel ?? ""}
       </span>
+
+      {/* toast — bottom-right floating notice */}
+      {toast ? (
+        <div
+          className="fixed bottom-10 right-4 z-50 px-3 py-1.5 clip-tag font-mono text-[11px] tracking-hud-tight"
+          style={{
+            background: "rgba(10, 15, 36, 0.95)",
+            border: "1px solid rgba(94, 240, 255, 0.65)",
+            color: "var(--color-cyan)",
+            boxShadow: "0 0 14px rgba(94, 240, 255, 0.45)",
+          }}
+          role="status"
+        >
+          {toast}
+        </div>
+      ) : null}
     </div>
   );
 }
