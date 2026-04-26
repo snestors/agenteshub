@@ -5,8 +5,7 @@
 // unsubscribe + subscribe pair). The effect only re-runs when `topic` or
 // `enabled` change.
 //
-// `status` is exposed so consumers can mirror their fallback/polling logic
-// to the singleton's transport state.
+// `status` is exposed so consumers can mirror the singleton's transport state.
 
 import * as React from "react";
 import { wsClient, type WsEnvelope, type WsStatus } from "./wsClient";

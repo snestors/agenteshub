@@ -1,19 +1,13 @@
 import * as React from "react";
-import {
-  api,
-  AGENT_STATUS_FALLBACK,
-  ApiError,
-  type AgentStatus,
-} from "@/lib/api";
+import { AGENT_STATUS_FALLBACK, type AgentStatus } from "@/lib/api";
 import { useTopic } from "@/lib/useTopic";
 import { EnginePicker } from "./EnginePicker";
 
 interface StatusBarProps {
-  /** transport status text — e.g. "ws · live" / "polling · 2s" */
+  /** transport status text — e.g. "ws · live" / "ws · reconnect…" */
   transportLabel?: string;
 }
 
-const POLL_MS = 5_000;
 const TOAST_MS = 2_000;
 
 function fmtCtxWindow(n: number): string {
@@ -41,54 +35,13 @@ function ctxColor(pct: number): string {
 
 /**
  * StatusBar — Claude Code CLI-style status line.
- * Polls /api/agent/status every 5s, falls back to safe defaults when 404.
  */
 export function StatusBar({ transportLabel }: StatusBarProps) {
   const [status, setStatus] = React.useState<AgentStatus>(AGENT_STATUS_FALLBACK);
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [toast, setToast] = React.useState<string | null>(null);
 
-  // immediate refresh helper — used after a successful engine swap
-  const refreshStatus = React.useCallback(async () => {
-    try {
-      const next = await api.agentStatus();
-      setStatus(next);
-    } catch {
-      // ignore — keep current
-    }
-  }, []);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    let timer: number | null = null;
-
-    async function tick() {
-      try {
-        const next = await api.agentStatus();
-        if (!cancelled) setStatus(next);
-      } catch (err) {
-        // 404 / network — keep fallback silently
-        if (!cancelled && !(err instanceof ApiError && err.status === 404)) {
-          // also keep fallback for any error — UX must not break
-        }
-      } finally {
-        if (!cancelled) {
-          timer = window.setTimeout(tick, POLL_MS);
-        }
-      }
-    }
-
-    void tick();
-    return () => {
-      cancelled = true;
-      if (timer !== null) window.clearTimeout(timer);
-    };
-  }, []);
-
-  // PREVIEW for backend task #33 — once /ws starts pushing `agent_status`
-  // envelopes, this listener will keep the badge in sync without waiting for
-  // the next 5s poll. The polling above keeps running until #33 ships; when
-  // it does, polling can be removed.
+  // Agent status is pushed by WS and refreshed by the server heartbeat.
   useTopic<AgentStatus>("agent_status", (payload) => {
     if (payload && typeof payload === "object") {
       setStatus(payload);
@@ -113,9 +66,8 @@ export function StatusBar({ transportLabel }: StatusBarProps) {
   function handleApplied(engine: string, model: string) {
     setPickerOpen(false);
     setToast(`engine cambiado a ${engine} · ${model}`);
-    // Optimistic update + immediate fetch to reflect ctx_window etc.
+    // Optimistic update; the canonical snapshot arrives over WS.
     setStatus((s) => ({ ...s, engine, model }));
-    void refreshStatus();
   }
 
   return (

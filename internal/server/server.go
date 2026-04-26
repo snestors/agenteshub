@@ -140,9 +140,7 @@ func (s *Server) routes() http.Handler {
 		pr.Get("/api/system/connections", s.handleSystemConnections)
 
 		// WebSockets
-		pr.Get("/ws", s.handleWSUnified)       // unified — preferred
-		pr.Get("/ws/agent", s.handleWSAgent)   // legacy: same conn type, locked topic="agent"
-		pr.Get("/ws/system", s.handleWSSystem) // legacy: locked topic="system"
+		pr.Get("/ws", s.handleWSUnified)
 	})
 
 	// frontend SPA — sirve frontend/dist con fallback a index.html para client-side routing
@@ -170,7 +168,12 @@ func (s *Server) mountFrontend(r chi.Router) {
 	}
 	fs := http.FileServer(http.Dir(dist))
 	r.Get("/*", func(w http.ResponseWriter, req *http.Request) {
-		// API/WS already matched; here only static + SPA fallback.
+		// API/WS already matched; here only static + SPA fallback. Do not let
+		// deleted WS routes fall through to index.html.
+		if strings.HasPrefix(req.URL.Path, "/ws/") {
+			http.NotFound(w, req)
+			return
+		}
 		path := filepath.Join(dist, filepath.Clean(req.URL.Path))
 		info, err := os.Stat(path)
 		if err == nil && !info.IsDir() {
@@ -559,7 +562,7 @@ func (s *Server) streamEventBroadcaster() func(cliengine.StreamEvent) {
 	}
 }
 
-// broadcastMessage pushes a chat message envelope to all WS subscribers on /ws/agent.
+// broadcastMessage pushes a chat message envelope to all WS subscribers on the agent topic.
 func (s *Server) broadcastMessage(id int64, channel, direction, body string) {
 	s.broadcastMessageWithModel(id, channel, direction, body, "", "")
 }

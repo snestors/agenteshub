@@ -12,7 +12,6 @@ import {
 import { useTopic } from "@/lib/useTopic";
 import { wsClient } from "@/lib/wsClient";
 
-const POLL_FALLBACK_MS = 5000;
 const SLOW_POLL_MS = 8000; // services / processes / connections
 
 function parseStatsPayload(payload: unknown): SystemStats | null {
@@ -64,9 +63,7 @@ export function System() {
     null
   );
 
-  // ─── stats: WS first, fallback polling ──────────────────────────
-  const statsPollRef = React.useRef<number | null>(null);
-
+  // ─── live stats: initial HTTP snapshot, then WS updates ──────────
   const fetchStats = React.useCallback(async () => {
     try {
       const s = await api.systemStats();
@@ -77,23 +74,10 @@ export function System() {
     }
   }, []);
 
-  const startStatsPoll = React.useCallback(() => {
-    if (statsPollRef.current !== null) return;
-    statsPollRef.current = window.setInterval(fetchStats, POLL_FALLBACK_MS);
-  }, [fetchStats]);
-
-  const stopStatsPoll = React.useCallback(() => {
-    if (statsPollRef.current !== null) {
-      window.clearInterval(statsPollRef.current);
-      statsPollRef.current = null;
-    }
-  }, []);
-
   // initial fetch
   React.useEffect(() => {
     void fetchStats();
-    return () => stopStatsPoll();
-  }, [fetchStats, stopStatsPoll]);
+  }, [fetchStats]);
 
   const handleStatsMessage = React.useCallback(
     (payload: unknown, evt: { type: string }) => {
@@ -108,15 +92,12 @@ export function System() {
 
   const { status: wsStatus } = useTopic("system", handleStatsMessage);
 
-  // wire WS status → polling fallback
+  // On reconnect, refresh once to reconcile anything missed while offline.
   React.useEffect(() => {
-    if (wsStatus === "fallback") {
-      startStatsPoll();
-    } else if (wsStatus === "open") {
-      stopStatsPoll();
+    if (wsStatus === "open") {
       void fetchStats();
     }
-  }, [wsStatus, startStatsPoll, stopStatsPoll, fetchStats]);
+  }, [wsStatus, fetchStats]);
 
   // ─── services / processes / connections: HTTP poll ──────────────
   const refreshSlow = React.useCallback(async () => {
@@ -179,15 +160,11 @@ export function System() {
     ? ("danger" as const)
     : wsStatus === "open"
     ? ("ok" as const)
-    : wsStatus === "fallback"
-    ? ("warn" as const)
     : ("warn" as const);
 
   const transportLabel =
     wsStatus === "open"
       ? "ws · live"
-      : wsStatus === "fallback"
-      ? `polling · ${POLL_FALLBACK_MS / 1000}s`
       : wsStatus === "connecting"
       ? "ws · connecting…"
       : "ws · reconnect…";
@@ -201,8 +178,6 @@ export function System() {
             ? "ERROR"
             : wsStatus === "open"
             ? "NOMINAL"
-            : wsStatus === "fallback"
-            ? "POLLING"
             : "CONNECTING",
           tone,
         }}

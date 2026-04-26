@@ -15,7 +15,7 @@
 //   - One persistent connection from import time until page unload.
 //   - Exponential backoff on reconnects: [1s, 2s, 5s, 10s, 30s].
 //   - After `fallbackAfter` failed attempts (default 3) status flips to "fallback"
-//     so consumers can switch to polling.
+//     so consumers can show a reconnecting/degraded state.
 //   - When the socket reopens after fallback, all active topic subscriptions
 //     are re-sent automatically.
 //
@@ -208,7 +208,7 @@ function createWsClient(path: string, opts: CreateOpts = {}): WsClientAPI {
       // re-subscribe to all topics on (re)connect
       resubscribeAll();
       // when recovering from fallback, listeners using onStatusChange will see
-      // the transition fallback → open and can stop their polling.
+      // the transition fallback → open and can reconcile missed data.
       void wasFallback;
     };
 

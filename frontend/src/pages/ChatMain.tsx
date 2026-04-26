@@ -17,8 +17,6 @@ import { HudPanel } from "@/components/HudPanel";
 import { Topbar } from "@/components/Topbar";
 import { StatusBar } from "@/components/StatusBar";
 
-const POLL_MS = 2000;
-
 /**
  * Backend Envelope shape (internal/ws/hub.go):
  *   { type: "message" | "stream", topic, payload, ts }
@@ -107,7 +105,6 @@ export function ChatMain() {
   const [pending, setPending] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const lastIdRef = React.useRef<number>(0);
-  const pollingRef = React.useRef<number | null>(null);
 
   // ─── load helpers ──────────────────────────────
   const refresh = React.useCallback(async () => {
@@ -126,23 +123,6 @@ export function ChatMain() {
   React.useEffect(() => {
     void refresh();
   }, [refresh]);
-
-  // ─── polling fallback control ──────────────────
-  const startPolling = React.useCallback(() => {
-    if (pollingRef.current !== null) return;
-    pollingRef.current = window.setInterval(refresh, POLL_MS);
-  }, [refresh]);
-
-  const stopPolling = React.useCallback(() => {
-    if (pollingRef.current !== null) {
-      window.clearInterval(pollingRef.current);
-      pollingRef.current = null;
-    }
-  }, []);
-
-  React.useEffect(() => {
-    return () => stopPolling();
-  }, [stopPolling]);
 
   // ─── stream handling ───────────────────────────
   const applyStreamChunk = React.useCallback((chunk: WsStreamPayload) => {
@@ -280,24 +260,18 @@ export function ChatMain() {
   // subscribe to the unified /ws endpoint, topic "agent"
   const { status: wsStatus } = useTopic("agent", handleWsMessage);
 
-  // PREVIEW for backend task #33 — when /ws starts pushing agent_status
-  // envelopes, this subscription will start receiving them. Until then it's
-  // a no-op (no envelopes with topic="agent_status" arrive). StatusBar already
-  // polls /api/agent/status, so nothing breaks.
+  // Keep the agent_status topic active for the shared connection; StatusBar
+  // owns the payload rendering.
   useTopic("agent_status", () => {
-    /* StatusBar handles its own subscription; this only keeps the topic
-       active at the connection level for future use. */
+    /* no-op */
   });
 
-  // wire WS status → polling fallback
+  // On reconnect, refresh once to reconcile anything missed while offline.
   React.useEffect(() => {
-    if (wsStatus === "fallback") {
-      startPolling();
-    } else if (wsStatus === "open") {
-      stopPolling();
+    if (wsStatus === "open") {
       void refresh();
     }
-  }, [wsStatus, startPolling, stopPolling, refresh]);
+  }, [wsStatus, refresh]);
 
   // ─── auto-scroll on new messages or ghost activity ─
   const ghostList = React.useMemo(() => Object.values(ghosts), [ghosts]);
@@ -347,7 +321,7 @@ export function ChatMain() {
         return next;
       });
       // when WS is the live channel, the agent reply will arrive over WS;
-      // if we are in fallback or pre-open, do an explicit refresh.
+      // If we are pre-open/reconnecting, do an explicit refresh after the ack path fails.
       if (wsStatus !== "open") {
         await refresh();
       }
@@ -368,7 +342,7 @@ export function ChatMain() {
       case "connecting":
         return "ws · connecting…";
       case "fallback":
-        return `polling · ${POLL_MS / 1000}s`;
+        return "ws · reconnect…";
       case "closed":
         return "ws · reconnect…";
     }
@@ -389,7 +363,7 @@ export function ChatMain() {
             ? { label: "OFFLINE", tone: "danger" }
             : isLive
             ? { label: "LIVE", tone: "ok" }
-            : { label: wsStatus === "fallback" ? "POLLING" : "CONNECTING", tone: "warn" }
+            : { label: wsStatus === "connecting" ? "CONNECTING" : "RECONNECTING", tone: "warn" }
         }
         right={
           <span className="font-mono text-[10px] text-[var(--color-dim)] tracking-hud-tight">

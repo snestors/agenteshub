@@ -4,10 +4,6 @@
 // it subscribed to (subscribe/unsubscribe sent over WebSocket). Producers
 // call Broadcast(envelope); only clients whose subscription set contains
 // envelope.Topic (or "*") receive it.
-//
-// Legacy: Register(id, topic) with non-empty topic creates a client locked to
-// that single topic — kept for /ws/agent and /ws/system endpoints during the
-// transition to the unified /ws.
 package ws
 
 import (
@@ -61,11 +57,10 @@ type Hub struct {
 
 // Client is a single connected browser session.
 type Client struct {
-	ID          string
-	send        chan Envelope
-	mu          sync.RWMutex
-	subscribed  map[string]struct{} // dynamic set of topics
-	legacyTopic string              // if set, fixed topic (legacy /ws/agent /ws/system)
+	ID         string
+	send       chan Envelope
+	mu         sync.RWMutex
+	subscribed map[string]struct{} // dynamic set of topics
 }
 
 // New constructs a Hub.
@@ -77,15 +72,12 @@ func New(log *slog.Logger) *Hub {
 	}
 }
 
-// Register adds a new subscriber. If topic != "" the client is locked to that
-// single topic (legacy behavior used by /ws/agent and /ws/system). For the
-// unified /ws, pass "" and let the client subscribe dynamically over WS.
-func (h *Hub) Register(id, topic string) (*Client, func()) {
+// Register adds a new subscriber. The client subscribes dynamically over WS.
+func (h *Hub) Register(id string) (*Client, func()) {
 	c := &Client{
-		ID:          id,
-		send:        make(chan Envelope, 64),
-		subscribed:  map[string]struct{}{},
-		legacyTopic: topic,
+		ID:         id,
+		send:       make(chan Envelope, 64),
+		subscribed: map[string]struct{}{},
 	}
 	h.mu.Lock()
 	h.clients[c] = struct{}{}
@@ -123,9 +115,6 @@ func (c *Client) Unsubscribe(topic string) {
 
 // matches reports whether the client wants envelopes on this topic.
 func (c *Client) matches(topic string) bool {
-	if c.legacyTopic != "" {
-		return c.legacyTopic == topic
-	}
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if _, ok := c.subscribed["*"]; ok {
