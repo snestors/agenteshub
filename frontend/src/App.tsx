@@ -6,6 +6,7 @@ import { Agents } from "@/pages/Agents";
 import { Topics } from "@/pages/Topics";
 import { Subagents } from "@/pages/Subagents";
 import { System } from "@/pages/System";
+import { Vault } from "@/pages/Vault";
 import { AppShell } from "@/components/AppShell";
 
 function App() {
@@ -24,6 +25,7 @@ function App() {
           <Route path="topics" element={<Topics />} />
           <Route path="subagents" element={<Subagents />} />
           <Route path="system" element={<System />} />
+          <Route path="vault" element={<Vault />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

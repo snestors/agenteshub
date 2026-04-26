@@ -16,6 +16,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/robfig/cron/v3"
 
+	"github.com/snestors/agenthub/internal/auth"
 	"github.com/snestors/agenthub/internal/cliengine"
 	"github.com/snestors/agenthub/internal/config"
 	"github.com/snestors/agenthub/internal/store"
@@ -121,6 +122,16 @@ func (s *Server) registerTools() {
 		mcp.WithString("topic", mcp.Required(), mcp.Description("Topic name.")),
 		mcp.WithString("message", mcp.Required(), mcp.Description("Prompt to send to the topic session.")),
 	), s.handleRunInTopic)
+
+	// ---------- secrets vault ----------
+	s.srv.AddTool(mcp.NewTool("secret_get",
+		mcp.WithDescription("Read a stored credential by key from the encrypted vault. Returns the plaintext value. NEVER log or echo the result back to the user — use it inside the same turn (e.g. as a request header) and forget it."),
+		mcp.WithString("key", mcp.Required(), mcp.Description("Vault key, e.g. 'BBVA_API_KEY'.")),
+	), s.handleSecretGet)
+
+	s.srv.AddTool(mcp.NewTool("secret_list",
+		mcp.WithDescription("List vault keys + metadata (description, scope, expiry). Never returns plaintext."),
+	), s.handleSecretList)
 
 	// ---------- system ----------
 	s.srv.AddTool(mcp.NewTool("get_status",
@@ -417,6 +428,52 @@ func (s *Server) handleRunInTopic(ctx context.Context, req mcp.CallToolRequest) 
 		"reply":      res.Text,
 		"tokens":     res.CostTokens,
 	})
+}
+
+func (s *Server) handleSecretGet(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	key, err := req.RequireString("key")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return mcp.NewToolResultError("key required"), nil
+	}
+	enc, err := s.repos.Secrets.GetValue(ctx, key)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if enc == nil {
+		return mcp.NewToolResultError("not found: " + key), nil
+	}
+	plain, err := auth.DecryptAESGCM(s.cfg.SecretKey, enc)
+	if err != nil {
+		return mcp.NewToolResultError("decrypt: " + err.Error()), nil
+	}
+	return mcp.NewToolResultText(string(plain)), nil
+}
+
+func (s *Server) handleSecretList(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	rows, err := s.repos.Secrets.List(ctx)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	out := make([]map[string]any, 0, len(rows))
+	for _, sec := range rows {
+		entry := map[string]any{
+			"key":        sec.Key,
+			"scope":      sec.Scope,
+			"updated_at": sec.UpdatedAt,
+		}
+		if sec.Description.Valid {
+			entry["description"] = sec.Description.String
+		}
+		if sec.ExpiresAt.Valid {
+			entry["expires_at"] = sec.ExpiresAt.Int64
+		}
+		out = append(out, entry)
+	}
+	return jsonResult(out)
 }
 
 func (s *Server) handleGetStatus(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {

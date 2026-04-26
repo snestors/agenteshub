@@ -631,6 +631,43 @@ export interface SystemConnections {
   tunnels: SystemTunnel[];
 }
 
+// ─── vault (secrets) ──────────────────────────
+
+export interface SecretMeta {
+  key: string;
+  description?: string;
+  scope: string;
+  expires_at?: number;
+  created_at: number;
+  updated_at: number;
+  last_accessed_at?: number;
+}
+
+export const secretsApi = {
+  async list(): Promise<SecretMeta[]> {
+    const res = await request<{ secrets: SecretMeta[] | null }>("/api/secrets");
+    return res.secrets ?? [];
+  },
+  async upsert(input: {
+    key: string;
+    value: string;
+    description?: string;
+    scope?: string;
+    expires_at?: number;
+  }): Promise<void> {
+    await request("/api/secrets", { method: "POST", body: JSON.stringify(input) });
+  },
+  async reveal(key: string): Promise<string> {
+    const res = await request<{ key: string; value: string; ts: number }>(
+      `/api/secrets/${encodeURIComponent(key)}/reveal`
+    );
+    return res.value;
+  },
+  async delete(key: string): Promise<void> {
+    await request(`/api/secrets/${encodeURIComponent(key)}`, { method: "DELETE" });
+  },
+};
+
 // ─── topics ───────────────────────────────────
 
 export interface Topic {

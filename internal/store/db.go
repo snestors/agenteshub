@@ -87,6 +87,7 @@ type Repos struct {
 	Sessions  *SessionsRepo
 	Snapshots *SnapshotsRepo
 	Subagents *SubagentRunsRepo
+	Secrets   *SecretsRepo
 }
 
 // NewRepos wires up every repo around a single *sql.DB handle.
@@ -102,6 +103,7 @@ func NewRepos(db *sql.DB) *Repos {
 		Sessions:  NewSessionsRepo(db),
 		Snapshots: NewSnapshotsRepo(db),
 		Subagents: NewSubagentRunsRepo(db),
+		Secrets:   NewSecretsRepo(db),
 	}
 }
 

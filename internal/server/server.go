@@ -165,6 +165,12 @@ func (s *Server) routes() http.Handler {
 		pr.Get("/api/topics/{id}/state", s.handleTopicGetState)
 		pr.Post("/api/topics/{id}/state", s.handleTopicUpdateState)
 
+		// Secrets vault
+		pr.Get("/api/secrets", s.handleSecretsList)
+		pr.Post("/api/secrets", s.handleSecretsCreate)
+		pr.Get("/api/secrets/{key}/reveal", s.handleSecretReveal)
+		pr.Delete("/api/secrets/{key}", s.handleSecretDelete)
+
 		// System manager
 		pr.Get("/api/system/stats", s.handleSystemStats)
 		pr.Get("/api/system/services", s.handleSystemServices)
