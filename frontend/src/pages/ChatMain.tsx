@@ -182,9 +182,26 @@ export function ChatMain() {
     [ghostList]
   );
 
+  // Track whether the user is currently near the bottom. When they scroll up
+  // to read history, we stop yanking the view back on every stream chunk.
+  const stickToBottomRef = React.useRef(true);
   React.useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const onScroll = () => {
+      const fromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      stickToBottomRef.current = fromBottom < 80;
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  React.useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (stickToBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+    }
   }, [messages.length, pending, ghostSig]);
 
   // ─── send ──────────────────────────────────────
