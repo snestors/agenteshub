@@ -1,0 +1,164 @@
+@import "tailwindcss";
+
+/* webfonts */
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Oxanium:wght@400;500;600;700;800&display=swap");
+
+/* ─────────────────────────────────────────────────────────────
+   AgentHub HUD — design tokens (cyberpunk, dark only)
+   Mirrors systemdasboard/project/variations/hud.jsx
+   ───────────────────────────────────────────────────────────── */
+@theme {
+  /* core surfaces */
+  --color-bg: #060814;
+  --color-bg-2: #0a0f24;
+  --color-panel: rgba(12, 18, 40, 0.72);
+  --color-panel-stroke: rgba(120, 255, 220, 0.18);
+  --color-line: rgba(120, 255, 220, 0.12);
+
+  /* foreground */
+  --color-fg: #d6f5ff;
+  --color-dim: #6b7aa8;
+
+  /* accents */
+  --color-cyan: #5ef0ff;
+  --color-magenta: #ff4ed6;
+  --color-lime: #a3ff4e;
+  --color-orange: #ff9f43;
+  --color-warn: #ffd166;
+  --color-danger: #ff5c7a;
+
+  /* fonts */
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --font-display: "Oxanium", "Rajdhani", system-ui, sans-serif;
+  --font-sans: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-mono);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01", "cv11";
+}
+
+body {
+  background:
+    radial-gradient(ellipse at 30% 0%, #0f1540 0%, var(--color-bg) 55%, #02030a 100%);
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* grid overlay (matches hud.jsx) */
+.hud-grid {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(90deg, var(--color-line) 1px, transparent 1px),
+    linear-gradient(0deg, var(--color-line) 1px, transparent 1px);
+  background-size: 60px 60px;
+  opacity: 0.35;
+  z-index: 0;
+}
+
+.hud-scan {
+  position: fixed;
+  top: 30%;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--color-cyan), transparent);
+  opacity: 0.25;
+  filter: blur(1px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* clip-path corner-cut wrappers */
+.clip-hud {
+  clip-path: polygon(
+    18px 0,
+    calc(100% - 4px) 0,
+    100% 4px,
+    100% calc(100% - 18px),
+    calc(100% - 18px) 100%,
+    4px 100%,
+    0 calc(100% - 4px),
+    0 18px
+  );
+}
+.clip-hud-sm {
+  clip-path: polygon(
+    8px 0,
+    calc(100% - 2px) 0,
+    100% 2px,
+    100% calc(100% - 8px),
+    calc(100% - 8px) 100%,
+    2px 100%,
+    0 calc(100% - 2px),
+    0 8px
+  );
+}
+.clip-tag {
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+}
+.clip-bar {
+  clip-path: polygon(0 0, calc(100% - 3px) 0, 100% 100%, 3px 100%);
+}
+
+/* scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 255, 220, 0.25) transparent;
+}
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-thumb {
+  background: rgba(120, 255, 220, 0.25);
+  border-radius: 3px;
+}
+*::-webkit-scrollbar-track { background: transparent; }
+
+.tracking-hud { letter-spacing: 0.18em; }
+.tracking-hud-tight { letter-spacing: 0.08em; }
+
+.glow-cyan { box-shadow: 0 0 12px rgba(94, 240, 255, 0.45); }
+.glow-magenta { box-shadow: 0 0 12px rgba(255, 78, 214, 0.45); }
+.glow-lime { box-shadow: 0 0 12px rgba(163, 255, 78, 0.45); }
+.glow-text-cyan { text-shadow: 0 0 8px rgba(94, 240, 255, 0.55); }
+.glow-text-magenta { text-shadow: 0 0 8px rgba(255, 78, 214, 0.55); }
+
+::selection {
+  background: rgba(255, 78, 214, 0.35);
+  color: var(--color-fg);
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+input:focus,
+textarea:focus,
+button:focus {
+  outline: none;
+}
+
+.topic-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  background: rgba(255, 78, 214, 0.12);
+  border: 1px solid rgba(255, 78, 214, 0.55);
+  color: var(--color-magenta);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}

@@ -15,6 +15,7 @@ import (
 
 	"github.com/snestors/agenthub/internal/cliengine"
 	"github.com/snestors/agenthub/internal/config"
+	"github.com/snestors/agenthub/internal/mcp"
 	"github.com/snestors/agenthub/internal/server"
 	"github.com/snestors/agenthub/internal/setup"
 	"github.com/snestors/agenthub/internal/store"
@@ -172,8 +173,25 @@ func runCLI(mode string, args []string) {
 }
 
 func runMCP() {
-	fmt.Fprintln(os.Stderr, "agenthub mcp — MCP server stdio no implementado todavía (Bloque 1 paso siguiente).")
-	os.Exit(2)
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "config:", err)
+		os.Exit(1)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	db, err := store.Open(ctx, cfg.DBPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "db open:", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+	repos := store.NewRepos(db)
+	srv := mcp.New(cfg, repos)
+	if err := srv.ServeStdio(); err != nil {
+		fmt.Fprintln(os.Stderr, "mcp serve:", err)
+		os.Exit(1)
+	}
 }
 
 func runSession(args []string) {

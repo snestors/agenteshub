@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/snestors/agenthub/internal/config"
@@ -44,6 +46,9 @@ func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 		"-p",
 		"--dangerously-skip-permissions",
 		"--output-format", "json",
+	}
+	if cfgPath, err := ensureMCPConfig(e.cfg); err == nil {
+		args = append(args, "--mcp-config", cfgPath)
 	}
 	if model := chooseModel(opts.Model, e.cfg.DefaultModel); model != "" {
 		args = append(args, "--model", model)
@@ -95,4 +100,44 @@ func chooseModel(opt, fallback string) string {
 		return opt
 	}
 	return fallback
+}
+
+// ensureMCPConfig writes a JSON file pointing the Claude CLI to `agenthub mcp`,
+// so spawned sessions can call our embedded tools. Returns the file path.
+func ensureMCPConfig(cfg *config.Config) (string, error) {
+	dir := filepath.Join(os.TempDir(), "agenthub")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, "mcp.json")
+	bin, err := os.Executable()
+	if err != nil {
+		bin = "agenthub"
+	}
+	type mcpServer struct {
+		Command string            `json:"command"`
+		Args    []string          `json:"args"`
+		Env     map[string]string `json:"env,omitempty"`
+	}
+	body := struct {
+		MCPServers map[string]mcpServer `json:"mcpServers"`
+	}{
+		MCPServers: map[string]mcpServer{
+			"agenthub": {
+				Command: bin,
+				Args:    []string{"mcp"},
+				Env: map[string]string{
+					"AGENTHUB_DB_PATH":    cfg.DBPath,
+					"AGENTHUB_DEV":        "true", // mcp mode reads same .env, but force minimal
+					"AGENTHUB_SECRET_KEY": fmt.Sprintf("%x", cfg.SecretKey),
+					"AGENTHUB_JWT_SECRET": string(cfg.JWTSecret),
+				},
+			},
+		},
+	}
+	raw, _ := json.MarshalIndent(body, "", "  ")
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		return "", err
+	}
+	return path, nil
 }
