@@ -157,6 +157,12 @@ func (s *Server) routes() http.Handler {
 		pr.Get("/api/subagents", s.handleSubagentsList)
 		pr.Get("/api/subagents/{id}", s.handleSubagentGet)
 
+		// Topics
+		pr.Get("/api/topics", s.handleTopicsList)
+		pr.Post("/api/topics", s.handleTopicsCreate)
+		pr.Get("/api/topics/{id}/state", s.handleTopicGetState)
+		pr.Post("/api/topics/{id}/state", s.handleTopicUpdateState)
+
 		// System manager
 		pr.Get("/api/system/stats", s.handleSystemStats)
 		pr.Get("/api/system/services", s.handleSystemServices)

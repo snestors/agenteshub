@@ -620,6 +620,54 @@ export interface SystemConnections {
   tunnels: SystemTunnel[];
 }
 
+// ─── topics ───────────────────────────────────
+
+export interface Topic {
+  id: number;
+  name: string;
+  description?: string;
+  keywords?: string[];
+  project_id?: number;
+  session_id?: string;
+  engine: string;
+  is_default: boolean;
+  last_active_at?: number;
+  created_at: number;
+}
+
+export interface TopicState {
+  topic_id: number;
+  headline?: string;
+  active_issues?: string[];
+  recent_decisions?: string[];
+  pending?: string[];
+  next_action_hint?: string;
+  last_event_at?: number;
+  updated_at: number;
+}
+
+export const topicsApi = {
+  async list(): Promise<Topic[]> {
+    const res = await request<{ topics: Topic[] | null }>("/api/topics");
+    return res.topics ?? [];
+  },
+  async create(name: string, description?: string, keywords?: string[]): Promise<{ id: number }> {
+    return request<{ id: number; name: string }>("/api/topics", {
+      method: "POST",
+      body: JSON.stringify({ name, description, keywords }),
+    });
+  },
+  async getState(id: number): Promise<TopicState> {
+    return request<TopicState>(`/api/topics/${id}/state`);
+  },
+  async updateState(id: number, patch: Partial<TopicState>): Promise<void> {
+    await request(`/api/topics/${id}/state`, {
+      method: "POST",
+      body: JSON.stringify(patch),
+    });
+  },
+};
+
 // ─── subagents ────────────────────────────────
 
 export interface Subagent {
