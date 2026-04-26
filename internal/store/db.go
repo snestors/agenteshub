@@ -37,6 +37,14 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 }
 
 func migrate(ctx context.Context, db *sql.DB) error {
+	if _, err := db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS __migrations (
+			name TEXT PRIMARY KEY,
+			applied_at INTEGER NOT NULL
+		)
+	`); err != nil {
+		return fmt.Errorf("ensure __migrations: %w", err)
+	}
 	entries, err := migrationsFS.ReadDir("migrations")
 	if err != nil {
 		return err
@@ -45,12 +53,23 @@ func migrate(ctx context.Context, db *sql.DB) error {
 		if e.IsDir() {
 			continue
 		}
-		raw, err := migrationsFS.ReadFile("migrations/" + e.Name())
+		name := e.Name()
+		var c int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(1) FROM __migrations WHERE name = ?`, name).Scan(&c); err != nil {
+			return fmt.Errorf("check %s: %w", name, err)
+		}
+		if c > 0 {
+			continue // already applied
+		}
+		raw, err := migrationsFS.ReadFile("migrations/" + name)
 		if err != nil {
-			return fmt.Errorf("read migration %s: %w", e.Name(), err)
+			return fmt.Errorf("read migration %s: %w", name, err)
 		}
 		if _, err := db.ExecContext(ctx, string(raw)); err != nil {
-			return fmt.Errorf("apply %s: %w", e.Name(), err)
+			return fmt.Errorf("apply %s: %w", name, err)
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO __migrations(name, applied_at) VALUES(?, unixepoch())`, name); err != nil {
+			return fmt.Errorf("track %s: %w", name, err)
 		}
 	}
 	return nil
