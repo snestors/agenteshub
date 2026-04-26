@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -21,6 +23,7 @@ import (
 	"github.com/snestors/agenthub/internal/cliengine"
 	"github.com/snestors/agenthub/internal/config"
 	"github.com/snestors/agenthub/internal/store"
+	"github.com/snestors/agenthub/internal/sysman"
 )
 
 const cookieName = "agenthub_token"
@@ -31,14 +34,15 @@ type Server struct {
 	repos   *store.Repos
 	tokens  *auth.TokenService
 	engines *cliengine.Manager
+	sysman  *sysman.Manager
 	log     *slog.Logger
 	httpSrv *http.Server
 }
 
 // New constructs a Server.
-func New(cfg *config.Config, repos *store.Repos, engines *cliengine.Manager, log *slog.Logger) (*Server, error) {
+func New(cfg *config.Config, repos *store.Repos, engines *cliengine.Manager, sm *sysman.Manager, log *slog.Logger) (*Server, error) {
 	tokens := auth.NewTokenService(cfg, repos.Auth)
-	s := &Server{cfg: cfg, repos: repos, tokens: tokens, engines: engines, log: log}
+	s := &Server{cfg: cfg, repos: repos, tokens: tokens, engines: engines, sysman: sm, log: log}
 	s.httpSrv = &http.Server{
 		Addr:    cfg.HTTPAddr,
 		Handler: s.routes(),
@@ -89,12 +93,44 @@ func (s *Server) routes() http.Handler {
 		// stubs (próximas tools)
 		pr.Get("/api/messages", s.handleMessagesList)
 		pr.Post("/api/messages", s.handleMessagesSend)
+
+		// System manager
+		pr.Get("/api/system/stats", s.handleSystemStats)
+		pr.Get("/api/system/services", s.handleSystemServices)
+		pr.Post("/api/system/services/{name}/{action}", s.handleSystemServiceAction)
+		pr.Get("/api/system/processes", s.handleSystemProcesses)
+		pr.Get("/api/system/connections", s.handleSystemConnections)
 	})
 
-	// frontend (sirve dist/ si existe; si no, mensaje placeholder)
-	r.Get("/", s.serveFrontend)
-	r.Get("/*", s.serveFrontend)
+	// frontend SPA — sirve frontend/dist con fallback a index.html para client-side routing
+	s.mountFrontend(r)
 	return r
+}
+
+// mountFrontend serves the React SPA from frontend/dist with fallback to index.html.
+// Falls back to a placeholder if the dist isn't built yet.
+func (s *Server) mountFrontend(r chi.Router) {
+	dist := s.cfg.FrontendDist
+	if dist == "" {
+		dist = "frontend/dist"
+	}
+	if _, err := os.Stat(filepath.Join(dist, "index.html")); err != nil {
+		r.Get("/", s.serveFrontend)
+		r.Get("/*", s.serveFrontend)
+		return
+	}
+	fs := http.FileServer(http.Dir(dist))
+	r.Get("/*", func(w http.ResponseWriter, req *http.Request) {
+		// API/WS already matched; here only static + SPA fallback.
+		path := filepath.Join(dist, filepath.Clean(req.URL.Path))
+		info, err := os.Stat(path)
+		if err == nil && !info.IsDir() {
+			fs.ServeHTTP(w, req)
+			return
+		}
+		// Fallback to index.html for SPA client-side routes.
+		http.ServeFile(w, req, filepath.Join(dist, "index.html"))
+	})
 }
 
 // ---------- handlers ----------

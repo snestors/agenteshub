@@ -14,21 +14,30 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/robfig/cron/v3"
 
+	"github.com/snestors/agenthub/internal/cliengine"
 	"github.com/snestors/agenthub/internal/config"
 	"github.com/snestors/agenthub/internal/store"
+	"github.com/snestors/agenthub/internal/sysman"
 )
 
 // Server wraps the MCP server bound to repos.
 type Server struct {
-	cfg   *config.Config
-	repos *store.Repos
-	srv   *server.MCPServer
+	cfg     *config.Config
+	repos   *store.Repos
+	sysman  *sysman.Manager
+	engines *cliengine.Manager
+	srv     *server.MCPServer
 }
 
 // New constructs the MCP server with all tools registered.
-func New(cfg *config.Config, repos *store.Repos) *Server {
-	s := &Server{cfg: cfg, repos: repos}
+//
+// sm and engines may be nil — tools that depend on them will surface a
+// helpful error at call time. This keeps `agenthub mcp` usable when the
+// caller doesn't (yet) wire system/engine deps.
+func New(cfg *config.Config, repos *store.Repos, sm *sysman.Manager, engines *cliengine.Manager) *Server {
+	s := &Server{cfg: cfg, repos: repos, sysman: sm, engines: engines}
 	s.srv = server.NewMCPServer("agenthub", "0.1.0",
 		server.WithToolCapabilities(true),
 		server.WithRecovery(),
@@ -103,6 +112,74 @@ func (s *Server) registerTools() {
 	s.srv.AddTool(mcp.NewTool("get_status",
 		mcp.WithDescription("Returns a quick status snapshot of AgentHub."),
 	), s.handleGetStatus)
+
+	// ---------- system manager ----------
+	s.srv.AddTool(mcp.NewTool("get_system_stats",
+		mcp.WithDescription("Returns host CPU, RAM, disk, temperature, load and uptime."),
+	), s.handleGetSystemStats)
+
+	s.srv.AddTool(mcp.NewTool("list_services",
+		mcp.WithDescription("Lists whitelisted systemd services with state and resource usage."),
+	), s.handleListServices)
+
+	s.srv.AddTool(mcp.NewTool("service_action",
+		mcp.WithDescription("Performs start|stop|restart on a whitelisted systemd service."),
+		mcp.WithString("name", mcp.Required(), mcp.Description("Service unit name (e.g. 'cloudflared.service').")),
+		mcp.WithString("action", mcp.Required(), mcp.Description("'start' | 'stop' | 'restart'.")),
+	), s.handleServiceAction)
+
+	s.srv.AddTool(mcp.NewTool("list_processes",
+		mcp.WithDescription("Top-N host processes sorted by CPU (default) or memory."),
+		mcp.WithNumber("top", mcp.Description("Max processes to return (default 10).")),
+		mcp.WithString("sort", mcp.Description("'cpu' (default) | 'mem'.")),
+	), s.handleListProcesses)
+
+	s.srv.AddTool(mcp.NewTool("list_tunnels",
+		mcp.WithDescription("Lists known tunneling daemons (cloudflared, etc.) and their state."),
+	), s.handleListTunnels)
+
+	// ---------- mini-agents ----------
+	s.srv.AddTool(mcp.NewTool("agent_create",
+		mcp.WithDescription("Creates a mini-agent with a system prompt."),
+		mcp.WithString("name", mcp.Required()),
+		mcp.WithString("system_prompt", mcp.Required()),
+		mcp.WithString("engine", mcp.Description("'claude' (default) | 'codex' | 'ollama'.")),
+		mcp.WithString("description"),
+	), s.handleAgentCreate)
+
+	s.srv.AddTool(mcp.NewTool("agent_list",
+		mcp.WithDescription("Lists all mini-agents."),
+	), s.handleAgentList)
+
+	s.srv.AddTool(mcp.NewTool("agent_run_now",
+		mcp.WithDescription("Runs a mini-agent immediately, optionally with an extra prompt appended to the system prompt."),
+		mcp.WithString("name", mcp.Required()),
+		mcp.WithString("prompt", mcp.Description("Optional user prompt appended to the agent's system prompt.")),
+	), s.handleAgentRunNow)
+
+	s.srv.AddTool(mcp.NewTool("agent_logs",
+		mcp.WithDescription("Returns recent runs of a mini-agent."),
+		mcp.WithString("name", mcp.Required()),
+		mcp.WithNumber("limit", mcp.Description("Max runs to return (default 50).")),
+	), s.handleAgentLogs)
+
+	s.srv.AddTool(mcp.NewTool("agent_schedule",
+		mcp.WithDescription("Attaches a cron schedule to a mini-agent."),
+		mcp.WithString("name", mcp.Required()),
+		mcp.WithString("cron_expr", mcp.Required(), mcp.Description("Standard 5-field cron expression (e.g. '0 9 * * *') or @every form.")),
+		mcp.WithString("prompt_template", mcp.Description("Optional prompt appended to the agent's system prompt at each firing.")),
+		mcp.WithString("notify_target", mcp.Description("'main-agent' | 'wa:<jid>' | 'topic:<name>' | 'none'.")),
+	), s.handleAgentSchedule)
+
+	s.srv.AddTool(mcp.NewTool("agent_pause",
+		mcp.WithDescription("Disables a mini-agent (no scheduled runs)."),
+		mcp.WithString("name", mcp.Required()),
+	), s.handleAgentPause)
+
+	s.srv.AddTool(mcp.NewTool("agent_resume",
+		mcp.WithDescription("Re-enables a previously paused mini-agent."),
+		mcp.WithString("name", mcp.Required()),
+	), s.handleAgentResume)
 }
 
 // ---------- handlers ----------
@@ -252,6 +329,255 @@ func (s *Server) handleGetStatus(ctx context.Context, _ mcp.CallToolRequest) (*m
 		"ts":         time.Now().Unix(),
 	}
 	return jsonResult(out)
+}
+
+// ---------- system manager handlers ----------
+
+func (s *Server) handleGetSystemStats(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if s.sysman == nil {
+		return mcp.NewToolResultError("system manager not wired"), nil
+	}
+	st, err := s.sysman.Stats(ctx)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return jsonResult(st)
+}
+
+func (s *Server) handleListServices(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if s.sysman == nil {
+		return mcp.NewToolResultError("system manager not wired"), nil
+	}
+	svcs, err := s.sysman.Services(ctx)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return jsonResult(svcs)
+}
+
+func (s *Server) handleServiceAction(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if s.sysman == nil {
+		return mcp.NewToolResultError("system manager not wired"), nil
+	}
+	name, err := req.RequireString("name")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	action, err := req.RequireString("action")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if err := s.sysman.ServiceAction(ctx, name, action); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return mcp.NewToolResultText(fmt.Sprintf("ok %s %s", action, name)), nil
+}
+
+func (s *Server) handleListProcesses(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if s.sysman == nil {
+		return mcp.NewToolResultError("system manager not wired"), nil
+	}
+	top := req.GetInt("top", 10)
+	sortBy := req.GetString("sort", "cpu")
+	procs, err := s.sysman.Processes(ctx, top, sortBy)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return jsonResult(procs)
+}
+
+func (s *Server) handleListTunnels(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if s.sysman == nil {
+		return mcp.NewToolResultError("system manager not wired"), nil
+	}
+	conns, err := s.sysman.Connections(ctx)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return jsonResult(conns.Tunnels)
+}
+
+// ---------- mini-agent handlers ----------
+
+func (s *Server) handleAgentCreate(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	name, err := req.RequireString("name")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	systemPrompt, err := req.RequireString("system_prompt")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	engine := strings.TrimSpace(req.GetString("engine", ""))
+	if engine == "" {
+		engine = s.cfg.DefaultEngine
+	}
+	desc := req.GetString("description", "")
+	id, err := s.repos.Agents.Create(ctx, store.Agent{
+		Name:         name,
+		Description:  sqlStr(desc),
+		SystemPrompt: systemPrompt,
+		Engine:       engine,
+		Enabled:      true,
+	})
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return jsonResult(map[string]any{"id": id, "name": name, "engine": engine})
+}
+
+func (s *Server) handleAgentList(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	agents, err := s.repos.Agents.List(ctx)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return jsonResult(agents)
+}
+
+func (s *Server) handleAgentRunNow(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if s.engines == nil {
+		return mcp.NewToolResultError("cli engines not wired"), nil
+	}
+	name, err := req.RequireString("name")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	extraPrompt := req.GetString("prompt", "")
+	agent, err := s.repos.Agents.GetByName(ctx, name)
+	if err != nil {
+		return mcp.NewToolResultError("agent not found: " + name), nil
+	}
+	prompt := strings.TrimSpace(agent.SystemPrompt)
+	if t := strings.TrimSpace(extraPrompt); t != "" {
+		if prompt != "" {
+			prompt += "\n\n"
+		}
+		prompt += t
+	}
+	startedAt := time.Now().Unix()
+	runID, err := s.repos.Agents.InsertRun(ctx, store.AgentRun{
+		AgentID:   agent.ID,
+		Trigger:   "manual",
+		StartedAt: startedAt,
+		Status:    "running",
+		Prompt:    prompt,
+	})
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	res, runErr := s.engines.Run(ctx, cliengine.RunOpts{
+		Prompt:    prompt,
+		Channel:   "agent",
+		Cwd:       ".",
+		Engine:    agent.Engine,
+		Scope:     "agent",
+		AgentName: agent.Name,
+	})
+	status := "ok"
+	result := ""
+	tokens := int64(0)
+	errStr := ""
+	if runErr != nil {
+		status = "error"
+		errStr = runErr.Error()
+	} else if res != nil {
+		result = res.Text
+		tokens = res.CostTokens
+	}
+	if ferr := s.repos.Agents.FinishRun(ctx, runID, status, result, tokens, errStr); ferr != nil {
+		return mcp.NewToolResultError(ferr.Error()), nil
+	}
+	return jsonResult(map[string]any{
+		"run_id": runID,
+		"status": status,
+		"result": result,
+		"tokens": tokens,
+		"error":  errStr,
+	})
+}
+
+func (s *Server) handleAgentLogs(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	name, err := req.RequireString("name")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	limit := req.GetInt("limit", 50)
+	agent, err := s.repos.Agents.GetByName(ctx, name)
+	if err != nil {
+		return mcp.NewToolResultError("agent not found: " + name), nil
+	}
+	runs, err := s.repos.Agents.RunsForAgent(ctx, agent.ID, limit)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return jsonResult(runs)
+}
+
+func (s *Server) handleAgentSchedule(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	name, err := req.RequireString("name")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	expr, err := req.RequireString("cron_expr")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	tmpl := req.GetString("prompt_template", "")
+	notify := req.GetString("notify_target", "none")
+	agent, err := s.repos.Agents.GetByName(ctx, name)
+	if err != nil {
+		return mcp.NewToolResultError("agent not found: " + name), nil
+	}
+	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
+	parsed, err := parser.Parse(expr)
+	if err != nil {
+		return mcp.NewToolResultError("invalid cron_expr: " + err.Error()), nil
+	}
+	next := parsed.Next(time.Now()).Unix()
+	id, err := s.repos.Agents.AddSchedule(ctx, store.AgentSchedule{
+		AgentID:        agent.ID,
+		CronExpr:       expr,
+		PromptTemplate: tmpl,
+		NotifyTarget:   notify,
+		Enabled:        true,
+		NextRun:        next,
+	})
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return jsonResult(map[string]any{
+		"schedule_id": id,
+		"agent_id":    agent.ID,
+		"cron_expr":   expr,
+		"next_run":    next,
+	})
+}
+
+func (s *Server) handleAgentPause(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return s.toggleAgent(ctx, req, false)
+}
+
+func (s *Server) handleAgentResume(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return s.toggleAgent(ctx, req, true)
+}
+
+func (s *Server) toggleAgent(ctx context.Context, req mcp.CallToolRequest, enabled bool) (*mcp.CallToolResult, error) {
+	name, err := req.RequireString("name")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	agent, err := s.repos.Agents.GetByName(ctx, name)
+	if err != nil {
+		return mcp.NewToolResultError("agent not found: " + name), nil
+	}
+	if err := s.repos.Agents.SetEnabled(ctx, agent.ID, enabled); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	state := "paused"
+	if enabled {
+		state = "resumed"
+	}
+	return mcp.NewToolResultText(fmt.Sprintf("agent %s %s", name, state)), nil
 }
 
 // ---------- helpers ----------

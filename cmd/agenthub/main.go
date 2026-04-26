@@ -17,9 +17,11 @@ import (
 	"github.com/snestors/agenthub/internal/config"
 	intcron "github.com/snestors/agenthub/internal/cron"
 	"github.com/snestors/agenthub/internal/mcp"
+	"github.com/snestors/agenthub/internal/scheduler"
 	"github.com/snestors/agenthub/internal/server"
 	"github.com/snestors/agenthub/internal/setup"
 	"github.com/snestors/agenthub/internal/store"
+	"github.com/snestors/agenthub/internal/sysman"
 )
 
 func main() {
@@ -103,11 +105,15 @@ func runServe() {
 	defer db.Close()
 	repos := store.NewRepos(db)
 	engines := cliengine.New(cfg, repos, logger)
+	sm := sysman.New(cfg, logger)
 	cronRunner := intcron.New(cfg, repos, logger)
 	cronRunner.Start()
 	defer cronRunner.Stop()
 
-	srv, err := server.New(cfg, repos, engines, logger)
+	sched := scheduler.New(repos, engines, logger)
+	sched.Start(ctx)
+
+	srv, err := server.New(cfg, repos, engines, sm, logger)
 	if err != nil {
 		logger.Error("server new", "err", err)
 		os.Exit(1)
@@ -182,6 +188,7 @@ func runMCP() {
 		fmt.Fprintln(os.Stderr, "config:", err)
 		os.Exit(1)
 	}
+	logger := newLogger(cfg.LogLevel)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	db, err := store.Open(ctx, cfg.DBPath)
@@ -191,7 +198,9 @@ func runMCP() {
 	}
 	defer db.Close()
 	repos := store.NewRepos(db)
-	srv := mcp.New(cfg, repos)
+	engines := cliengine.New(cfg, repos, logger)
+	sm := sysman.New(cfg, logger)
+	srv := mcp.New(cfg, repos, sm, engines)
 	if err := srv.ServeStdio(); err != nil {
 		fmt.Fprintln(os.Stderr, "mcp serve:", err)
 		os.Exit(1)

@@ -22,6 +22,11 @@ export default defineConfig({
         target: "http://localhost:8093",
         changeOrigin: true,
       },
+      "/ws": {
+        target: "ws://localhost:8093",
+        ws: true,
+        changeOrigin: true,
+      },
     },
   },
 });

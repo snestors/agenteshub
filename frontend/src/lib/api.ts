@@ -143,6 +143,94 @@ export const api = {
   async health(): Promise<{ ok: boolean; ts: number }> {
     return request<{ ok: boolean; ts: number }>("/healthz");
   },
+
+  async systemStats(): Promise<SystemStats> {
+    return request<SystemStats>("/api/system/stats");
+  },
+
+  async systemServices(): Promise<SystemService[]> {
+    const res = await request<SystemService[] | { services: SystemService[] | null }>(
+      "/api/system/services"
+    );
+    if (Array.isArray(res)) return res;
+    return res.services ?? [];
+  },
+
+  async systemServiceAction(
+    name: string,
+    action: "start" | "stop" | "restart"
+  ): Promise<{ ok: boolean; message?: string }> {
+    return request<{ ok: boolean; message?: string }>(
+      `/api/system/services/${encodeURIComponent(name)}/${action}`,
+      { method: "POST" }
+    );
+  },
+
+  async systemProcesses(top = 10, sort: "cpu" | "mem" = "cpu"): Promise<SystemProcess[]> {
+    const res = await request<SystemProcess[] | { processes: SystemProcess[] | null }>(
+      `/api/system/processes?top=${top}&sort=${sort}`
+    );
+    if (Array.isArray(res)) return res;
+    return res.processes ?? [];
+  },
+
+  async systemConnections(): Promise<SystemConnections> {
+    return request<SystemConnections>("/api/system/connections");
+  },
 };
+
+// ─── system manager types ─────────────────────
+export interface SystemDisk {
+  mount: string;
+  used_gb: number;
+  total_gb: number;
+  used_pct: number;
+}
+
+export interface SystemStats {
+  cpu_pct: number;
+  ram_used_gb: number;
+  ram_total_gb: number;
+  ram_pct?: number;
+  disks: SystemDisk[];
+  temp_c: number;
+  uptime_s: number;
+  load_avg: [number, number, number];
+}
+
+export interface SystemService {
+  name: string;
+  state: "active" | "inactive" | "failed" | "activating" | "deactivating" | string;
+  since?: number;
+  cpu_pct?: number;
+  mem_mb?: number;
+  description?: string;
+}
+
+export interface SystemProcess {
+  pid: number;
+  name: string;
+  cpu_pct: number;
+  mem_mb: number;
+}
+
+export interface SystemTunnel {
+  name: string;
+  state: "up" | "down" | string;
+}
+
+export interface SystemConnections {
+  wa: "connected" | "disconnected" | "pairing" | string;
+  ws_clients: number;
+  tunnels: SystemTunnel[];
+}
+
+// ─── websocket helper ─────────────────────────
+export function wsUrl(path: string): string {
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  // dev: vite proxy at :5173 forwards /ws → :8093 with ws upgrade
+  // prod: backend serves frontend & ws on same origin
+  return `${proto}//${window.location.host}${path}`;
+}
 
 export { ApiError };

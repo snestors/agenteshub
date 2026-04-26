@@ -1,179 +1,720 @@
 import * as React from "react";
 import { HudPanel } from "@/components/HudPanel";
 import { Topbar } from "@/components/Topbar";
-import { api } from "@/lib/api";
+import { Gauge } from "@/components/Gauge";
+import {
+  api,
+  wsUrl,
+  type SystemStats,
+  type SystemService,
+  type SystemProcess,
+  type SystemConnections,
+} from "@/lib/api";
+import { useWebSocket } from "@/lib/useWebSocket";
 
-interface HealthState {
-  ok: boolean;
-  ts: number | null;
-  error: string | null;
-  lastChecked: number;
+const POLL_FALLBACK_MS = 5000;
+const SLOW_POLL_MS = 8000; // services / processes / connections
+
+interface WsStatsEvent {
+  type: string;
+  data?: SystemStats;
+}
+
+function formatUptime(secs: number): string {
+  if (!secs || secs < 0) return "—";
+  const days = Math.floor(secs / 86400);
+  const hours = Math.floor((secs % 86400) / 3600);
+  const mins = Math.floor((secs % 3600) / 60);
+  return `${days}D ${String(hours).padStart(2, "0")}H ${String(mins).padStart(2, "0")}M`;
+}
+
+function tempColor(temp: number): string {
+  if (temp >= 80) return "var(--color-danger)";
+  if (temp >= 65) return "var(--color-warn)";
+  return "var(--color-lime)";
+}
+
+function diskColor(pct: number): string {
+  if (pct >= 85) return "var(--color-danger)";
+  if (pct >= 70) return "var(--color-warn)";
+  return "var(--color-lime)";
 }
 
 export function System() {
-  const [health, setHealth] = React.useState<HealthState>({
-    ok: false,
-    ts: null,
-    error: null,
-    lastChecked: 0,
-  });
+  const [stats, setStats] = React.useState<SystemStats | null>(null);
+  const [services, setServices] = React.useState<SystemService[]>([]);
+  const [processes, setProcesses] = React.useState<SystemProcess[]>([]);
+  const [connections, setConnections] = React.useState<SystemConnections | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const [actionState, setActionState] = React.useState<{
+    name: string;
+    action: "start" | "stop" | "restart";
+    busy: boolean;
+  } | null>(null);
+  const [confirm, setConfirm] = React.useState<{ name: string; action: "stop" | "restart" } | null>(
+    null
+  );
 
-  React.useEffect(() => {
-    let alive = true;
-    async function check() {
-      try {
-        const res = await api.health();
-        if (!alive) return;
-        setHealth({
-          ok: res.ok,
-          ts: res.ts,
-          error: null,
-          lastChecked: Date.now(),
-        });
-      } catch (err) {
-        if (!alive) return;
-        setHealth({
-          ok: false,
-          ts: null,
-          error: err instanceof Error ? err.message : "error de red",
-          lastChecked: Date.now(),
-        });
-      }
+  // ─── stats: WS first, fallback polling ──────────────────────────
+  const statsPollRef = React.useRef<number | null>(null);
+
+  const fetchStats = React.useCallback(async () => {
+    try {
+      const s = await api.systemStats();
+      setStats(s);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "stats fail");
     }
-    void check();
-    const id = window.setInterval(check, 5000);
-    return () => {
-      alive = false;
-      window.clearInterval(id);
-    };
   }, []);
 
-  const tone = health.ok ? "ok" : "danger";
+  const startStatsPoll = React.useCallback(() => {
+    if (statsPollRef.current !== null) return;
+    statsPollRef.current = window.setInterval(fetchStats, POLL_FALLBACK_MS);
+  }, [fetchStats]);
+
+  const stopStatsPoll = React.useCallback(() => {
+    if (statsPollRef.current !== null) {
+      window.clearInterval(statsPollRef.current);
+      statsPollRef.current = null;
+    }
+  }, []);
+
+  // initial fetch
+  React.useEffect(() => {
+    void fetchStats();
+    return () => stopStatsPoll();
+  }, [fetchStats, stopStatsPoll]);
+
+  const { status: wsStatus } = useWebSocket({
+    url: wsUrl("/ws/system"),
+    onMessage: (data) => {
+      if (typeof data !== "object" || data === null) return;
+      const evt = data as WsStatsEvent;
+      if (evt.type === "stats" && evt.data) {
+        setStats(evt.data);
+        setError(null);
+      }
+    },
+    onFallback: () => startStatsPoll(),
+    onReconnected: () => {
+      stopStatsPoll();
+      void fetchStats();
+    },
+  });
+
+  // ─── services / processes / connections: HTTP poll ──────────────
+  const refreshSlow = React.useCallback(async () => {
+    try {
+      const [svc, procs, conn] = await Promise.all([
+        api.systemServices().catch(() => [] as SystemService[]),
+        api.systemProcesses(10, "cpu").catch(() => [] as SystemProcess[]),
+        api.systemConnections().catch(() => null),
+      ]);
+      setServices(svc);
+      setProcesses(procs);
+      if (conn) setConnections(conn);
+    } catch {
+      /* keep last-known good */
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void refreshSlow();
+    const id = window.setInterval(refreshSlow, SLOW_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [refreshSlow]);
+
+  // ─── actions ────────────────────────────────────────────────────
+  async function runAction(name: string, action: "start" | "stop" | "restart") {
+    setActionState({ name, action, busy: true });
+    try {
+      await api.systemServiceAction(name, action);
+      // refresh services after a tick — systemd takes a moment
+      window.setTimeout(() => void refreshSlow(), 500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `failed ${action} ${name}`);
+    } finally {
+      setActionState((s) => (s ? { ...s, busy: false } : null));
+      window.setTimeout(() => setActionState(null), 1200);
+      setConfirm(null);
+    }
+  }
+
+  function requestAction(name: string, action: "start" | "stop" | "restart") {
+    if (action === "start") {
+      void runAction(name, action);
+      return;
+    }
+    setConfirm({ name, action });
+  }
+
+  // ─── derived ────────────────────────────────────────────────────
+  const ramPct =
+    stats && stats.ram_total_gb > 0
+      ? (stats.ram_used_gb / stats.ram_total_gb) * 100
+      : 0;
+  const primaryDisk = stats?.disks?.[0];
+  const diskPct = primaryDisk?.used_pct ?? 0;
+  const tempC = stats?.temp_c ?? 0;
+  const uptime = stats?.uptime_s ?? 0;
+  const uptimeDays = Math.floor(uptime / 86400);
+
+  const tone = error
+    ? ("danger" as const)
+    : wsStatus === "open"
+    ? ("ok" as const)
+    : wsStatus === "fallback"
+    ? ("warn" as const)
+    : ("warn" as const);
+
+  const transportLabel =
+    wsStatus === "open"
+      ? "ws · live"
+      : wsStatus === "fallback"
+      ? `polling · ${POLL_FALLBACK_MS / 1000}s`
+      : wsStatus === "connecting"
+      ? "ws · connecting…"
+      : "ws · reconnect…";
 
   return (
     <div className="flex flex-col h-full min-h-0">
       <Topbar
-        breadcrumb={[{ label: "AgentHub" }, { label: "Health" }]}
-        status={{ label: health.ok ? "NOMINAL" : "OFFLINE", tone }}
+        breadcrumb={[{ label: "AgentHub" }, { label: "System Manager" }]}
+        status={{
+          label: error
+            ? "ERROR"
+            : wsStatus === "open"
+            ? "NOMINAL"
+            : wsStatus === "fallback"
+            ? "POLLING"
+            : "CONNECTING",
+          tone,
+        }}
+        right={
+          <span className="font-mono text-[10px] text-[var(--color-dim)] tracking-hud-tight">
+            {transportLabel}
+          </span>
+        }
       />
 
-      <div className="flex-1 min-h-0 p-4 overflow-hidden grid grid-cols-2 grid-rows-2 gap-4">
-        <HudPanel title="daemon" sub="GET /healthz" accent="lime">
-          <div className="flex-1 flex flex-col gap-3 py-2">
-            <Stat
-              label="estado"
-              value={health.ok ? "ONLINE" : "OFFLINE"}
-              accent={health.ok ? "var(--color-lime)" : "var(--color-danger)"}
+      <div className="flex-1 min-h-0 p-4 overflow-y-auto">
+        {/* ─── top stats row: 5 cards with gauges ─── */}
+        <div className="grid grid-cols-5 gap-3 mb-4">
+          <StatCard accent="cyan">
+            <Gauge
+              value={stats?.cpu_pct ?? 0}
+              label="CPU"
+              size={130}
+              color="var(--color-cyan)"
+              sub={
+                stats?.load_avg
+                  ? `load ${stats.load_avg[0].toFixed(2)}`
+                  : "load —"
+              }
             />
-            <Stat
-              label="server ts"
-              value={health.ts ? new Date(health.ts * 1000).toISOString() : "—"}
-              accent="var(--color-cyan)"
-            />
-            <Stat
-              label="último check"
-              value={
-                health.lastChecked
-                  ? `${Math.round((Date.now() - health.lastChecked) / 1000)}s atrás`
+          </StatCard>
+
+          <StatCard accent="lime">
+            <Gauge
+              value={ramPct}
+              label="RAM"
+              size={130}
+              color="var(--color-lime)"
+              sub={
+                stats
+                  ? `${stats.ram_used_gb.toFixed(1)}/${stats.ram_total_gb.toFixed(0)} GB`
                   : "—"
               }
-              accent="var(--color-fg)"
             />
-            {health.error && (
-              <div
-                className="px-3 py-2 font-mono text-[10px] clip-hud-sm"
-                style={{
-                  background: "rgba(255, 92, 122, 0.08)",
-                  border: "1px solid rgba(255, 92, 122, 0.45)",
-                  color: "var(--color-danger)",
-                }}
-              >
-                ✗ {health.error}
+          </StatCard>
+
+          <StatCard accent="orange">
+            <Gauge
+              value={diskPct}
+              label="DISK"
+              size={130}
+              color={diskColor(diskPct)}
+              sub={
+                primaryDisk
+                  ? `${primaryDisk.used_gb.toFixed(0)}/${primaryDisk.total_gb.toFixed(0)} GB`
+                  : "—"
+              }
+            />
+          </StatCard>
+
+          <StatCard accent="magenta">
+            <Gauge
+              value={tempC}
+              max={100}
+              unit="°C"
+              label="TEMP"
+              size={130}
+              color={tempColor(tempC)}
+              sub={tempC > 70 ? "high" : "ok"}
+            />
+          </StatCard>
+
+          <StatCard accent="cyan">
+            <div className="flex flex-col items-center justify-center h-[130px]">
+              <div className="font-mono text-[9px] text-[var(--color-dim)] tracking-hud uppercase">
+                UPTIME
               </div>
-            )}
-          </div>
-        </HudPanel>
-
-        <HudPanel title="próximos paneles" sub="v1+" accent="cyan">
-          <div className="font-mono text-[11px] text-[var(--color-dim)] leading-relaxed py-2">
-            <div>▸ vitals (cpu / ram / gpu)</div>
-            <div>▸ uplink + ancho de banda</div>
-            <div>▸ servicios (systemd)</div>
-            <div>▸ logs en vivo (journalctl -f)</div>
-            <div>▸ contenedores (docker ps)</div>
-            <div>▸ cola de tareas</div>
-          </div>
-        </HudPanel>
-
-        <HudPanel title="api" sub="endpoints disponibles" accent="orange">
-          <div className="font-mono text-[10px] leading-[1.7] text-[var(--color-fg)]">
-            <Endpoint method="GET " path="/healthz" />
-            <Endpoint method="POST" path="/api/auth/login" />
-            <Endpoint method="POST" path="/api/auth/totp" />
-            <Endpoint method="POST" path="/api/auth/logout" />
-            <Endpoint method="POST" path="/api/auth/refresh" />
-            <Endpoint method="GET " path="/api/auth/me" />
-            <Endpoint method="GET " path="/api/messages" />
-            <Endpoint method="POST" path="/api/messages" />
-          </div>
-        </HudPanel>
-
-        <HudPanel title="info" sub="binario único" accent="magenta">
-          <div className="font-mono text-[11px] text-[var(--color-dim)] leading-relaxed py-2">
-            <div className="text-[var(--color-fg)] mb-2 font-display tracking-hud uppercase text-[12px]">
-              AgentHub Go v0.1
+              <div className="font-display text-[24px] font-bold text-[var(--color-fg)] mt-1 leading-none">
+                {uptimeDays}
+                <span className="text-[var(--color-dim)] text-[14px] ml-1">D</span>
+              </div>
+              <div className="font-mono text-[10px] text-[var(--color-cyan)] tracking-hud mt-1">
+                {formatUptime(uptime)}
+              </div>
+              {stats?.load_avg && (
+                <div className="font-mono text-[9px] text-[var(--color-dim)] mt-1">
+                  load {stats.load_avg.map((v) => v.toFixed(2)).join(" · ")}
+                </div>
+              )}
             </div>
-            Daemon Go que centraliza la vida digital en la mini PC: 1 agente
-            principal (WA + Browser), N mini-agentes especializados, N proyectos
-            de coding con sesiones independientes.
+          </StatCard>
+        </div>
+
+        {/* ─── main grid: services (big left) + connections + processes (right) ─── */}
+        <div className="grid grid-cols-3 gap-4">
+          {/* services panel — spans 2 cols */}
+          <div className="col-span-2 min-h-[420px]">
+            <HudPanel
+              title="servicios systemd"
+              sub={`${services.filter((s) => s.state === "active").length}/${services.length} activos`}
+              accent="cyan"
+              className="h-full"
+            >
+              {services.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center font-mono text-[11px] text-[var(--color-dim)] tracking-hud-tight">
+                  ▸ sin datos · esperando backend…
+                </div>
+              ) : (
+                <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                  {services.map((s) => (
+                    <ServiceRow
+                      key={s.name}
+                      svc={s}
+                      busy={
+                        actionState?.name === s.name && actionState.busy
+                      }
+                      onAction={(action) => requestAction(s.name, action)}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {confirm && (
+                <ConfirmBar
+                  name={confirm.name}
+                  action={confirm.action}
+                  onConfirm={() => void runAction(confirm.name, confirm.action)}
+                  onCancel={() => setConfirm(null)}
+                />
+              )}
+            </HudPanel>
           </div>
-        </HudPanel>
+
+          {/* right column: connections + processes */}
+          <div className="grid grid-rows-[auto_1fr] gap-4 min-h-[420px]">
+            <HudPanel title="conexiones" sub="wa · ws · tunnels" accent="magenta">
+              <ConnectionsPanel conn={connections} />
+            </HudPanel>
+
+            <HudPanel
+              title="top procesos"
+              sub={`${processes.length} · sort cpu`}
+              accent="orange"
+              className="min-h-0"
+            >
+              {processes.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center font-mono text-[11px] text-[var(--color-dim)]">
+                  ▸ sin datos
+                </div>
+              ) : (
+                <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                  {processes.map((p) => (
+                    <ProcessRow key={p.pid} proc={p} maxCpu={Math.max(...processes.map((x) => x.cpu_pct), 1)} />
+                  ))}
+                </div>
+              )}
+            </HudPanel>
+          </div>
+        </div>
+
+        {/* ─── disks detail row (only if more than one) ─── */}
+        {stats && stats.disks && stats.disks.length > 1 && (
+          <div className="mt-4">
+            <HudPanel title="almacenamiento" sub={`${stats.disks.length} volúmenes`} accent="orange">
+              <div className="grid grid-cols-2 gap-3 py-2">
+                {stats.disks.map((d) => (
+                  <DiskRow key={d.mount} mount={d.mount} used={d.used_gb} total={d.total_gb} pct={d.used_pct} />
+                ))}
+              </div>
+            </HudPanel>
+          </div>
+        )}
+
+        {error && (
+          <div
+            className="mt-4 px-3 py-2 font-mono text-[10px] clip-hud-sm"
+            style={{
+              background: "rgba(255, 92, 122, 0.08)",
+              border: "1px solid rgba(255, 92, 122, 0.45)",
+              color: "var(--color-danger)",
+            }}
+          >
+            ✗ {error}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function Stat({
+// ─── subcomponents ──────────────────────────────────────────────────
+
+function StatCard({
+  accent,
+  children,
+}: {
+  accent: "cyan" | "magenta" | "lime" | "orange" | "danger";
+  children: React.ReactNode;
+}) {
+  return (
+    <HudPanel accent={accent} className="min-h-[170px]">
+      <div className="flex-1 flex items-center justify-center">{children}</div>
+    </HudPanel>
+  );
+}
+
+function ServiceRow({
+  svc,
+  busy,
+  onAction,
+}: {
+  svc: SystemService;
+  busy: boolean;
+  onAction: (action: "start" | "stop" | "restart") => void;
+}) {
+  const stateColor =
+    svc.state === "active"
+      ? "var(--color-lime)"
+      : svc.state === "failed"
+      ? "var(--color-danger)"
+      : svc.state === "activating" || svc.state === "deactivating"
+      ? "var(--color-warn)"
+      : "var(--color-dim)";
+
+  const isActive = svc.state === "active";
+  const isInactive = svc.state === "inactive" || svc.state === "failed";
+  const since = svc.since
+    ? new Date(svc.since * 1000).toISOString().slice(0, 19).replace("T", " ")
+    : "";
+
+  return (
+    <div
+      className="grid items-center gap-3 py-2 border-b border-[var(--color-line)] font-mono text-[11px]"
+      style={{ gridTemplateColumns: "12px 1fr auto auto auto" }}
+    >
+      <span
+        className="w-1.5 h-1.5 rounded-full"
+        style={{
+          background: stateColor,
+          boxShadow: isActive ? `0 0 6px ${stateColor}` : "none",
+        }}
+      />
+      <div className="min-w-0">
+        <div className="text-[var(--color-fg)] truncate">{svc.name}</div>
+        <div className="text-[var(--color-dim)] text-[9px] mt-0.5 tracking-hud-tight">
+          <span style={{ color: stateColor }}>● {svc.state}</span>
+          {since && <span className="ml-2">since {since}</span>}
+          {typeof svc.cpu_pct === "number" && (
+            <span className="ml-2 text-[var(--color-cyan)]">{svc.cpu_pct.toFixed(1)}% cpu</span>
+          )}
+          {typeof svc.mem_mb === "number" && (
+            <span className="ml-2 text-[var(--color-magenta)]">{Math.round(svc.mem_mb)}M</span>
+          )}
+        </div>
+      </div>
+
+      {/* restart */}
+      <ActionButton
+        accent="var(--color-cyan)"
+        label="↻ restart"
+        disabled={busy}
+        onClick={() => onAction("restart")}
+      />
+      {/* stop / start */}
+      {isActive ? (
+        <ActionButton
+          accent="var(--color-danger)"
+          label="⏹ stop"
+          disabled={busy}
+          onClick={() => onAction("stop")}
+        />
+      ) : (
+        <ActionButton
+          accent="var(--color-lime)"
+          label="▶ start"
+          disabled={busy || !isInactive}
+          onClick={() => onAction("start")}
+        />
+      )}
+      <span className="font-mono text-[9px] text-[var(--color-dim)] w-[24px] text-right">
+        {busy ? "…" : ""}
+      </span>
+    </div>
+  );
+}
+
+function ActionButton({
+  accent,
+  label,
+  disabled,
+  onClick,
+}: {
+  accent: string;
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="px-2 py-1 font-mono text-[9px] tracking-hud uppercase clip-tag transition-opacity"
+      style={{
+        color: accent,
+        border: `1px solid ${accent}`,
+        background: `${accent}12`,
+        opacity: disabled ? 0.4 : 1,
+        cursor: disabled ? "not-allowed" : "pointer",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function ConfirmBar({
+  name,
+  action,
+  onConfirm,
+  onCancel,
+}: {
+  name: string;
+  action: "stop" | "restart";
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const accent =
+    action === "stop" ? "var(--color-danger)" : "var(--color-warn)";
+  return (
+    <div
+      className="mt-2 px-3 py-2 clip-hud-sm flex items-center justify-between gap-2 font-mono text-[10px]"
+      style={{
+        background: `${accent}12`,
+        border: `1px solid ${accent}`,
+        color: accent,
+      }}
+    >
+      <span>
+        ⚠ confirmar {action.toUpperCase()} sobre <b className="text-[var(--color-fg)]">{name}</b>?
+      </span>
+      <div className="flex gap-2">
+        <button
+          onClick={onConfirm}
+          className="px-2 py-0.5 clip-tag font-mono text-[10px] tracking-hud"
+          style={{
+            color: "var(--color-bg)",
+            background: accent,
+            cursor: "pointer",
+          }}
+        >
+          confirmar
+        </button>
+        <button
+          onClick={onCancel}
+          className="px-2 py-0.5 clip-tag font-mono text-[10px] tracking-hud"
+          style={{
+            color: "var(--color-dim)",
+            border: "1px solid var(--color-line)",
+            cursor: "pointer",
+          }}
+        >
+          cancelar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ConnectionsPanel({ conn }: { conn: SystemConnections | null }) {
+  if (!conn) {
+    return (
+      <div className="font-mono text-[11px] text-[var(--color-dim)] py-2">
+        ▸ sin datos · esperando backend…
+      </div>
+    );
+  }
+
+  const waColor =
+    conn.wa === "connected"
+      ? "var(--color-lime)"
+      : conn.wa === "pairing"
+      ? "var(--color-warn)"
+      : "var(--color-danger)";
+
+  return (
+    <div className="flex flex-col gap-2 py-1">
+      <ConnRow
+        label="whatsapp"
+        value={conn.wa}
+        accent={waColor}
+        dot
+      />
+      <ConnRow
+        label="ws clients"
+        value={String(conn.ws_clients)}
+        accent="var(--color-cyan)"
+      />
+      <div className="mt-1">
+        <div className="font-mono text-[9px] text-[var(--color-dim)] tracking-hud uppercase mb-1">
+          tunnels
+        </div>
+        {conn.tunnels.length === 0 ? (
+          <div className="font-mono text-[10px] text-[var(--color-dim)]">— ninguno —</div>
+        ) : (
+          conn.tunnels.map((t) => (
+            <ConnRow
+              key={t.name}
+              label={t.name}
+              value={t.state}
+              accent={t.state === "up" ? "var(--color-lime)" : "var(--color-danger)"}
+              dot
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ConnRow({
   label,
   value,
   accent,
+  dot,
 }: {
   label: string;
   value: string;
   accent: string;
+  dot?: boolean;
 }) {
   return (
     <div
-      className="px-3 py-2 clip-hud-sm border"
+      className="px-3 py-1.5 clip-hud-sm flex items-center justify-between"
       style={{
         background: `${accent}0d`,
-        borderColor: `${accent}40`,
+        border: `1px solid ${accent}40`,
       }}
     >
-      <div className="font-mono text-[9px] text-[var(--color-dim)] tracking-hud uppercase">
+      <span className="font-mono text-[10px] text-[var(--color-dim)] tracking-hud uppercase">
         {label}
+      </span>
+      <span className="flex items-center gap-2 font-display text-[12px] font-semibold tracking-hud-tight uppercase" style={{ color: accent }}>
+        {dot && (
+          <span
+            className="w-1.5 h-1.5 rounded-full"
+            style={{ background: accent, boxShadow: `0 0 6px ${accent}` }}
+          />
+        )}
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function ProcessRow({ proc, maxCpu }: { proc: SystemProcess; maxCpu: number }) {
+  const pct = (proc.cpu_pct / maxCpu) * 100;
+  const c =
+    proc.cpu_pct > 50
+      ? "var(--color-danger)"
+      : proc.cpu_pct > 20
+      ? "var(--color-warn)"
+      : "var(--color-cyan)";
+  return (
+    <div className="py-1.5 border-b border-[var(--color-line)]">
+      <div className="flex items-center justify-between font-mono text-[10px] mb-1">
+        <span className="text-[var(--color-fg)] truncate flex-1">
+          <span className="text-[var(--color-dim)] mr-2">{proc.pid}</span>
+          {proc.name}
+        </span>
+        <span className="text-[var(--color-magenta)] ml-2 shrink-0">
+          {Math.round(proc.mem_mb)}M
+        </span>
+        <span className="font-display font-semibold ml-2 shrink-0" style={{ color: c }}>
+          {proc.cpu_pct.toFixed(1)}%
+        </span>
       </div>
       <div
-        className="font-display font-semibold text-[14px] mt-0.5 tracking-hud-tight"
-        style={{ color: accent }}
+        className="h-1 clip-bar overflow-hidden"
+        style={{ background: "rgba(255,255,255,0.05)" }}
       >
-        {value}
+        <div
+          style={{
+            width: `${Math.max(2, Math.min(100, pct))}%`,
+            height: "100%",
+            background: `linear-gradient(90deg, ${c}, ${c}aa)`,
+            boxShadow: `0 0 6px ${c}`,
+            transition: "width 600ms ease",
+          }}
+        />
       </div>
     </div>
   );
 }
 
-function Endpoint({ method, path }: { method: string; path: string }) {
-  const colors: Record<string, string> = {
-    "GET ": "var(--color-cyan)",
-    POST: "var(--color-magenta)",
-  };
+function DiskRow({
+  mount,
+  used,
+  total,
+  pct,
+}: {
+  mount: string;
+  used: number;
+  total: number;
+  pct: number;
+}) {
+  const c = diskColor(pct);
   return (
-    <div className="flex gap-3 py-0.5 border-b border-[var(--color-line)]">
-      <span style={{ color: colors[method] ?? "var(--color-fg)" }} className="font-semibold">
-        {method}
-      </span>
-      <span className="text-[var(--color-fg)]">{path}</span>
+    <div>
+      <div className="flex justify-between font-mono text-[10px] mb-1">
+        <span className="text-[var(--color-fg)]">
+          {mount}
+          <span className="text-[var(--color-dim)] ml-2">
+            {used.toFixed(1)} / {total.toFixed(1)} GB
+          </span>
+        </span>
+        <span className="font-display font-semibold" style={{ color: c }}>
+          {pct.toFixed(0)}%
+        </span>
+      </div>
+      <div
+        className="h-1.5 clip-bar overflow-hidden"
+        style={{ background: "rgba(255,255,255,0.05)" }}
+      >
+        <div
+          style={{
+            width: `${pct}%`,
+            height: "100%",
+            background: `linear-gradient(90deg, ${c}, ${c}cc)`,
+            boxShadow: `0 0 6px ${c}`,
+          }}
+        />
+      </div>
     </div>
   );
 }

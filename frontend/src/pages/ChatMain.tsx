@@ -1,5 +1,6 @@
 import * as React from "react";
-import { api, type AgentMessage } from "@/lib/api";
+import { api, wsUrl, type AgentMessage } from "@/lib/api";
+import { useWebSocket } from "@/lib/useWebSocket";
 import { Composer } from "@/components/Composer";
 import { MessageBubble } from "@/components/MessageBubble";
 import { HudPanel } from "@/components/HudPanel";
@@ -7,52 +8,131 @@ import { Topbar } from "@/components/Topbar";
 
 const POLL_MS = 2000;
 
+interface WsAgentMessage {
+  type: string;
+  msg?: {
+    id: number;
+    channel: string;
+    direction: "in" | "out" | string;
+    body: string;
+    ts: number;
+    is_read?: boolean;
+  };
+}
+
+function fromWs(m: NonNullable<WsAgentMessage["msg"]>): AgentMessage {
+  return {
+    id: m.id,
+    channel: m.channel,
+    direction: m.direction === "out" ? "out" : "in",
+    body: m.body ?? "",
+    ts: m.ts,
+    isRead: !!m.is_read,
+  };
+}
+
 export function ChatMain() {
   const [messages, setMessages] = React.useState<AgentMessage[]>([]);
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const lastIdRef = React.useRef<number>(0);
+  const pollingRef = React.useRef<number | null>(null);
 
-  // load + poll
-  React.useEffect(() => {
-    let alive = true;
-
-    async function refresh() {
-      try {
-        const list = await api.listMessages();
-        if (!alive) return;
-        // only setState when last id changed (avoid useless re-renders)
-        const lastId = list.length ? list[list.length - 1].id : 0;
-        if (lastId !== lastIdRef.current || list.length !== messages.length) {
-          lastIdRef.current = lastId;
-          setMessages(list);
-        }
-        setError(null);
-      } catch (err) {
-        if (!alive) return;
-        setError(err instanceof Error ? err.message : "error de red");
-      }
+  // ─── load helpers ──────────────────────────────
+  const refresh = React.useCallback(async () => {
+    try {
+      const list = await api.listMessages();
+      const lastId = list.length ? list[list.length - 1].id : 0;
+      lastIdRef.current = lastId;
+      setMessages(list);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "error de red");
     }
-
-    void refresh();
-    const id = window.setInterval(refresh, POLL_MS);
-    return () => {
-      alive = false;
-      window.clearInterval(id);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // auto-scroll on new messages
+  // initial fetch — always do this so we have history before WS opens
+  React.useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  // ─── polling fallback control ──────────────────
+  const startPolling = React.useCallback(() => {
+    if (pollingRef.current !== null) return;
+    pollingRef.current = window.setInterval(refresh, POLL_MS);
+  }, [refresh]);
+
+  const stopPolling = React.useCallback(() => {
+    if (pollingRef.current !== null) {
+      window.clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  }, []);
+
+  React.useEffect(() => {
+    return () => stopPolling();
+  }, [stopPolling]);
+
+  // ─── ws handler ────────────────────────────────
+  const handleWsMessage = React.useCallback(
+    (data: unknown) => {
+      if (typeof data !== "object" || data === null) return;
+      const evt = data as WsAgentMessage;
+      if (evt.type !== "message" || !evt.msg) return;
+      const incoming = fromWs(evt.msg);
+
+      setMessages((curr) => {
+        // merge by id; replace optimistic (negative id) bubbles whose body matches
+        const idx = curr.findIndex((m) => m.id === incoming.id);
+        if (idx >= 0) {
+          const next = curr.slice();
+          next[idx] = incoming;
+          return next;
+        }
+        // try to reconcile an optimistic outgoing bubble (id < 0)
+        if (incoming.direction === "in") {
+          const optIdx = curr.findIndex(
+            (m) => m.id < 0 && m.direction === "in" && m.body === incoming.body
+          );
+          if (optIdx >= 0) {
+            const next = curr.slice();
+            next[optIdx] = incoming;
+            return next;
+          }
+        }
+        const next = [...curr, incoming].sort((a, b) => a.ts - b.ts);
+        return next;
+      });
+      lastIdRef.current = Math.max(lastIdRef.current, incoming.id);
+      setError(null);
+    },
+    []
+  );
+
+  const { status: wsStatus } = useWebSocket({
+    url: wsUrl("/ws/agent"),
+    onMessage: handleWsMessage,
+    onFallback: () => {
+      // ws is repeatedly failing — start polling so the UX keeps working
+      startPolling();
+    },
+    onReconnected: () => {
+      // ws came back — stop polling and resync once
+      stopPolling();
+      void refresh();
+    },
+  });
+
+  // ─── auto-scroll on new messages ───────────────
   React.useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages.length, pending]);
 
+  // ─── send ──────────────────────────────────────
   async function handleSend(body: string) {
     setPending(true);
-    // optimistic: append a fake "sending" entry
     const optimisticId = -Date.now();
     setMessages((curr) => [
       ...curr,
@@ -66,20 +146,43 @@ export function ChatMain() {
       },
     ]);
     try {
-      await api.sendMessage(body);
-      // refresh immediately to pick up the agent reply
-      const list = await api.listMessages();
-      lastIdRef.current = list.length ? list[list.length - 1].id : 0;
-      setMessages(list);
+      const res = await api.sendMessage(body);
+      // reconcile optimistic bubble with the real id from the POST
+      setMessages((curr) => {
+        const next = curr.slice();
+        const idx = next.findIndex((m) => m.id === optimisticId);
+        if (idx >= 0) {
+          next[idx] = { ...next[idx], id: res.id };
+        }
+        return next;
+      });
+      // when WS is the live channel, the agent reply will arrive over WS;
+      // if we are in fallback or pre-open, do an explicit refresh.
+      if (wsStatus !== "open") {
+        await refresh();
+      }
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "fallo enviando mensaje");
-      // remove the optimistic bubble
       setMessages((curr) => curr.filter((m) => m.id !== optimisticId));
     } finally {
       setPending(false);
     }
   }
+
+  const isLive = wsStatus === "open";
+  const transportLabel = (() => {
+    switch (wsStatus) {
+      case "open":
+        return "ws · live";
+      case "connecting":
+        return "ws · connecting…";
+      case "fallback":
+        return `polling · ${POLL_MS / 1000}s`;
+      case "closed":
+        return "ws · reconnect…";
+    }
+  })();
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -91,11 +194,13 @@ export function ChatMain() {
         status={
           error
             ? { label: "OFFLINE", tone: "danger" }
-            : { label: "ONLINE", tone: "ok" }
+            : isLive
+            ? { label: "LIVE", tone: "ok" }
+            : { label: wsStatus === "fallback" ? "POLLING" : "CONNECTING", tone: "warn" }
         }
         right={
           <span className="font-mono text-[10px] text-[var(--color-dim)] tracking-hud-tight">
-            polling · {POLL_MS / 1000}s
+            {transportLabel}
           </span>
         }
       />
@@ -107,7 +212,6 @@ export function ChatMain() {
           accent="magenta"
           className="h-full"
         >
-          {/* scroll container */}
           <div
             ref={scrollRef}
             className="flex-1 min-h-0 overflow-y-auto pr-1"
