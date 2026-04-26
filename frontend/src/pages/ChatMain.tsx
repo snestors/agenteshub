@@ -8,14 +8,11 @@ import { useTopic } from "@/lib/useTopic";
 import { wsClient } from "@/lib/wsClient";
 import { Composer } from "@/components/Composer";
 import { MessageBubble } from "@/components/MessageBubble";
-import {
-  GhostBubble,
-  type GhostBubbleData,
-  type ToolCall,
-} from "@/components/GhostBubble";
+import { GhostBubble } from "@/components/GhostBubble";
 import { HudPanel } from "@/components/HudPanel";
 import { Topbar } from "@/components/Topbar";
 import { StatusBar } from "@/components/StatusBar";
+import { useStreams } from "@/lib/streamsStore";
 
 /**
  * Backend Envelope shape (internal/ws/hub.go):
@@ -43,21 +40,6 @@ interface WsAgentPayload {
   is_read?: boolean;
   engine?: string;
   model?: string;
-}
-
-type StreamKind = "text" | "tool_use" | "tool_result" | "thinking";
-
-interface WsStreamPayload {
-  kind: StreamKind;
-  text?: string;
-  tool_name?: string;
-  tool_args?: unknown;
-  tool_result?: string;
-  session_id: string;
-  /** monotonic seq within the turn — used to key tool cards */
-  seq: number;
-  /** true on the last chunk of a turn — when the persisted message is about to arrive */
-  final?: boolean;
 }
 
 interface SendMessageResult {
@@ -96,11 +78,10 @@ function fromWs(m: WsAgentPayload): AgentMessage {
 }
 
 export function ChatMain() {
+  // Live ghost bubbles for in-flight turns are managed by the global
+  // StreamsProvider so they survive cross-navigation. We only read from it.
+  const { agentGhostsList: ghostList } = useStreams();
   const [messages, setMessages] = React.useState<AgentMessage[]>([]);
-  // ghost bubbles keyed by session_id — map allows multiple parallel turns
-  const [ghosts, setGhosts] = React.useState<Record<string, GhostBubbleData>>(
-    {}
-  );
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
@@ -124,106 +105,12 @@ export function ChatMain() {
     void refresh();
   }, [refresh]);
 
-  // ─── stream handling ───────────────────────────
-  const applyStreamChunk = React.useCallback((chunk: WsStreamPayload) => {
-    const sid = chunk.session_id || "default";
-
-    setGhosts((curr) => {
-      // final=true → drop the ghost; the persisted "message" envelope
-      // will arrive shortly with the consolidated body.
-      if (chunk.final) {
-        if (!(sid in curr)) return curr;
-        const next = { ...curr };
-        delete next[sid];
-        return next;
-      }
-
-      const existing: GhostBubbleData = curr[sid] ?? {
-        id: `stream-${sid}`,
-        thinking: "",
-        text: "",
-        tools: [],
-      };
-
-      switch (chunk.kind) {
-        case "text": {
-          if (!chunk.text) return curr;
-          return {
-            ...curr,
-            [sid]: { ...existing, text: existing.text + chunk.text },
-          };
-        }
-        case "thinking": {
-          if (!chunk.text) return curr;
-          return {
-            ...curr,
-            [sid]: {
-              ...existing,
-              thinking: existing.thinking + chunk.text,
-            },
-          };
-        }
-        case "tool_use": {
-          const id = `${sid}-${chunk.seq}`;
-          const newCall: ToolCall = {
-            id,
-            name: chunk.tool_name ?? "tool",
-            args: chunk.tool_args,
-            status: "running",
-          };
-          // dedupe in case the same seq arrives twice
-          const tools = existing.tools.some((t) => t.id === id)
-            ? existing.tools
-            : [...existing.tools, newCall];
-          return {
-            ...curr,
-            [sid]: { ...existing, tools },
-          };
-        }
-        case "tool_result": {
-          // match the most recent running tool with same name (or last one)
-          const tools = existing.tools.slice();
-          // prefer last running
-          let idx = -1;
-          for (let i = tools.length - 1; i >= 0; i--) {
-            if (
-              tools[i].status === "running" &&
-              (!chunk.tool_name || tools[i].name === chunk.tool_name)
-            ) {
-              idx = i;
-              break;
-            }
-          }
-          if (idx === -1 && tools.length > 0) idx = tools.length - 1;
-          if (idx >= 0) {
-            const preview = (chunk.tool_result ?? "").slice(0, 200);
-            tools[idx] = {
-              ...tools[idx],
-              status: "ok",
-              resultPreview: preview,
-            };
-          }
-          return {
-            ...curr,
-            [sid]: { ...existing, tools },
-          };
-        }
-        default:
-          return curr;
-      }
-    });
-  }, []);
-
   // ─── ws handler ────────────────────────────────
+  // stream chunks are handled by StreamsProvider; here we only react to
+  // 'message' envelopes (persisted history) to keep our list in sync.
   const handleWsMessage = React.useCallback(
     (_payload: unknown, evt: WsEnvelope) => {
-      if (evt.type === "stream") {
-        const chunk = parseEnvelopePayload<WsStreamPayload>(evt.payload);
-        if (!chunk) return;
-        applyStreamChunk(chunk);
-        return;
-      }
-
+      if (evt.type === "stream") return;
       if (evt.type !== "message") return;
       const msg = parseEnvelopePayload<WsAgentPayload>(evt.payload);
       if (!msg) return;
@@ -254,7 +141,7 @@ export function ChatMain() {
       lastIdRef.current = Math.max(lastIdRef.current, incoming.id);
       setError(null);
     },
-    [applyStreamChunk]
+    []
   );
 
   // subscribe to the unified /ws endpoint, topic "agent"
@@ -274,7 +161,6 @@ export function ChatMain() {
   }, [wsStatus, refresh]);
 
   // ─── auto-scroll on new messages or ghost activity ─
-  const ghostList = React.useMemo(() => Object.values(ghosts), [ghosts]);
   const ghostSig = React.useMemo(
     () =>
       ghostList
