@@ -278,18 +278,16 @@ func (s *Server) runProjectSessionTurn(project *store.Project, sess *store.Proje
 	})
 	if err != nil {
 		s.log.Warn("project run", "project", project.Name, "session", sess.Name, "err", err)
-		raw, _ := json.Marshal(sessionMessageWire{
-			ID:            time.Now().UnixNano() * -1,
-			ProjectID:     project.ID,
-			ProjectSessID: sess.ID,
+		_, _ = s.repos.Sessions.AppendMessage(context.Background(), store.SessionMessage{
+			Scope:         "project",
+			ProjectID:     sql.NullInt64{Int64: project.ID, Valid: true},
+			ProjectSessID: sql.NullInt64{Int64: sess.ID, Valid: true},
 			SessionID:     prev,
 			Role:          "assistant",
-			Direction:     "out",
-			Channel:       "project",
-			Body:          "⚠ engine: " + err.Error(),
-			TS:            time.Now().Unix(),
+			Body:          sql.NullString{String: "⚠ engine: " + err.Error(), Valid: true},
 		})
-		s.hub.Broadcast(ws.Envelope{Type: "message", Topic: topic, Payload: raw})
+		_ = s.repos.Projects.TouchSession(context.Background(), sess.ID)
+		s.broadcastLatestProjectMessage(context.Background(), project.ID, sess.ID, topic)
 		return
 	}
 	if res != nil && res.SessionID != "" && res.SessionID != prev {
