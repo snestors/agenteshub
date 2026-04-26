@@ -11,6 +11,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useNotifications } from "@/lib/notifications";
+import { SidebarStats } from "@/components/SidebarStats";
 
 interface NavItem {
   to: string;
@@ -155,6 +156,9 @@ export function Sidebar({ username }: { username?: string }) {
           );
         })}
       </nav>
+
+      {/* live system stats */}
+      <SidebarStats />
 
       {/* user footer */}
       <div className="px-3 py-3 border-t border-[var(--color-line)]">

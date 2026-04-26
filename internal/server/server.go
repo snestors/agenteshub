@@ -61,7 +61,7 @@ func New(cfg *config.Config, repos *store.Repos, engines *cliengine.Manager, sm 
 // Run blocks serving HTTP until ctx is cancelled.
 func (s *Server) Run(ctx context.Context) error {
 	// Background pollers that push to WS subscribers.
-	go startSystemPoller(ctx, s.hub, s.sysman)
+	go s.startSystemPoller(ctx)
 	go s.startStatusHeartbeat(ctx)
 	go func() {
 		<-ctx.Done()

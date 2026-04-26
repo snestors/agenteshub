@@ -16,9 +16,9 @@ import (
 // ---------- system endpoints (require JWT) ----------
 
 func (s *Server) handleSystemStats(w http.ResponseWriter, r *http.Request) {
-	st, err := s.sysman.Stats(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	st := s.buildSystemTick(r.Context())
+	if st == nil {
+		http.Error(w, "stats unavailable", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusOK, st)
@@ -93,11 +93,11 @@ func (s *Server) broadcastSystemStats() {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	stats, err := s.sysman.Stats(ctx)
-	if err != nil {
+	tick := s.buildSystemTick(ctx)
+	if tick == nil {
 		return
 	}
-	raw, _ := json.Marshal(stats)
+	raw, _ := json.Marshal(tick)
 	s.hub.Broadcast(ws.Envelope{Type: "stats", Topic: "system", Payload: raw})
 }
 

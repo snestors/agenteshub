@@ -177,6 +177,13 @@ func (r *AgentsRepo) DeleteSchedule(ctx context.Context, agentID, scheduleID int
 	return err
 }
 
+// CountRunning returns how many agent_runs are currently in 'running' state.
+func (r *AgentsRepo) CountRunning(ctx context.Context) (int, error) {
+	var n int
+	err := r.db.QueryRowContext(ctx, `SELECT COUNT(1) FROM agent_runs WHERE status='running'`).Scan(&n)
+	return n, err
+}
+
 // RunsSinceCount counts runs started after a unix timestamp.
 func (r *AgentsRepo) RunsSinceCount(ctx context.Context, agentID, since int64) (int64, error) {
 	var n int64

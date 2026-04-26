@@ -15,7 +15,10 @@ import (
 
 // startSystemPoller pushes a stats envelope every 2s on the system topic.
 // Skips work if no client is currently subscribed to "system".
-func startSystemPoller(ctx context.Context, hub *ws.Hub, sm *sysman.Manager) {
+//
+// The payload is the sysman.Stats embedded plus a few server-side counters
+// (running agents, ws clients) that depend on state outside sysman.
+func (s *Server) startSystemPoller(ctx context.Context) {
 	tick := time.NewTicker(2 * time.Second)
 	defer tick.Stop()
 	for {
@@ -23,17 +26,38 @@ func startSystemPoller(ctx context.Context, hub *ws.Hub, sm *sysman.Manager) {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
-			if hub.CountSubscribed("system") == 0 {
+			if s.hub.CountSubscribed("system") == 0 {
 				continue
 			}
-			stats, err := sm.Stats(ctx)
-			if err != nil {
+			payload := s.buildSystemTick(ctx)
+			if payload == nil {
 				continue
 			}
-			raw, _ := json.Marshal(stats)
-			hub.Broadcast(ws.Envelope{Type: "stats", Topic: "system", Payload: raw})
+			raw, _ := json.Marshal(payload)
+			s.hub.Broadcast(ws.Envelope{Type: "stats", Topic: "system", Payload: raw})
 		}
 	}
+}
+
+// systemTick wraps sysman.Stats with a couple of cross-cutting counters that
+// the server has and sysman doesn't (running agents, ws clients).
+type systemTick struct {
+	sysman.Stats
+	RunningAgents int `json:"running_agents"`
+	WSClients     int `json:"ws_clients"`
+}
+
+func (s *Server) buildSystemTick(ctx context.Context) *systemTick {
+	stats, err := s.sysman.Stats(ctx)
+	if err != nil {
+		return nil
+	}
+	running, _ := s.repos.Agents.CountRunning(ctx)
+	clients := 0
+	if s.hub != nil {
+		clients = s.hub.CountClients()
+	}
+	return &systemTick{Stats: stats, RunningAgents: running, WSClients: clients}
 }
 
 // handleWSUnified upgrades the request and runs a Pump with dynamic

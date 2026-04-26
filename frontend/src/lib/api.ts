@@ -558,6 +558,8 @@ export interface SystemStats {
   temp_c: number;
   uptime_s: number;
   load_avg: [number, number, number];
+  running_agents?: number;
+  ws_clients?: number;
 }
 
 export interface SystemService {
