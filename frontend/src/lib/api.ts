@@ -170,6 +170,44 @@ export interface ProjectSession {
   created_at: number;
 }
 
+
+export type OpenSpecState =
+  | "pending_proposal"
+  | "awaiting_approval_proposal"
+  | "awaiting_approval_design"
+  | "awaiting_approval_tasks"
+  | "applying"
+  | "awaiting_approval_verify"
+  | "archived"
+  | "rejected";
+
+export interface OpenSpecChange {
+  id: number;
+  project_id: number;
+  name: string;
+  description?: string;
+  state: OpenSpecState;
+  current_phase: string;
+  feedback?: string;
+  created_at: number;
+  updated_at: number;
+  archived_at?: number;
+}
+
+export interface OpenSpecChangeDetail {
+  change: OpenSpecChange;
+  proposal?: string;
+  design?: string;
+  tasks?: string;
+  verify?: string;
+}
+
+export interface OpenSpecSpec {
+  capability: string;
+  path: string;
+  content: string;
+}
+
 export interface ProjectServiceStatus {
   kind: "systemd" | "docker" | "cloudflare-tunnel" | "process" | string;
   description?: string;
@@ -553,6 +591,72 @@ export const api = {
       `/api/projects/${projectId}/services/${index}/${action}`,
       { method: "POST" },
     );
+  },
+
+  async listOpenSpecChanges(projectId: number): Promise<OpenSpecChange[]> {
+    const res = await request<{ changes: OpenSpecChange[] | null }>(
+      `/api/projects/${projectId}/openspec/changes`,
+    );
+    return res.changes ?? [];
+  },
+
+  async createOpenSpecChange(
+    projectId: number,
+    payload: { name: string; description: string },
+  ): Promise<OpenSpecChange> {
+    const res = await request<{ change: OpenSpecChange }>(
+      `/api/projects/${projectId}/openspec/changes`,
+      { method: "POST", body: JSON.stringify(payload) },
+    );
+    return res.change;
+  },
+
+  async getOpenSpecChange(
+    projectId: number,
+    name: string,
+  ): Promise<OpenSpecChangeDetail> {
+    return request<OpenSpecChangeDetail>(
+      `/api/projects/${projectId}/openspec/changes/${encodeURIComponent(name)}`,
+    );
+  },
+
+  async approveOpenSpecChange(
+    projectId: number,
+    name: string,
+    dryRun = false,
+  ): Promise<OpenSpecChangeDetail> {
+    return request<OpenSpecChangeDetail>(
+      `/api/projects/${projectId}/openspec/changes/${encodeURIComponent(name)}/approve`,
+      { method: "POST", body: JSON.stringify({ dry_run: dryRun }) },
+    );
+  },
+
+  async rejectOpenSpecChange(
+    projectId: number,
+    name: string,
+  ): Promise<OpenSpecChangeDetail> {
+    return request<OpenSpecChangeDetail>(
+      `/api/projects/${projectId}/openspec/changes/${encodeURIComponent(name)}/reject`,
+      { method: "POST" },
+    );
+  },
+
+  async feedbackOpenSpecChange(
+    projectId: number,
+    name: string,
+    feedback: string,
+  ): Promise<OpenSpecChangeDetail> {
+    return request<OpenSpecChangeDetail>(
+      `/api/projects/${projectId}/openspec/changes/${encodeURIComponent(name)}/feedback`,
+      { method: "POST", body: JSON.stringify({ feedback }) },
+    );
+  },
+
+  async listOpenSpecSpecs(projectId: number): Promise<OpenSpecSpec[]> {
+    const res = await request<{ specs: OpenSpecSpec[] | null }>(
+      `/api/projects/${projectId}/openspec/specs`,
+    );
+    return res.specs ?? [];
   },
 
   // ─── diagrams ───────────────────────────────

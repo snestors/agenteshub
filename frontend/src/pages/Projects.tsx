@@ -1,10 +1,12 @@
 import * as React from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ExternalLink, FolderKanban, Plus, RefreshCw, TerminalSquare } from "lucide-react";
-import { api, FALLBACK_ENGINES, type EngineDef, type Project, type ProjectServiceStatus, type ProjectSession } from "@/lib/api";
+import { Check, ExternalLink, FileText, FolderKanban, Loader2, Pencil, Plus, RefreshCw, TerminalSquare, X } from "lucide-react";
+import { api, FALLBACK_ENGINES, type EngineDef, type OpenSpecChange, type OpenSpecChangeDetail, type OpenSpecSpec, type Project, type ProjectServiceStatus, type ProjectSession } from "@/lib/api";
 import { HudPanel } from "@/components/HudPanel";
 import { Topbar } from "@/components/Topbar";
 import { ProjectChat } from "@/components/ProjectChat";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 function rel(ts?: number): string {
   if (!ts) return "—";
@@ -125,7 +127,7 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
   const [selected, setSelected] = React.useState<number>(routeSessionId || 0);
   const [newName, setNewName] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
-  const [tab, setTab] = React.useState<"chat" | "services">("chat");
+  const [tab, setTab] = React.useState<"chat" | "services" | "changes">("chat");
 
   const refresh = React.useCallback(async () => {
     try {
@@ -237,17 +239,20 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
         </HudPanel>
 
         <HudPanel
-          title={tab === "services" ? "project services" : current ? `project chat · ${current.name}` : "project chat"}
-          sub={tab === "services" ? ".agenthub/services.yaml" : current ? `topic project_session:${current.id}` : "sin sesión"}
-          accent={tab === "services" ? "cyan" : "magenta"}
+          title={tab === "changes" ? "openspec changes" : tab === "services" ? "project services" : current ? `project chat · ${current.name}` : "project chat"}
+          sub={tab === "changes" ? "openspec/changes · gates obligatorios" : tab === "services" ? ".agenthub/services.yaml" : current ? `topic project_session:${current.id}` : "sin sesión"}
+          accent={tab === "changes" ? "lime" : tab === "services" ? "cyan" : "magenta"}
           className="min-h-0"
         >
           <div className="mb-3 flex gap-2">
             <TabButton active={tab === "chat"} onClick={() => setTab("chat")}>Chat</TabButton>
             <TabButton active={tab === "services"} onClick={() => setTab("services")}>Services</TabButton>
+            <TabButton active={tab === "changes"} onClick={() => setTab("changes")}>Changes</TabButton>
           </div>
           {error && <ErrorBox msg={error} />}
-          {tab === "services" ? (
+          {tab === "changes" ? (
+            <ProjectChanges projectId={projectId} visible={tab === "changes"} />
+          ) : tab === "services" ? (
             <ProjectServices projectId={projectId} visible={tab === "services"} />
           ) : current ? (
             <ProjectChat projectId={projectId} sessionId={current.id} sessionName={current.name} />
@@ -276,6 +281,271 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
       {children}
     </button>
   );
+}
+
+
+function ProjectChanges({ projectId, visible }: { projectId: number; visible: boolean }) {
+  const [changes, setChanges] = React.useState<OpenSpecChange[]>([]);
+  const [selected, setSelected] = React.useState<string>("");
+  const [detail, setDetail] = React.useState<OpenSpecChangeDetail | null>(null);
+  const [specs, setSpecs] = React.useState<OpenSpecSpec[]>([]);
+  const [innerTab, setInnerTab] = React.useState<"proposal" | "design" | "tasks" | "verify" | "specs">("proposal");
+  const [creating, setCreating] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const refreshList = React.useCallback(async () => {
+    if (!visible) return;
+    try {
+      const list = await api.listOpenSpecChanges(projectId);
+      setChanges(list);
+      setSelected((cur) => cur || list[0]?.name || "");
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "error cargando changes");
+    }
+  }, [projectId, visible]);
+
+  const refreshDetail = React.useCallback(async (name: string) => {
+    if (!visible || !name) {
+      setDetail(null);
+      return;
+    }
+    try {
+      const [d, s] = await Promise.all([
+        api.getOpenSpecChange(projectId, name),
+        api.listOpenSpecSpecs(projectId),
+      ]);
+      setDetail(d);
+      setSpecs(s);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "error cargando detalle");
+    }
+  }, [projectId, visible]);
+
+  React.useEffect(() => { void refreshList(); }, [refreshList]);
+  React.useEffect(() => { void refreshDetail(selected); }, [refreshDetail, selected]);
+
+  React.useEffect(() => {
+    if (!visible || detail?.change.state !== "applying") return;
+    const timer = window.setInterval(() => {
+      void refreshList();
+      void refreshDetail(detail.change.name);
+    }, 1800);
+    return () => window.clearInterval(timer);
+  }, [detail?.change.name, detail?.change.state, refreshDetail, refreshList, visible]);
+
+  async function created(change: OpenSpecChange) {
+    setCreating(false);
+    setSelected(change.name);
+    await refreshList();
+  }
+
+  async function approve(dryRun = false) {
+    if (!detail) return;
+    try {
+      setBusy(true);
+      const next = await api.approveOpenSpecChange(projectId, detail.change.name, dryRun);
+      setDetail(next);
+      setSelected(next.change.name);
+      setInnerTab(tabForState(next.change.state));
+      await refreshList();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "error aprobando");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reject() {
+    if (!detail) return;
+    try {
+      setBusy(true);
+      setDetail(await api.rejectOpenSpecChange(projectId, detail.change.name));
+      await refreshList();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "error rechazando");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function feedback(text: string) {
+    if (!detail) return;
+    try {
+      setBusy(true);
+      const next = await api.feedbackOpenSpecChange(projectId, detail.change.name, text);
+      setDetail(next);
+      await refreshList();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "error regenerando");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const active = detail?.change ?? changes.find((c) => c.name === selected) ?? null;
+
+  return (
+    <div className="min-h-0 flex-1 grid grid-cols-[280px_1fr] gap-3">
+      <div className="min-h-0 flex flex-col">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="font-mono text-[10px] text-[var(--color-dim)]">{changes.length} changes</div>
+          <button onClick={() => setCreating(true)} className="px-2 py-1 clip-tag font-mono text-[9px] cursor-pointer" style={{ color: "var(--color-lime)", border: "1px solid var(--color-lime)", background: "rgba(163,255,78,0.08)" }}>
+            + Nueva propuesta
+          </button>
+        </div>
+        {error && <ErrorBox msg={error} />}
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+          {changes.map((c) => (
+            <button key={c.id} onClick={() => { setSelected(c.name); setInnerTab(tabForState(c.state)); }} className="w-full text-left mb-2 px-3 py-2 clip-hud-sm font-mono cursor-pointer" style={{ border: `1px solid ${c.name === active?.name ? "var(--color-lime)" : "var(--color-line)"}`, background: c.name === active?.name ? "rgba(163,255,78,0.10)" : "rgba(255,255,255,0.03)" }}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] text-[var(--color-fg)] truncate">{c.name}</span>
+                <span className="text-[9px] text-[var(--color-dim)]">{rel(c.updated_at)}</span>
+              </div>
+              <div className="mt-1"><StateBadge state={c.state} /></div>
+              <div className="mt-1 text-[9px] text-[var(--color-dim)] line-clamp-2">{c.description || "sin descripción"}</div>
+            </button>
+          ))}
+          {changes.length === 0 && !error && <div className="h-[220px] flex items-center justify-center font-mono text-[11px] text-[var(--color-dim)] tracking-hud-tight">▸ sin changes · creá una propuesta</div>}
+        </div>
+      </div>
+
+      <div className="min-h-0 flex flex-col overflow-hidden">
+        {!detail ? (
+          <div className="h-full flex items-center justify-center font-mono text-[11px] text-[var(--color-dim)] tracking-hud-tight">▸ seleccioná un change</div>
+        ) : (
+          <>
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <div className="font-display text-[18px] font-bold tracking-hud text-[var(--color-fg)]">{detail.change.name}</div>
+                <div className="mt-1 font-mono text-[10px] text-[var(--color-dim)]">Descripción inicial: {detail.change.description}</div>
+              </div>
+              <StateBadge state={detail.change.state} />
+            </div>
+            {detail.change.state === "applying" && (
+              <div className="mb-3 px-3 py-2 clip-hud-sm font-mono text-[10px] text-[var(--color-cyan)] flex items-center gap-2" style={{ border: "1px solid rgba(100,220,255,0.45)", background: "rgba(100,220,255,0.08)" }}>
+                <Loader2 size={13} className="animate-spin" /> APPLYING · esperando sdd-verify…
+              </div>
+            )}
+            <div className="mb-3 flex flex-wrap gap-2">
+              <InnerTab active={innerTab === "proposal"} onClick={() => setInnerTab("proposal")}>Proposal {detail.proposal ? "✓" : ""}</InnerTab>
+              <InnerTab active={innerTab === "design"} onClick={() => setInnerTab("design")}>Design {detail.design ? "✓" : ""}</InnerTab>
+              <InnerTab active={innerTab === "tasks"} onClick={() => setInnerTab("tasks")}>Tasks {detail.tasks ? "✓" : ""}</InnerTab>
+              <InnerTab active={innerTab === "verify"} onClick={() => setInnerTab("verify")}>Verify {detail.verify ? "✓" : ""}</InnerTab>
+              <InnerTab active={innerTab === "specs"} onClick={() => setInnerTab("specs")}>Specs</InnerTab>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+              {innerTab === "specs" ? <SpecsView specs={specs} /> : <MarkdownDoc content={contentForTab(detail, innerTab)} empty={`sin ${innerTab}. Aprobá la fase anterior para generarlo.`} />}
+            </div>
+            <GateActions detail={detail} busy={busy} onApprove={approve} onReject={reject} onFeedback={feedback} />
+          </>
+        )}
+      </div>
+      {creating && <OpenSpecCreateModal projectId={projectId} onClose={() => setCreating(false)} onCreated={created} />}
+    </div>
+  );
+}
+
+function OpenSpecCreateModal({ projectId, onClose, onCreated }: { projectId: number; onClose: () => void; onCreated: (c: OpenSpecChange) => void }) {
+  const [name, setName] = React.useState("");
+  const [description, setDescription] = React.useState("");
+  const [error, setError] = React.useState<string | null>(null);
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      const c = await api.createOpenSpecChange(projectId, { name, description });
+      onCreated(c);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "error creando propuesta");
+    }
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+      <form onSubmit={submit} className="w-[620px]">
+        <HudPanel title="nueva propuesta" sub="openspec change" accent="lime">
+          <Field label="change_name" value={name} onChange={setName} placeholder="add-google-login" />
+          <label className="mt-3 font-mono text-[10px] text-[var(--color-dim)] tracking-hud uppercase">descripción</label>
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1 min-h-[110px] bg-transparent outline-none px-3 py-2 clip-hud-sm font-mono text-[12px] text-[var(--color-fg)]" style={{ border: "1px solid var(--color-line)" }} placeholder="qué querés cambiar y por qué" />
+          {error && <ErrorBox msg={error} />}
+          <div className="mt-4 flex justify-end gap-2">
+            <button type="button" onClick={onClose} className="px-3 py-1 clip-tag font-mono text-[10px] text-[var(--color-dim)] cursor-pointer" style={{ border: "1px solid var(--color-line)" }}>cancelar</button>
+            <button type="submit" className="px-3 py-1 clip-tag font-mono text-[10px] text-[var(--color-lime)] cursor-pointer" style={{ border: "1px solid var(--color-lime)", background: "rgba(163,255,78,0.10)" }}>crear</button>
+          </div>
+        </HudPanel>
+      </form>
+    </div>
+  );
+}
+
+function GateActions({ detail, busy, onApprove, onReject, onFeedback }: { detail: OpenSpecChangeDetail; busy: boolean; onApprove: (dryRun?: boolean) => void; onReject: () => void; onFeedback: (text: string) => void }) {
+  const [editing, setEditing] = React.useState(false);
+  const [text, setText] = React.useState("");
+  const state = detail.change.state;
+  if (state === "archived" || state === "rejected" || state === "applying") return null;
+  const approveLabel = state === "pending_proposal" ? "Generar proposal" : state === "awaiting_approval_verify" ? "Aprobar y archivar" : state === "awaiting_approval_tasks" ? "Aprobar y aplicar" : "Aprobar y continuar";
+  return (
+    <div className="mt-3 pt-3 border-t border-[var(--color-line)]">
+      {editing && (
+        <div className="mb-3">
+          <textarea value={text} onChange={(e) => setText(e.target.value)} className="w-full min-h-[74px] bg-transparent outline-none px-3 py-2 clip-hud-sm font-mono text-[11px] text-[var(--color-fg)]" style={{ border: "1px solid var(--color-line)" }} placeholder="qué ajuste pedís…" />
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <ActionButton onClick={() => onApprove(false)}><Check size={12} /> {busy ? "trabajando…" : approveLabel}</ActionButton>
+        <ActionButton onClick={() => setEditing((v) => !v)}><Pencil size={12} /> Pedir ajuste</ActionButton>
+        {editing && <ActionButton onClick={() => { onFeedback(text); setText(""); setEditing(false); }}><RefreshCw size={12} /> Re-generar</ActionButton>}
+        <ActionButton onClick={onReject}><X size={12} /> Rechazar</ActionButton>
+      </div>
+    </div>
+  );
+}
+
+function MarkdownDoc({ content, empty }: { content?: string; empty: string }) {
+  if (!content?.trim()) return <div className="h-[180px] flex items-center justify-center font-mono text-[11px] text-[var(--color-dim)] tracking-hud-tight">▸ {empty}</div>;
+  return (
+    <div className="clip-hud-sm p-4 font-mono text-[12px] leading-6 text-[var(--color-fg)]" style={{ border: "1px solid var(--color-line)", background: "rgba(0,0,0,0.18)" }}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+        h1: ({ children }) => <h1 className="text-[18px] text-[var(--color-lime)] mb-3 font-bold">{children}</h1>,
+        h2: ({ children }) => <h2 className="text-[14px] text-[var(--color-cyan)] mt-4 mb-2 font-bold">{children}</h2>,
+        h3: ({ children }) => <h3 className="text-[12px] text-[var(--color-magenta)] mt-3 mb-1 font-bold">{children}</h3>,
+        ul: ({ children }) => <ul className="list-disc pl-5 space-y-1">{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal pl-5 space-y-1">{children}</ol>,
+        code: ({ children }) => <code className="px-1 text-[var(--color-lime)] bg-white/5">{children}</code>,
+      }}>{content}</ReactMarkdown>
+    </div>
+  );
+}
+
+function SpecsView({ specs }: { specs: OpenSpecSpec[] }) {
+  if (specs.length === 0) return <div className="h-[180px] flex items-center justify-center font-mono text-[11px] text-[var(--color-dim)] tracking-hud-tight">▸ sin specs consolidadas todavía</div>;
+  return <div className="space-y-3">{specs.map((s) => <div key={s.path}><div className="mb-1 font-mono text-[10px] text-[var(--color-cyan)] flex items-center gap-1"><FileText size={11} /> {s.capability}</div><MarkdownDoc content={s.content} empty="spec vacío" /></div>)}</div>;
+}
+
+function InnerTab({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return <button onClick={onClick} className="px-2 py-1 clip-tag font-mono text-[9px] tracking-hud uppercase cursor-pointer" style={{ color: active ? "var(--color-lime)" : "var(--color-dim)", border: `1px solid ${active ? "var(--color-lime)" : "var(--color-line)"}`, background: active ? "rgba(163,255,78,0.10)" : "rgba(255,255,255,0.03)" }}>{children}</button>;
+}
+
+function StateBadge({ state }: { state: string }) {
+  const color = state === "archived" ? "var(--color-lime)" : state === "rejected" ? "var(--color-danger)" : state === "applying" ? "var(--color-cyan)" : "var(--color-magenta)";
+  return <span className="font-mono text-[9px] uppercase tracking-hud" style={{ color }}>● {state}</span>;
+}
+
+function contentForTab(detail: OpenSpecChangeDetail, tab: "proposal" | "design" | "tasks" | "verify" | "specs"): string {
+  if (tab === "proposal") return detail.proposal ?? "";
+  if (tab === "design") return detail.design ?? "";
+  if (tab === "tasks") return detail.tasks ?? "";
+  if (tab === "verify") return detail.verify ?? "";
+  return "";
+}
+
+function tabForState(state: string): "proposal" | "design" | "tasks" | "verify" | "specs" {
+  if (state.includes("design")) return "design";
+  if (state.includes("tasks")) return "tasks";
+  if (state.includes("verify") || state === "applying") return "verify";
+  if (state === "archived") return "verify";
+  return "proposal";
 }
 
 function ProjectServices({ projectId, visible }: { projectId: number; visible: boolean }) {
