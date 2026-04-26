@@ -473,6 +473,7 @@ func (s *Server) runMainAgentTurn(enginePrompt, prev, engine, model string) {
 	defer s.runs.Dec("main")
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
+	activity := &turnActivity{}
 	res, err := s.engines.Run(ctx, cliengine.RunOpts{
 		Prompt:    enginePrompt,
 		SessionID: prev,
@@ -482,7 +483,7 @@ func (s *Server) runMainAgentTurn(enginePrompt, prev, engine, model string) {
 		Model:     model,
 		Scope:     "main",
 		AgentName: "main-agent",
-		OnEvent:   s.streamEventBroadcaster(),
+		OnEvent:   s.streamEventBroadcasterWithActivity(activity),
 	})
 	if err != nil {
 		s.log.Error("cliengine", "err", err)
@@ -511,6 +512,12 @@ func (s *Server) runMainAgentTurn(enginePrompt, prev, engine, model string) {
 			SessionID: res.SessionID,
 		})
 	}
+	activityJSON := ""
+	if activity.Thinking != "" || len(activity.Tools) > 0 {
+		if buf, err := json.Marshal(activity); err == nil {
+			activityJSON = string(buf)
+		}
+	}
 	outID, _ := s.repos.Messages.Insert(context.Background(), store.Message{
 		Channel:   "web",
 		Direction: "out",
@@ -518,6 +525,7 @@ func (s *Server) runMainAgentTurn(enginePrompt, prev, engine, model string) {
 		TS:        time.Now().Unix(),
 		Engine:    sqlStr(engine),
 		Model:     sqlStr(model),
+		Activity:  sqlStr(activityJSON),
 	})
 	s.broadcastMessageWithModel(outID, "web", "out", res.Text, engine, model)
 	// Push fresh agent_status to all subscribers — ctx_used cambió
@@ -584,6 +592,21 @@ code{color:#38bdf8;background:rgba(56,189,248,.08);padding:2px 6px;border-radius
 <p class=warn>⚠ Ejecutá <code>agenthub setup-user --password &lt;X&gt;</code> antes del primer login.</p>
 </body></html>`
 
+// activityToolEntry mirrors GhostBubble.ToolCall in the persistence shape.
+type activityToolEntry struct {
+	ID            string `json:"id,omitempty"`
+	Name          string `json:"name"`
+	Args          any    `json:"args,omitempty"`
+	Status        string `json:"status"`
+	ResultPreview string `json:"result_preview,omitempty"`
+}
+
+// turnActivity is the audit blob saved to wa_messages.activity (assistant turns).
+type turnActivity struct {
+	Thinking string              `json:"thinking,omitempty"`
+	Tools    []activityToolEntry `json:"tools,omitempty"`
+}
+
 // streamEventBroadcaster returns a callback that wraps each StreamEvent into
 // a "stream"-typed envelope and broadcasts it on the agent topic.
 func (s *Server) streamEventBroadcaster() func(cliengine.StreamEvent) {
@@ -596,6 +619,52 @@ func (s *Server) streamEventBroadcaster() func(cliengine.StreamEvent) {
 			return
 		}
 		s.hub.Broadcast(ws.Envelope{Type: "stream", Topic: "agent", Payload: raw})
+	}
+}
+
+// streamEventBroadcasterWithActivity is like streamEventBroadcaster but also
+// accumulates thinking + tool calls into the provided pointer so the caller
+// can persist the turn's audit trail after Run returns.
+func (s *Server) streamEventBroadcasterWithActivity(acc *turnActivity) func(cliengine.StreamEvent) {
+	broadcast := s.streamEventBroadcaster()
+	return func(ev cliengine.StreamEvent) {
+		broadcast(ev)
+		switch ev.Kind {
+		case "thinking":
+			if ev.Text != "" {
+				acc.Thinking += ev.Text
+			}
+		case "tool_use":
+			acc.Tools = append(acc.Tools, activityToolEntry{
+				ID:     ev.ToolID,
+				Name:   ev.ToolName,
+				Args:   ev.ToolArgs,
+				Status: "running",
+			})
+		case "tool_result":
+			// Find the tool call by ID (preferred) or fall back to last running.
+			idx := -1
+			if ev.ToolID != "" {
+				for i := range acc.Tools {
+					if acc.Tools[i].ID == ev.ToolID {
+						idx = i
+						break
+					}
+				}
+			}
+			if idx == -1 {
+				for i := len(acc.Tools) - 1; i >= 0; i-- {
+					if acc.Tools[i].Status == "running" {
+						idx = i
+						break
+					}
+				}
+			}
+			if idx >= 0 {
+				acc.Tools[idx].Status = "ok"
+				acc.Tools[idx].ResultPreview = truncate(ev.ToolResult, 1000)
+			}
+		}
 	}
 }
 

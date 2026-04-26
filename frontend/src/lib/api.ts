@@ -117,6 +117,20 @@ interface RawMessage {
   IsRead: number;
   Engine: NullString;
   Model: NullString;
+  Activity: NullString;
+}
+
+export interface MessageActivityTool {
+  id?: string;
+  name: string;
+  args?: unknown;
+  status: "running" | "ok" | "error";
+  result_preview?: string;
+}
+
+export interface MessageActivity {
+  thinking?: string;
+  tools?: MessageActivityTool[];
 }
 
 export interface AgentMessage {
@@ -128,6 +142,7 @@ export interface AgentMessage {
   isRead: boolean;
   engine?: string;
   model?: string;
+  activity?: MessageActivity;
 }
 
 export interface Project {
@@ -216,6 +231,18 @@ function unwrap(v: NullString): string {
 function normalize(raw: RawMessage): AgentMessage {
   const engine = unwrap(raw.Engine);
   const model = unwrap(raw.Model);
+  const activityStr = unwrap(raw.Activity);
+  let activity: MessageActivity | undefined;
+  if (activityStr) {
+    try {
+      const obj = JSON.parse(activityStr) as MessageActivity;
+      if (obj && (obj.thinking || (obj.tools && obj.tools.length > 0))) {
+        activity = obj;
+      }
+    } catch {
+      // ignore — not all rows are guaranteed to have valid JSON
+    }
+  }
   return {
     id: raw.ID,
     channel: raw.Channel,
@@ -225,6 +252,7 @@ function normalize(raw: RawMessage): AgentMessage {
     isRead: raw.IsRead === 1,
     engine: engine || undefined,
     model: model || undefined,
+    activity,
   };
 }
 

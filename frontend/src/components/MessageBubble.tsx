@@ -1,3 +1,4 @@
+import * as React from "react";
 import { cn } from "@/lib/utils";
 import type { AgentMessage } from "@/lib/api";
 import ReactMarkdown, { type Components } from "react-markdown";
@@ -246,7 +247,76 @@ export function MessageBubble({ message, topic }: MessageBubbleProps) {
             <span className="topic-pill">▸ {topic}</span>
           </div>
         )}
+
+        {/* activity audit (collapsed by default) — assistant only */}
+        {!isUser && message.activity && <ActivityPanel activity={message.activity} />}
       </div>
+    </div>
+  );
+}
+
+function ActivityPanel({ activity }: { activity: NonNullable<AgentMessage["activity"]> }) {
+  const [open, setOpen] = React.useState(false);
+  const tools = activity.tools ?? [];
+  const hasThinking = !!activity.thinking;
+  const summary = [
+    tools.length > 0 ? `${tools.length} ${tools.length === 1 ? "tool" : "tools"}` : "",
+    hasThinking ? "thinking" : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  if (!summary) return null;
+
+  return (
+    <div className="mt-1.5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="font-mono text-[10px] uppercase tracking-hud-tight text-[var(--color-dim)] hover:text-[var(--color-cyan)] transition-colors cursor-pointer flex items-center gap-1"
+      >
+        <span>{open ? "▾" : "▸"}</span>
+        <span>actividad · {summary}</span>
+      </button>
+      {open && (
+        <div
+          className="mt-1.5 px-3 py-2 clip-hud-sm border font-mono text-[11px] leading-[1.55] text-[var(--color-dim)] space-y-2"
+          style={{
+            background: "rgba(94, 240, 255, 0.03)",
+            borderColor: "rgba(94, 240, 255, 0.15)",
+          }}
+        >
+          {hasThinking && (
+            <div>
+              <div className="text-[9px] uppercase tracking-hud-tight text-[var(--color-cyan)] mb-1">
+                ▸ thinking
+              </div>
+              <div className="italic whitespace-pre-wrap break-words">{activity.thinking}</div>
+            </div>
+          )}
+          {tools.length > 0 && (
+            <div>
+              <div className="text-[9px] uppercase tracking-hud-tight text-[var(--color-orange)] mb-1">
+                ▸ tools usadas
+              </div>
+              <ol className="space-y-1.5 list-none">
+                {tools.map((t, i) => (
+                  <li key={t.id ?? i} className="border-l-2 pl-2" style={{ borderColor: "var(--color-line)" }}>
+                    <div className="text-[var(--color-fg)]">
+                      <span style={{ color: "var(--color-cyan)" }}>{t.name}</span>
+                      <span className="text-[var(--color-dim)] ml-2">[{t.status}]</span>
+                    </div>
+                    {t.result_preview && (
+                      <div className="mt-0.5 italic break-words text-[10.5px]">
+                        {t.result_preview}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

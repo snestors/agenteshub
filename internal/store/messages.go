@@ -25,6 +25,7 @@ type Message struct {
 	IsRead        int
 	Engine        sql.NullString // engine usado para producir la respuesta (assistant turns)
 	Model         sql.NullString // model concreto (sonnet, opus, codex, gemma:2b...)
+	Activity      sql.NullString // JSON: thinking + tools used during this turn (assistant only)
 }
 
 // MessagesRepo persists wa_messages.
@@ -38,17 +39,23 @@ func (r *MessagesRepo) Insert(ctx context.Context, m Message) (int64, error) {
 		INSERT INTO wa_messages(
 			channel, direction, jid, body, media_type, media_path, media_caption,
 			location_lat, location_lng, location_name, quoted_id, reply_to, ts, is_read,
-			engine, model
-		) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+			engine, model, activity
+		) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 	`,
 		m.Channel, m.Direction, m.JID, m.Body, m.MediaType, m.MediaPath, m.MediaCaption,
 		m.LocationLat, m.LocationLng, m.LocationName, m.QuotedID, m.ReplyTo, m.TS, m.IsRead,
-		m.Engine, m.Model,
+		m.Engine, m.Model, m.Activity,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("insert message: %w", err)
 	}
 	return res.LastInsertId()
+}
+
+// SetActivity attaches an activity blob to an existing message (assistant turns).
+func (r *MessagesRepo) SetActivity(ctx context.Context, id int64, activityJSON string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE wa_messages SET activity=? WHERE id=?`, activityJSON, id)
+	return err
 }
 
 // Recent returns the latest N messages, optionally filtered by channel.
@@ -58,7 +65,7 @@ func (r *MessagesRepo) Recent(ctx context.Context, channel string, limit int) ([
 	}
 	q := `SELECT id, channel, direction, jid, body, media_type, media_path, media_caption,
 	             location_lat, location_lng, location_name, quoted_id, reply_to, ts, is_read,
-	             engine, model
+	             engine, model, activity
 	      FROM wa_messages`
 	args := []any{}
 	if channel != "" {
@@ -77,7 +84,7 @@ func (r *MessagesRepo) Recent(ctx context.Context, channel string, limit int) ([
 		var m Message
 		if err := rows.Scan(&m.ID, &m.Channel, &m.Direction, &m.JID, &m.Body, &m.MediaType, &m.MediaPath, &m.MediaCaption,
 			&m.LocationLat, &m.LocationLng, &m.LocationName, &m.QuotedID, &m.ReplyTo, &m.TS, &m.IsRead,
-			&m.Engine, &m.Model); err != nil {
+			&m.Engine, &m.Model, &m.Activity); err != nil {
 			return nil, fmt.Errorf("scan message: %w", err)
 		}
 		out = append(out, m)
