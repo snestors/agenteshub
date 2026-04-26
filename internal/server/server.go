@@ -153,6 +153,10 @@ func (s *Server) routes() http.Handler {
 		pr.Post("/api/agents/{id}/schedules/{sid}/enabled", s.handleAgentScheduleEnabled)
 		pr.Delete("/api/agents/{id}/schedules/{sid}", s.handleAgentScheduleDelete)
 
+		// Sub-agents — captured from JSONL post-spawn
+		pr.Get("/api/subagents", s.handleSubagentsList)
+		pr.Get("/api/subagents/{id}", s.handleSubagentGet)
+
 		// System manager
 		pr.Get("/api/system/stats", s.handleSystemStats)
 		pr.Get("/api/system/services", s.handleSystemServices)

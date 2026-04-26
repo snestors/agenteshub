@@ -620,6 +620,39 @@ export interface SystemConnections {
   tunnels: SystemTunnel[];
 }
 
+// ─── subagents ────────────────────────────────
+
+export interface Subagent {
+  id: number;
+  parent_session_id: string;
+  parent_scope: "main" | "topic" | "project" | "agent" | string;
+  parent_topic_id?: number;
+  parent_project_session_id?: number;
+  agent_type?: string;
+  description?: string;
+  prompt?: string;
+  result?: string;
+  status: "running" | "ok" | "error" | "cancelled";
+  started_at: number;
+  finished_at?: number;
+  cost_tokens: number;
+  tools_used?: string;
+  worktree_path?: string;
+}
+
+export const subagentsApi = {
+  async list(status?: string, limit = 50): Promise<Subagent[]> {
+    const qs = new URLSearchParams();
+    if (status) qs.set("status", status);
+    qs.set("limit", String(limit));
+    const res = await request<{ subagents: Subagent[] | null }>(`/api/subagents?${qs.toString()}`);
+    return res.subagents ?? [];
+  },
+  async get(id: number): Promise<Subagent> {
+    return request<Subagent>(`/api/subagents/${id}`);
+  },
+};
+
 // ─── websocket helper ─────────────────────────
 export function wsUrl(path: string): string {
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
