@@ -130,6 +130,42 @@ export interface AgentMessage {
   model?: string;
 }
 
+export interface Project {
+  id: number;
+  name: string;
+  path: string;
+  description?: string;
+  default_engine: string;
+  created_at: number;
+  updated_at: number;
+  sessions_count?: number;
+}
+
+export interface ProjectSession {
+  id: number;
+  project_id: number;
+  name: string;
+  session_id: string;
+  engine: string;
+  summary?: string;
+  last_active_at?: number;
+  created_at: number;
+}
+
+export interface ProjectMessage {
+  id: number;
+  scope: string;
+  project_id: number;
+  project_sess_id: number;
+  session_id: string;
+  role: "user" | "assistant" | "tool" | "system";
+  direction: "in" | "out";
+  channel: string;
+  body: string;
+  cost_tokens?: number;
+  ts: number;
+}
+
 function unwrap(v: NullString): string {
   if (v == null) return "";
   if (typeof v === "string") return v;
@@ -270,6 +306,72 @@ export const api = {
       const text = await res.text().catch(() => "");
       throw new ApiError(res.status, text || res.statusText);
     }
+  },
+
+  // ─── projects ────────────────────────────────
+  async listProjects(): Promise<Project[]> {
+    const res = await request<{ projects: Project[] | null }>("/api/projects");
+    return res.projects ?? [];
+  },
+
+  async createProject(payload: {
+    name: string;
+    path: string;
+    description?: string;
+    default_engine?: string;
+  }): Promise<Project> {
+    const res = await request<{ project: Project }>("/api/projects", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return res.project;
+  },
+
+  async getProject(id: number): Promise<{ project: Project; sessions: ProjectSession[] }> {
+    const res = await request<{
+      project: Project;
+      sessions: ProjectSession[] | null;
+    }>(`/api/projects/${id}`);
+    return { project: res.project, sessions: res.sessions ?? [] };
+  },
+
+  async listProjectSessions(projectId: number): Promise<ProjectSession[]> {
+    const res = await request<{ sessions: ProjectSession[] | null }>(
+      `/api/projects/${projectId}/sessions`
+    );
+    return res.sessions ?? [];
+  },
+
+  async createProjectSession(
+    projectId: number,
+    payload: { name: string; engine?: string; summary?: string }
+  ): Promise<ProjectSession> {
+    const res = await request<{ session: ProjectSession }>(
+      `/api/projects/${projectId}/sessions`,
+      { method: "POST", body: JSON.stringify(payload) }
+    );
+    return res.session;
+  },
+
+  async listProjectMessages(
+    projectId: number,
+    sessionId: number
+  ): Promise<ProjectMessage[]> {
+    const res = await request<{ messages: ProjectMessage[] | null }>(
+      `/api/projects/${projectId}/sessions/${sessionId}/messages`
+    );
+    return res.messages ?? [];
+  },
+
+  async sendProjectMessage(
+    projectId: number,
+    sessionId: number,
+    body: string
+  ): Promise<{ accepted: boolean; topic: string }> {
+    return request<{ accepted: boolean; topic: string }>(
+      `/api/projects/${projectId}/sessions/${sessionId}/messages`,
+      { method: "POST", body: JSON.stringify({ body }) }
+    );
   },
 
   // ─── system ─────────────────────────────────

@@ -17,6 +17,8 @@ function App() {
         <Route element={<AppShell />}>
           <Route index element={<ChatMain />} />
           <Route path="projects" element={<Projects />} />
+          <Route path="projects/:id" element={<Projects />} />
+          <Route path="projects/:id/sessions/:sid" element={<Projects />} />
           <Route path="agents" element={<Agents />} />
           <Route path="topics" element={<Topics />} />
           <Route path="subagents" element={<Subagents />} />
