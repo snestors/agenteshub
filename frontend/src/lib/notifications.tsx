@@ -68,7 +68,7 @@ interface NotificationsState {
 const Ctx = React.createContext<NotificationsState | null>(null);
 
 const MAX_KEEP = 50;
-const TOAST_TTL_MS = 6000;
+const TOAST_TTL_MS = 15000;
 
 function parsePayload(payload: unknown): Notification | null {
   if (typeof payload === "string") {
@@ -131,6 +131,94 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   );
 }
 
+// ─── Confirm modal ───────────────────────────────────────────
+
+interface ConfirmModalProps {
+  notif: Notification;
+  route: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function ConfirmModal({ notif, route, onConfirm, onCancel }: ConfirmModalProps) {
+  const accent =
+    notif.severity === "error"
+      ? "var(--color-danger)"
+      : notif.severity === "warn"
+      ? "var(--color-orange)"
+      : "var(--color-cyan)";
+
+  // Esc closes
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+      if (e.key === "Enter") onConfirm();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onConfirm, onCancel]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center"
+      style={{ background: "rgba(2, 4, 14, 0.65)", backdropFilter: "blur(2px)" }}
+      onClick={onCancel}
+    >
+      <div
+        className="clip-hud-sm border max-w-md w-[90%] mx-4"
+        style={{
+          background: "rgba(10, 15, 36, 0.97)",
+          borderColor: accent,
+          boxShadow: `0 0 24px ${accent}50`,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-4 py-3 border-b" style={{ borderColor: accent + "30" }}>
+          <div className="font-display font-semibold text-[11px] uppercase tracking-hud" style={{ color: accent }}>
+            ◂ {notif.title}
+          </div>
+          <div className="font-mono text-[9px] text-[var(--color-dim)] tracking-hud-tight mt-1 uppercase">
+            navegar · {route}
+          </div>
+        </div>
+        <div className="px-4 py-3">
+          {notif.body && (
+            <div className="font-mono text-[12px] text-[var(--color-fg)] leading-[1.55] break-words mb-3">
+              {notif.body}
+            </div>
+          )}
+          <div className="font-mono text-[11px] text-[var(--color-dim)] mb-4">
+            ¿Querés ir a <span style={{ color: accent }}>{route}</span> ahora?
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-3 py-1.5 clip-tag font-mono text-[11px] uppercase tracking-hud-tight border text-[var(--color-dim)] hover:text-[var(--color-fg)] cursor-pointer transition-colors"
+              style={{ borderColor: "var(--color-line)", background: "rgba(255,255,255,0.02)" }}
+            >
+              cancelar
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              autoFocus
+              className="px-3 py-1.5 clip-tag font-mono text-[11px] uppercase tracking-hud-tight font-semibold cursor-pointer transition-all hover:scale-[1.02]"
+              style={{
+                color: "var(--color-bg)",
+                background: accent,
+                boxShadow: `0 0 8px ${accent}80`,
+              }}
+            >
+              ir ahora ▸
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // shouldToast hides the toast when the user is already on the screen that
 // would naturally surface that event. The notification is still kept in the
 // store so the badge counter is honest.
@@ -159,6 +247,8 @@ function RoutedToastStack({
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [now, setNow] = React.useState(Date.now());
+  const [confirming, setConfirming] = React.useState<{ notif: Notification; route: string } | null>(null);
+
   React.useEffect(() => {
     const t = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(t);
@@ -173,18 +263,34 @@ function RoutedToastStack({
       dismiss(n.id);
       return;
     }
-    const ok = window.confirm(`${n.title}\n\nIr a ${route} ?`);
-    if (ok) navigate(route);
-    dismiss(n.id);
+    setConfirming({ notif: n, route });
   };
 
-  if (visible.length === 0) return null;
   return (
-    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
-      {visible.map((n) => (
-        <Toast key={n.id} n={n} onClose={() => dismiss(n.id)} onClick={() => handleClick(n)} />
-      ))}
-    </div>
+    <>
+      {visible.length > 0 && (
+        <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
+          {visible.map((n) => (
+            <Toast key={n.id} n={n} onClose={() => dismiss(n.id)} onClick={() => handleClick(n)} />
+          ))}
+        </div>
+      )}
+      {confirming && (
+        <ConfirmModal
+          notif={confirming.notif}
+          route={confirming.route}
+          onConfirm={() => {
+            navigate(confirming.route);
+            dismiss(confirming.notif.id);
+            setConfirming(null);
+          }}
+          onCancel={() => {
+            dismiss(confirming.notif.id);
+            setConfirming(null);
+          }}
+        />
+      )}
+    </>
   );
 }
 
