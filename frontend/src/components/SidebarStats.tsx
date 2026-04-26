@@ -52,7 +52,7 @@ function Row({ Icon, label, value, pct, accent }: RowProps) {
       </div>
       <span
         className="font-mono text-[10px] tabular-nums"
-        style={{ color: accent, minWidth: 40, textAlign: "right" }}
+        style={{ color: accent, minWidth: 56, textAlign: "right" }}
       >
         {value}
       </span>
@@ -79,9 +79,9 @@ export function SidebarStats() {
 
   return (
     <div className="px-1 py-2 border-t border-[var(--color-line)] flex flex-col gap-0.5">
-      <Row Icon={Cpu} label="CPU" value={`${cpu.toFixed(0)}%`} pct={cpu} accent={tone(cpu)} />
-      <Row Icon={MemoryStick} label="RAM" value={`${ramPct.toFixed(0)}%`} pct={ramPct} accent={tone(ramPct)} />
-      <Row Icon={Thermometer} label="TEMP" value={`${temp.toFixed(0)}°`} accent={tempTone(temp)} />
+      <Row Icon={Cpu} label="CPU" value={`${cpu.toFixed(2)}%`} pct={cpu} accent={tone(cpu)} />
+      <Row Icon={MemoryStick} label="RAM" value={`${ramPct.toFixed(2)}%`} pct={ramPct} accent={tone(ramPct)} />
+      <Row Icon={Thermometer} label="TEMP" value={`${temp.toFixed(1)}°`} accent={tempTone(temp)} />
       <Row
         Icon={Bot}
         label="RUN"
