@@ -11,6 +11,8 @@ agenthub.db-wal
 *.bak
 .env
 .env.local
+data/
+!data/.keep
 
 # Frontend
 frontend/node_modules/
