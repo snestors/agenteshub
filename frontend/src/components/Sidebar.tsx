@@ -28,7 +28,7 @@ interface NavItem {
 
 const ITEMS: NavItem[] = [
   { to: "/", label: "Chat", icon: MessageSquare, accent: "cyan" },
-  { to: "/projects", label: "Proyectos", icon: FolderKanban, accent: "lime" },
+  { to: "/projects", label: "Proyectos", icon: FolderKanban, accent: "lime", notifPrefix: "project_turn" },
   { to: "/diagrams", label: "Diagramas", icon: Network, accent: "cyan" },
   {
     to: "/agents",
