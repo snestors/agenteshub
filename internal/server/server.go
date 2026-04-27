@@ -220,6 +220,7 @@ func (s *Server) routes() http.Handler {
 		pr.Delete("/api/secrets/{key}", s.handleSecretDelete)
 
 		// System manager
+		pr.Get("/api/runs", s.handleRunsStatus)
 		pr.Get("/api/system/stats", s.handleSystemStats)
 		pr.Get("/api/system/services", s.handleSystemServices)
 		pr.Post("/api/system/services/{name}/{action}", s.handleSystemServiceAction)
@@ -896,6 +897,20 @@ func (s *Server) streamEventBroadcasterWithActivity(acc *turnActivity) func(clie
 }
 
 // broadcastMessage pushes a chat message envelope to all WS subscribers on the agent topic.
+// handleRunsStatus returns the count of in-flight turns per kind.
+// Used by bin/safe-restart.sh to know when it's safe to restart.
+func (s *Server) handleRunsStatus(w http.ResponseWriter, r *http.Request) {
+	snap := s.runs.Snapshot()
+	total := 0
+	for _, v := range snap {
+		total += v
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"runs":  snap,
+		"total": total,
+	})
+}
+
 func (s *Server) broadcastMessage(id int64, channel, direction, body string) {
 	s.broadcastMessageWithModel(id, channel, direction, body, "", "")
 }

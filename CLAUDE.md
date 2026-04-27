@@ -59,9 +59,9 @@ kill $SMOKE_PID 2>/dev/null
 wait $SMOKE_PID 2>/dev/null
 rm -f $SMOKE_DB*
 
-# 6. Promover a prod (las WS reconectan solas en ~1s)
+# 6. Promover a prod con safe-restart (espera turns activos antes de reiniciar)
 mv bin/agenthub.next bin/agenthub
-sudo systemctl restart agenthub
+bin/safe-restart.sh
 ```
 
 ### Reglas no negociables
