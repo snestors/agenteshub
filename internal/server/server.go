@@ -41,6 +41,7 @@ type Server struct {
 	runs    *RunTracker
 	log     *slog.Logger
 	httpSrv *http.Server
+	waState waState
 }
 
 // Hub exposes the WS hub for producers (poller, message handlers).
@@ -111,6 +112,8 @@ func (s *Server) routes() http.Handler {
 
 	// public
 	r.Get("/healthz", s.handleHealth)
+	r.Get("/api/wa/status", s.handleWaStatus)
+	r.Get("/api/wa/qr", s.handleWaQR)
 	r.Post("/api/auth/login", s.handleLogin)
 	r.Post("/api/auth/totp", s.handleTOTP)
 
@@ -331,9 +334,25 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	checks["scheduler"] = map[string]any{"ok": true, "agent_runs": runsCount}
 
 	// WhatsApp: only relevant when enabled. Smoke runs with WAEnabled=false so
-	// the check is informational (ok:true skipped).
+	// the check stays informational. When enabled, ok=true requires the
+	// whatsmeow socket to be connected. When disconnected we surface the QR
+	// URL so the operator can pair from the same /healthz response.
 	if s.cfg != nil && s.cfg.WAEnabled {
-		checks["wa"] = map[string]any{"ok": true, "enabled": true, "note": "wa client owned by main; deep check pending"}
+		connected := s.waConnected()
+		waCheck := map[string]any{
+			"ok":        connected,
+			"enabled":   true,
+			"connected": connected,
+		}
+		if !connected {
+			if path := s.waQRPath(); path != "" {
+				if _, err := os.Stat(path); err == nil {
+					waCheck["qr_url"] = "/api/wa/qr"
+				}
+			}
+			allOK = false
+		}
+		checks["wa"] = waCheck
 	} else {
 		checks["wa"] = map[string]any{"ok": true, "enabled": false}
 	}

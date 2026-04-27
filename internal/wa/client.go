@@ -74,11 +74,21 @@ func New(cfg *config.Config, repos *store.Repos, log *slog.Logger) (*Client, err
 // Queue exposes the channel where new authorized messages flow.
 func (c *Client) Queue() <-chan IncomingMessage { return c.queue }
 
-// Connected reports whether whatsmeow is currently connected.
+// Connected reports whether whatsmeow holds an open socket. Note this can be
+// true BEFORE pairing — the socket is open during QR pairing too.
 func (c *Client) Connected() bool {
 	c.connectedMu.RLock()
 	defer c.connectedMu.RUnlock()
 	return c.connected
+}
+
+// LoggedIn reports whether the device is paired AND authenticated. Use this
+// to decide whether the WA pipe is actually usable for send/receive.
+func (c *Client) LoggedIn() bool {
+	if c.wmClient == nil {
+		return false
+	}
+	return c.wmClient.IsLoggedIn()
 }
 
 // QR returns a channel that emits QR scan codes during initial pairing.

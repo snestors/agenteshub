@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/mdp/qrterminal/v3"
+	"github.com/skip2/go-qrcode"
 
 	"github.com/snestors/agenthub/internal/cliengine"
 	"github.com/snestors/agenthub/internal/config"
@@ -131,6 +133,28 @@ func runServe() {
 	if err != nil {
 		logger.Error("wa new", "err", err)
 	} else if cfg.WAEnabled {
+		srv.SetWAClient(waClient)
+		// QR consumer: render every pairing code as ASCII to stdout AND as
+		// a PNG at data/wa-qr.png. The PNG path is also published to the
+		// server so /api/wa/qr can serve it and /healthz can advertise it.
+		// Without a reader the channel drops codes silently and the cutover stalls.
+		go func() {
+			// data/wa-qr.png lives inside the daemon's WorkingDirectory so
+			// it survives the systemd PrivateTmp sandbox.
+			const qrPNGPath = "data/wa-qr.png"
+			for code := range waClient.QR() {
+				fmt.Println("─────────── WA PAIRING QR ───────────")
+				qrterminal.GenerateHalfBlock(code, qrterminal.L, os.Stdout)
+				fmt.Println("─────────────────────────────────────")
+				fmt.Println("Scan with WhatsApp → Linked devices.")
+				if err := qrcode.WriteFile(code, qrcode.Medium, 512, qrPNGPath); err != nil {
+					logger.Warn("wa qr png write", "err", err)
+				} else {
+					logger.Info("wa qr png written", "path", qrPNGPath)
+					srv.SetWAQRPath(qrPNGPath)
+				}
+			}
+		}()
 		if err := waClient.Connect(ctx); err != nil {
 			logger.Error("wa connect", "err", err)
 		}
