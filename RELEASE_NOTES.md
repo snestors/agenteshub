@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.3 — 2026-04-27
+
+### Changed
+- **Regla obligatoria para Claude y Codex**: `AGENTS.md` y `CLAUDE.md` ahora exigen versionar/releasear cada cambio aplicado y crear un `git commit` separado por cambio, sin mezclar archivos ajenos.
+
+---
+
 ## v0.2.2 — 2026-04-27
 
 ### Fixed
