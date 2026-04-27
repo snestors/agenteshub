@@ -144,23 +144,39 @@ export function Diagrams() {
     setSelectedId(d.id);
     setTitle(d.title);
     setPrompt(d.prompt ?? "");
-    setMermaid(d.mermaid_source || d.mermaid || "");
+    const mer = d.mermaid_source || d.mermaid || "";
+    setMermaid(mer);
+
+    // Try the persisted Excalidraw scene first; fall back to rendering from
+    // mermaid when (a) the JSON is invalid, or (b) the scene has zero
+    // elements but we DO have mermaid source — common case when a diagram
+    // was queued from the API without going through the canvas first.
+    let parsedScene: {
+      elements?: ReturnType<ExcalidrawImperativeAPI["getSceneElements"]>;
+      appState?: Partial<ReturnType<ExcalidrawImperativeAPI["getAppState"]>>;
+      files?: ReturnType<ExcalidrawImperativeAPI["getFiles"]>;
+    } | null = null;
     try {
-      const scene = JSON.parse(d.excalidraw_json) as {
-        elements?: ReturnType<ExcalidrawImperativeAPI["getSceneElements"]>;
-        appState?: Partial<ReturnType<ExcalidrawImperativeAPI["getAppState"]>>;
-        files?: ReturnType<ExcalidrawImperativeAPI["getFiles"]>;
-      };
-      if (scene.files)
-        excalidrawRef.current?.addFiles(Object.values(scene.files));
-      excalidrawRef.current?.updateScene({
-        elements: scene.elements ?? [],
-        appState: { ...(scene.appState ?? {}), theme: "dark" } as ReturnType<
-          ExcalidrawImperativeAPI["getAppState"]
-        >,
-      });
+      parsedScene = JSON.parse(d.excalidraw_json);
     } catch {
-      void applyMermaid(d.mermaid_source || d.mermaid || "");
+      parsedScene = null;
+    }
+    const hasElements =
+      parsedScene && Array.isArray(parsedScene.elements) && parsedScene.elements.length > 0;
+    if (hasElements) {
+      if (parsedScene!.files)
+        excalidrawRef.current?.addFiles(Object.values(parsedScene!.files));
+      excalidrawRef.current?.updateScene({
+        elements: parsedScene!.elements ?? [],
+        appState: {
+          ...(parsedScene!.appState ?? {}),
+          theme: "dark",
+        } as ReturnType<ExcalidrawImperativeAPI["getAppState"]>,
+      });
+    } else if (mer.trim()) {
+      void applyMermaid(mer);
+    } else {
+      excalidrawRef.current?.resetScene();
     }
   }
 
