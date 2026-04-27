@@ -263,6 +263,26 @@ func (s *Server) handleProjectSessionMessagesList(w http.ResponseWriter, r *http
 	writeJSON(w, http.StatusOK, map[string]any{"messages": out})
 }
 
+func (s *Server) handleProjectSessionDelete(w http.ResponseWriter, r *http.Request) {
+	project, sess, ok := s.projectSessionFromRequest(w, r)
+	if !ok {
+		return
+	}
+	if _, running := s.projectCancels.Load(sess.ID); running {
+		http.Error(w, "session has a running turn", http.StatusConflict)
+		return
+	}
+	if err := s.repos.Projects.DeleteSession(r.Context(), project.ID, sess.ID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "session not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "session_id": sess.ID})
+}
+
 func (s *Server) handleProjectSessionMessagesSend(w http.ResponseWriter, r *http.Request) {
 	project, sess, ok := s.projectSessionFromRequest(w, r)
 	if !ok {

@@ -201,6 +201,25 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
     nav(`/projects/${projectId}/sessions/${id}`);
   }
 
+  async function deleteSession(id: number, name: string) {
+    if (!window.confirm(`Eliminar sesión "${name}"?`)) return;
+    const remaining = sessions.filter((s) => s.id !== id);
+    try {
+      await api.deleteProjectSession(projectId, id);
+      await refresh();
+      if (selected === id) {
+        if (remaining[0]) {
+          selectSession(remaining[0].id);
+        } else {
+          setSelected(0);
+          nav(`/projects/${projectId}`);
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "error eliminando sesión");
+    }
+  }
+
   return (
     <div className="flex flex-col h-full min-h-0">
       <Topbar
@@ -278,9 +297,14 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
             {sessions.map((s) => {
               const active = s.id === selected;
               return (
-                <button
+                <div
                   key={s.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => selectSession(s.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") selectSession(s.id);
+                  }}
                   className="w-full text-left mb-2 px-3 py-2 clip-hud-sm font-mono cursor-pointer"
                   style={{
                     background: active ? "rgba(163,255,78,0.10)" : "rgba(255,255,255,0.03)",
@@ -289,7 +313,21 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[var(--color-fg)] text-[11px] truncate">{s.name}</span>
-                    <span className="text-[9px] text-[var(--color-dim)]">{rel(s.last_active_at || s.created_at)}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[9px] text-[var(--color-dim)]">{rel(s.last_active_at || s.created_at)}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void deleteSession(s.id, s.name);
+                        }}
+                        className="clip-tag px-1 py-0.5 cursor-pointer opacity-70 hover:opacity-100"
+                        style={{ color: "var(--color-danger)", border: "1px solid rgba(255,92,122,0.45)" }}
+                        title="eliminar sesión"
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
                   </div>
                   <div className="mt-1 text-[9px] text-[var(--color-cyan)] flex items-center gap-1">
                     <TerminalSquare size={10} /> {s.engine}
@@ -297,7 +335,7 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
                   <div className="mt-1 text-[9px] text-[var(--color-dim)] line-clamp-2">
                     {s.summary || (s.session_id ? s.session_id : "sin CLI session todavía")}
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>

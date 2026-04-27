@@ -205,6 +205,38 @@ func (r *ProjectsRepo) UpdateSessionModel(ctx context.Context, id int64, model, 
 	return err
 }
 
+// DeleteSession removes a project session and its human-readable turn history.
+func (r *ProjectsRepo) DeleteSession(ctx context.Context, projectID, sessionID int64) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM session_messages
+		WHERE scope='project' AND project_id=? AND project_sess_id=?
+	`, projectID, sessionID); err != nil {
+		return fmt.Errorf("delete project session messages: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM subagent_runs
+		WHERE parent_project_session_id=?
+	`, sessionID); err != nil {
+		return fmt.Errorf("delete project session subagent runs: %w", err)
+	}
+	res, err := tx.ExecContext(ctx, `
+		DELETE FROM project_sessions WHERE project_id=? AND id=?
+	`, projectID, sessionID)
+	if err != nil {
+		return fmt.Errorf("delete project session: %w", err)
+	}
+	if n, err := res.RowsAffected(); err == nil && n == 0 {
+		return sql.ErrNoRows
+	}
+	return tx.Commit()
+}
+
 func nullStr(v string) sql.NullString {
 	if v == "" {
 		return sql.NullString{}

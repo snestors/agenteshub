@@ -633,6 +633,13 @@ export const api = {
     return res.session;
   },
 
+  async deleteProjectSession(projectId: number, sessionId: number): Promise<void> {
+    await request<unknown>(
+      `/api/projects/${projectId}/sessions/${sessionId}`,
+      { method: "DELETE" },
+    );
+  },
+
   async listProjectMessages(
     projectId: number,
     sessionId: number,

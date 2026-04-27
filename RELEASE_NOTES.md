@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.8 — 2026-04-27
+
+### Added
+- **Eliminar sesiones de proyecto**: agregado endpoint `DELETE /api/projects/{id}/sessions/{sid}` con limpieza de mensajes/subagentes asociados y botón `X` en la lista de sesiones.
+
+---
+
 ## v0.2.7 — 2026-04-27
 
 ### Fixed
