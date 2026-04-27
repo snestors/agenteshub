@@ -23,6 +23,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/snestors/agenthub/internal/auth"
+	"github.com/snestors/agenthub/internal/buildinfo"
 	"github.com/snestors/agenthub/internal/cliengine"
 	"github.com/snestors/agenthub/internal/config"
 	"github.com/snestors/agenthub/internal/store"
@@ -369,9 +370,11 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		status = http.StatusServiceUnavailable
 	}
 	writeJSON(w, status, map[string]any{
-		"ok":     allOK,
-		"ts":     time.Now().Unix(),
-		"checks": checks,
+		"ok":         allOK,
+		"ts":         time.Now().Unix(),
+		"version":    buildinfo.Version,
+		"git_commit": buildinfo.GitCommit,
+		"checks":     checks,
 	})
 }
 

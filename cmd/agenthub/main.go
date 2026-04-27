@@ -15,6 +15,7 @@ import (
 	"github.com/mdp/qrterminal/v3"
 	"github.com/skip2/go-qrcode"
 
+	"github.com/snestors/agenthub/internal/buildinfo"
 	"github.com/snestors/agenthub/internal/cliengine"
 	"github.com/snestors/agenthub/internal/config"
 	intcron "github.com/snestors/agenthub/internal/cron"
@@ -51,7 +52,7 @@ func main() {
 	case "migrate-bridge":
 		runMigrateBridge(args)
 	case "version", "-v", "--version":
-		fmt.Println("agenthub", version)
+		fmt.Printf("agenthub %s (%s)\n", buildinfo.Version, buildinfo.GitCommit)
 	case "help", "-h", "--help":
 		printHelp()
 	default:
@@ -60,7 +61,6 @@ func main() {
 	}
 }
 
-const version = "0.1.0"
 
 func printHelp() {
 	fmt.Println(`agenthub — tu asistente personal en la mini PC
