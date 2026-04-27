@@ -8,6 +8,14 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.11 — 2026-04-27
+
+### Changed
+- **Sesiones sin sidebar**: Projects elimina el panel lateral de sesiones; la selección vive en el dropdown del chat y el botón `+` abre un modal para elegir engine, modelo y reasoning effort.
+- **Acciones de sesión en chat**: crear y eliminar sesión quedan junto al selector de sesión en la barra inferior del project chat.
+
+---
+
 ## v0.2.10 — 2026-04-27
 
 ### Added

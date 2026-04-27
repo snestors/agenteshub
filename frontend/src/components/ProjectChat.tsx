@@ -14,6 +14,8 @@ interface ProjectChatProps {
   reasoningEffort?: string;
   sessions?: ProjectSession[];
   onSessionSelect?: (sessionId: number) => void;
+  onCreateSession?: () => void;
+  onDeleteSession?: (sessionId: number) => void;
   onSessionConfigChange?: (patch: Partial<ProjectSession>) => void;
 }
 
@@ -71,6 +73,8 @@ export function ProjectChat({
   reasoningEffort,
   sessions = [],
   onSessionSelect,
+  onCreateSession,
+  onDeleteSession,
   onSessionConfigChange,
 }: ProjectChatProps) {
   const topic = React.useMemo(() => `project_session:${sessionId}`, [sessionId]);
@@ -354,6 +358,41 @@ export function ProjectChat({
               <option key={s.id} value={s.id} style={{ background: "#0a0f24" }}>{s.name}</option>
             ))}
           </select>
+          <button
+            type="button"
+            onClick={onCreateSession}
+            className="clip-tag cursor-pointer hover:opacity-80"
+            style={{
+              color: "var(--color-lime)",
+              border: "1px solid rgba(163,255,78,0.55)",
+              background: "rgba(163,255,78,0.10)",
+              font: "inherit",
+              letterSpacing: "inherit",
+              padding: "1px 6px",
+            }}
+            title="crear sesión"
+          >
+            +
+          </button>
+          {onDeleteSession && (
+            <button
+              type="button"
+              onClick={() => onDeleteSession(sessionId)}
+              disabled={isRunning}
+              className="clip-tag cursor-pointer hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{
+                color: "var(--color-danger)",
+                border: "1px solid rgba(255,92,122,0.45)",
+                background: "rgba(255,92,122,0.08)",
+                font: "inherit",
+                letterSpacing: "inherit",
+                padding: "1px 6px",
+              }}
+              title="eliminar sesión actual"
+            >
+              ×
+            </button>
+          )}
 
           <select
             value={selectedModel}

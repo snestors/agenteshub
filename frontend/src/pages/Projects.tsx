@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Check, ExternalLink, FileText, FolderKanban, Loader2, Pencil, Plus, RefreshCw, TerminalSquare, X } from "lucide-react";
+import { Check, ExternalLink, FileText, FolderKanban, Loader2, Pencil, RefreshCw, X } from "lucide-react";
 import { api, DEFAULT_REASONING_EFFORTS, FALLBACK_ENGINES, type EngineDef, type OpenSpecChange, type OpenSpecChangeDetail, type OpenSpecSpec, type Project, type ProjectServiceStatus, type ProjectSession } from "@/lib/api";
 import { HudPanel } from "@/components/HudPanel";
 import { Topbar } from "@/components/Topbar";
@@ -126,19 +126,15 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
   const [sessions, setSessions] = React.useState<ProjectSession[]>([]);
   const [engines, setEngines] = React.useState<EngineDef[]>(FALLBACK_ENGINES);
   const [selected, setSelected] = React.useState<number>(routeSessionId || 0);
-  const [newEngine, setNewEngine] = React.useState("");
-  const [newModel, setNewModel] = React.useState("");
-  const [newEffort, setNewEffort] = React.useState("medium");
+  const [sessionModalOpen, setSessionModalOpen] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [tab, setTab] = React.useState<"chat" | "services" | "changes">("chat");
-  const [sessionsHidden, setSessionsHidden] = React.useState(false);
 
   const refresh = React.useCallback(async () => {
     try {
       const res = await api.getProject(projectId);
       setProject(res.project);
       setSessions(res.sessions);
-      setNewEngine((cur) => cur || res.project.default_engine || FALLBACK_ENGINES[0]?.engine || "claude");
       const wanted = routeSessionId || selected || res.sessions[0]?.id || 0;
       if (wanted && res.sessions.some((s) => s.id === wanted)) {
         setSelected(wanted);
@@ -156,42 +152,19 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
   }, [refresh]);
 
   React.useEffect(() => {
-    setNewEngine("");
-    setNewModel("");
-    setNewEffort("medium");
-  }, [projectId]);
-
-  React.useEffect(() => {
     void api.listEngines().then((list) => {
       if (list.length > 0) setEngines(list);
     }).catch(() => undefined);
   }, []);
 
   const current = sessions.find((s) => s.id === selected) ?? null;
-  const newEngineDef = engines.find((e) => e.engine === (newEngine || project?.default_engine)) ?? engines[0] ?? FALLBACK_ENGINES[0];
-  const newModelOptions = newEngineDef?.models ?? [];
-  const newEffortOptions = newEngineDef?.reasoning_efforts?.length ? newEngineDef.reasoning_efforts : DEFAULT_REASONING_EFFORTS;
 
-  React.useEffect(() => {
-    const def = engines.find((e) => e.engine === (newEngine || project?.default_engine));
-    if (!def) return;
-    if (!newModel || !def.models.includes(newModel)) {
-      setNewModel(def.models[0] ?? "");
-    }
-    const efforts = def.reasoning_efforts?.length ? def.reasoning_efforts : DEFAULT_REASONING_EFFORTS;
-    if (!efforts.includes(newEffort)) {
-      setNewEffort(efforts.includes("medium") ? "medium" : efforts[0] ?? "");
-    }
-  }, [engines, newEngine, newModel, newEffort, project?.default_engine]);
-
-  async function createSession() {
-    const engine = newEngine || project?.default_engine || engines[0]?.engine || "claude";
-    const model = newModel || newModelOptions[0] || "";
-    const reasoning_effort = newEffort || "medium";
+  async function createSession(payload: { engine: string; model: string; reasoning_effort: string }) {
     try {
-      const s = await api.createProjectSession(projectId, { name: "", engine, model, reasoning_effort });
+      const s = await api.createProjectSession(projectId, { name: "", ...payload });
       await refresh();
       nav(`/projects/${projectId}/sessions/${s.id}`);
+      setSessionModalOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "error creando sesión");
     }
@@ -235,140 +208,7 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
           </button>
         }
       />
-      <div className={`flex-1 min-h-0 p-4 grid ${sessionsHidden ? "grid-cols-[46px_1fr]" : "grid-cols-[310px_1fr]"} gap-4`}>
-        {sessionsHidden ? (
-          <button
-            type="button"
-            onClick={() => setSessionsHidden(false)}
-            className="h-full clip-hud-sm font-display text-[11px] tracking-hud uppercase cursor-pointer"
-            style={{
-              color: "var(--color-lime)",
-              border: "1px solid rgba(163,255,78,0.45)",
-              background: "rgba(163,255,78,0.06)",
-              writingMode: "vertical-rl",
-              textOrientation: "mixed",
-            }}
-            title="mostrar sesiones"
-          >
-            sessions
-          </button>
-        ) : (
-          <HudPanel
-            title="sessions"
-            sub={`${sessions.length} · ${project?.default_engine ?? "engine"}`}
-            accent="lime"
-          >
-          <button
-            type="button"
-            onClick={() => setSessionsHidden(true)}
-            className="self-end mb-2 px-2 py-0.5 clip-tag font-mono text-[9px] tracking-hud-tight cursor-pointer"
-            style={{ color: "var(--color-dim)", border: "1px solid var(--color-line)" }}
-            title="ocultar lista de sesiones"
-          >
-            ocultar
-          </button>
-          <div className="font-mono text-[10px] text-[var(--color-dim)] mb-3 break-all">
-            {project?.path}
-          </div>
-          <div className="grid grid-cols-[minmax(0,1fr)_34px] gap-2 mb-3 items-stretch">
-            <div className="grid grid-cols-1 gap-1 min-w-0">
-              <select
-                value={newEngine || project?.default_engine || "claude"}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  setNewEngine(next);
-                  const def = engines.find((eng) => eng.engine === next);
-                  setNewModel(def?.models[0] ?? "");
-                }}
-                className="w-full min-w-0 bg-[var(--color-bg-2)] outline-none px-2 py-1 clip-tag font-mono text-[10px] text-[var(--color-cyan)]"
-                style={{ border: "1px solid rgba(94,240,255,0.45)" }}
-                title="engine de la nueva sesión"
-              >
-                {engines.map((e) => (
-                  <option key={e.engine} value={e.engine}>{e.engine}</option>
-                ))}
-              </select>
-              <select
-                value={newModel || newModelOptions[0] || ""}
-                onChange={(e) => setNewModel(e.target.value)}
-                className="w-full min-w-0 bg-[var(--color-bg-2)] outline-none px-2 py-1 clip-tag font-mono text-[10px] text-[var(--color-lime)]"
-                style={{ border: "1px solid rgba(163,255,78,0.45)" }}
-                title="modelo de la nueva sesión"
-              >
-                {newModelOptions.map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
-              <select
-                value={newEffort}
-                onChange={(e) => setNewEffort(e.target.value)}
-                className="w-full min-w-0 bg-[var(--color-bg-2)] outline-none px-2 py-1 clip-tag font-mono text-[10px] text-[var(--color-orange)]"
-                style={{ border: "1px solid rgba(255,159,67,0.45)" }}
-                title="reasoning effort de la nueva sesión"
-              >
-                {newEffortOptions.map((eff) => (
-                  <option key={eff} value={eff}>{eff}</option>
-                ))}
-              </select>
-            </div>
-            <button
-              onClick={() => void createSession()}
-              className="w-[34px] h-full min-h-[82px] flex items-center justify-center clip-tag cursor-pointer"
-              style={{ color: "var(--color-lime)", border: "1px solid var(--color-lime)" }}
-              title="crear sesión con nombre automático"
-            >
-              <Plus size={13} />
-            </button>
-          </div>
-          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-            {sessions.map((s) => {
-              const active = s.id === selected;
-              return (
-                <div
-                  key={s.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => selectSession(s.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") selectSession(s.id);
-                  }}
-                  className="w-full text-left mb-2 px-3 py-2 clip-hud-sm font-mono cursor-pointer"
-                  style={{
-                    background: active ? "rgba(163,255,78,0.10)" : "rgba(255,255,255,0.03)",
-                    border: `1px solid ${active ? "var(--color-lime)" : "var(--color-line)"}`,
-                  }}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[var(--color-fg)] text-[11px] truncate">{s.name}</span>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[9px] text-[var(--color-dim)]">{rel(s.last_active_at || s.created_at)}</span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void deleteSession(s.id, s.name);
-                        }}
-                        className="clip-tag px-1 py-0.5 cursor-pointer opacity-70 hover:opacity-100"
-                        style={{ color: "var(--color-danger)", border: "1px solid rgba(255,92,122,0.45)" }}
-                        title="eliminar sesión"
-                      >
-                        <X size={10} />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="mt-1 text-[9px] text-[var(--color-cyan)] flex items-center gap-1">
-                    <TerminalSquare size={10} /> {s.engine}
-                  </div>
-                  <div className="mt-1 text-[9px] text-[var(--color-dim)] line-clamp-2">
-                    {s.summary || (s.session_id ? s.session_id : "sin CLI session todavía")}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          </HudPanel>
-        )}
-
+      <div className="flex-1 min-h-0 p-4">
         <HudPanel
           title={tab === "changes" ? "openspec changes" : tab === "services" ? "project services" : current ? `project chat · ${current.name}` : "project chat"}
           sub={tab === "changes" ? "openspec/changes · gates obligatorios" : tab === "services" ? ".agenthub/services.yaml" : current ? `topic project_session:${current.id}` : "sin sesión"}
@@ -395,6 +235,11 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
               reasoningEffort={current.reasoning_effort}
               sessions={sessions}
               onSessionSelect={selectSession}
+              onCreateSession={() => setSessionModalOpen(true)}
+              onDeleteSession={(id) => {
+                const s = sessions.find((row) => row.id === id);
+                if (s) void deleteSession(s.id, s.name);
+              }}
               onSessionConfigChange={(patch) =>
                 setSessions((prev) =>
                   prev.map((s) => (s.id === current.id ? { ...s, ...patch } : s))
@@ -402,15 +247,32 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
               }
             />
           ) : (
-            <div className="h-full flex items-center justify-center font-mono text-[11px] text-[var(--color-dim)] tracking-hud-tight">
-              ▸ creá una sesión para empezar
+            <div className="h-full flex flex-col items-center justify-center gap-3 font-mono text-[11px] text-[var(--color-dim)] tracking-hud-tight">
+              <div>▸ creá una sesión para empezar</div>
+              <button
+                type="button"
+                onClick={() => setSessionModalOpen(true)}
+                className="px-3 py-1 clip-tag font-mono text-[10px] tracking-hud uppercase cursor-pointer"
+                style={{ color: "var(--color-lime)", border: "1px solid var(--color-lime)", background: "rgba(163,255,78,0.10)" }}
+              >
+                + nueva sesión
+              </button>
             </div>
           )}
         </HudPanel>
       </div>
+      {sessionModalOpen && (
+        <ProjectSessionModal
+          engines={engines}
+          projectDefaultEngine={project?.default_engine}
+          onClose={() => setSessionModalOpen(false)}
+          onCreate={(payload) => void createSession(payload)}
+        />
+      )}
     </div>
   );
 }
+
 
 function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -860,6 +722,110 @@ function ActionButton({ onClick, children }: { onClick: () => void; children: Re
     >
       {children}
     </button>
+  );
+}
+
+function ProjectSessionModal({
+  engines,
+  projectDefaultEngine,
+  onClose,
+  onCreate,
+}: {
+  engines: EngineDef[];
+  projectDefaultEngine?: string;
+  onClose: () => void;
+  onCreate: (payload: { engine: string; model: string; reasoning_effort: string }) => void;
+}) {
+  const initialEngine = projectDefaultEngine || engines[0]?.engine || FALLBACK_ENGINES[0]?.engine || "claude";
+  const [engine, setEngine] = React.useState(initialEngine);
+  const engineDef = engines.find((e) => e.engine === engine) ?? engines[0] ?? FALLBACK_ENGINES[0];
+  const modelOptions = engineDef?.models ?? [];
+  const effortOptions = engineDef?.reasoning_efforts?.length ? engineDef.reasoning_efforts : DEFAULT_REASONING_EFFORTS;
+  const [model, setModel] = React.useState(modelOptions[0] ?? "");
+  const [effort, setEffort] = React.useState(effortOptions.includes("medium") ? "medium" : effortOptions[0] ?? "");
+
+  React.useEffect(() => {
+    if (!modelOptions.includes(model)) {
+      setModel(modelOptions[0] ?? "");
+    }
+    if (!effortOptions.includes(effort)) {
+      setEffort(effortOptions.includes("medium") ? "medium" : effortOptions[0] ?? "");
+    }
+  }, [effort, effortOptions, model, modelOptions]);
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    onCreate({
+      engine,
+      model: model || modelOptions[0] || "",
+      reasoning_effort: effort || "medium",
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+      <form onSubmit={submit} className="w-[520px]">
+        <HudPanel title="nueva sesión" sub="nombre automático · contexto aislado por engine" accent="lime">
+          <label className="mt-3 font-mono text-[10px] text-[var(--color-dim)] tracking-hud uppercase">
+            engine
+          </label>
+          <select
+            value={engine}
+            onChange={(e) => {
+              const next = e.target.value;
+              setEngine(next);
+              const def = engines.find((item) => item.engine === next);
+              setModel(def?.models[0] ?? "");
+              const efforts = def?.reasoning_efforts?.length ? def.reasoning_efforts : DEFAULT_REASONING_EFFORTS;
+              setEffort(efforts.includes("medium") ? "medium" : efforts[0] ?? "");
+            }}
+            className="mt-1 bg-[var(--color-bg-2)] outline-none px-3 py-2 clip-tag font-mono text-[12px] text-[var(--color-cyan)]"
+            style={{ border: "1px solid rgba(94,240,255,0.45)" }}
+          >
+            {engines.map((e) => (
+              <option key={e.engine} value={e.engine}>{e.engine}</option>
+            ))}
+          </select>
+
+          <label className="mt-3 font-mono text-[10px] text-[var(--color-dim)] tracking-hud uppercase">
+            modelo
+          </label>
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            className="mt-1 bg-[var(--color-bg-2)] outline-none px-3 py-2 clip-tag font-mono text-[12px] text-[var(--color-lime)]"
+            style={{ border: "1px solid rgba(163,255,78,0.45)" }}
+          >
+            {modelOptions.map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+
+          <label className="mt-3 font-mono text-[10px] text-[var(--color-dim)] tracking-hud uppercase">
+            reasoning effort
+          </label>
+          <select
+            value={effort}
+            onChange={(e) => setEffort(e.target.value)}
+            className="mt-1 bg-[var(--color-bg-2)] outline-none px-3 py-2 clip-tag font-mono text-[12px] text-[var(--color-orange)]"
+            style={{ border: "1px solid rgba(255,159,67,0.45)" }}
+          >
+            {effortOptions.map((item) => (
+              <option key={item} value={item}>{item}</option>
+            ))}
+          </select>
+
+          <div className="mt-4 flex justify-end gap-2">
+            <button type="button" onClick={onClose} className="px-3 py-1 clip-tag font-mono text-[10px] text-[var(--color-dim)] cursor-pointer" style={{ border: "1px solid var(--color-line)" }}>
+              cancelar
+            </button>
+            <button type="submit" className="px-3 py-1 clip-tag font-mono text-[10px] text-[var(--color-lime)] cursor-pointer" style={{ border: "1px solid var(--color-lime)", background: "rgba(163,255,78,0.10)" }}>
+              crear sesión
+            </button>
+          </div>
+        </HudPanel>
+      </form>
+    </div>
   );
 }
 
