@@ -114,6 +114,7 @@ func (s *Server) routes() http.Handler {
 
 	// public
 	r.Get("/healthz", s.handleHealth)
+	r.Get("/api/runs", s.handleRunsStatus)
 	r.Get("/api/wa/status", s.handleWaStatus)
 	r.Get("/api/wa/qr", s.handleWaQR)
 	r.Post("/api/auth/login", s.handleLogin)
@@ -220,7 +221,6 @@ func (s *Server) routes() http.Handler {
 		pr.Delete("/api/secrets/{key}", s.handleSecretDelete)
 
 		// System manager
-		pr.Get("/api/runs", s.handleRunsStatus)
 		pr.Get("/api/system/stats", s.handleSystemStats)
 		pr.Get("/api/system/services", s.handleSystemServices)
 		pr.Post("/api/system/services/{name}/{action}", s.handleSystemServiceAction)
@@ -670,7 +670,7 @@ func (s *Server) runMainAgentTurnTo(enginePrompt, prev, engine, model string, wa
 	// while the turn is still in flight.
 	s.runs.Inc("main")
 	defer s.runs.Dec("main")
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	activity := &turnActivity{}
 	res, err := s.engines.Run(ctx, cliengine.RunOpts{
@@ -685,6 +685,11 @@ func (s *Server) runMainAgentTurnTo(enginePrompt, prev, engine, model string, wa
 		OnEvent:   s.streamEventBroadcasterWithActivity(activity),
 	})
 	if err != nil {
+		// Daemon shutdown — context cancelled. Don't persist a spurious error message.
+		if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+			s.log.Info("main turn cancelled (shutdown)")
+			return
+		}
 		s.log.Error("cliengine", "err", err)
 		errBody := "⚠ engine: " + err.Error()
 		outID, _ := s.repos.Messages.Insert(context.Background(), store.Message{

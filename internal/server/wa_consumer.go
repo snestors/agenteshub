@@ -2,34 +2,43 @@ package server
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"strings"
 	"time"
 
+	"github.com/snestors/agenthub/internal/cliengine"
 	"github.com/snestors/agenthub/internal/store"
 	"github.com/snestors/agenthub/internal/wa"
 )
 
-// StartWAConsumer drains the wa.Client incoming queue and feeds each message
-// into the SAME pipeline the web chat uses (acceptMessage → runMainAgentTurn).
-// The web channel is the source of truth for the conversation; WA is just an
-// I/O surface that mirrors the user's text on input and the agent's reply on
-// output. The browser sees both directions in real time exactly like a
-// regular chat turn.
+// StartWAConsumer drains the wa.Client incoming queue and runs each message
+// through the agent synchronously. WA is an independent I/O surface — it
+// shares the same Claude session (and therefore the same memory/context) as
+// the web chat, but the two channels never pollute each other's UI:
+//
+//   - WA messages are only stored in wa_messages(channel='wa') — already done
+//     by dispatchIncoming before they reach this consumer.
+//   - The agent reply is sent back via wa_outbox and stored in
+//     wa_messages(channel='wa', direction='out'). It never touches the web WS.
+//   - The web chat has its own pipeline (acceptMessage → runMainAgentTurn)
+//     that only handles messages from the browser.
+//
+// One brain, two surfaces, zero cross-contamination.
 //
 // Per-message work:
-//  1. MarkRead so the sender sees ✓✓ blue immediately
-//  2. SendChatPresence "composing" so they see "typing…"
-//  3. Persist the user text on messages(channel='web', direction='in') and
-//     broadcast it on the WS hub, so the chat web UI shows the WA message
-//  4. Run the main agent turn (inherits engine/model/session from settings)
-//  5. Reply lands on wa_outbox via runMainAgentTurnTo(waReply=…)
-//  6. SendChatPresence "paused" to clear typing
+//  1. MarkRead → ✓✓ blue
+//  2. StartTyping → "escribiendo…" (lasts the full turn because the call is sync)
+//  3. Build prompt (with quoted-reply context if any)
+//  4. Run engine with the shared main-agent session
+//  5. Enqueue reply on wa_outbox
+//  6. StopTyping (deferred)
 func (s *Server) StartWAConsumer(ctx context.Context, client *wa.Client) {
 	if s == nil || client == nil {
 		return
 	}
 	go s.waConsumeLoop(ctx, client)
-	s.log.Info("wa consumer started (chat-web flow)")
+	s.log.Info("wa consumer started")
 }
 
 func (s *Server) waConsumeLoop(ctx context.Context, client *wa.Client) {
@@ -48,7 +57,7 @@ func (s *Server) waConsumeLoop(ctx context.Context, client *wa.Client) {
 }
 
 func (s *Server) handleWAIncoming(ctx context.Context, client *wa.Client, in wa.IncomingMessage) {
-	// ✓✓ azul (best-effort — log and continue if it fails).
+	// 1. ✓✓ azul — best-effort.
 	readCtx, cancelRead := context.WithTimeout(ctx, 5*time.Second)
 	if err := client.MarkRead(readCtx, in); err != nil {
 		s.log.Debug("wa mark read", "id", in.ExternalID, "err", err)
@@ -57,12 +66,12 @@ func (s *Server) handleWAIncoming(ctx context.Context, client *wa.Client, in wa.
 
 	body := strings.TrimSpace(in.Body)
 	if body == "" {
-		// Media-only or unhandled type — already persisted on wa_messages by
-		// dispatchIncoming. Nothing to feed the agent.
 		return
 	}
 
-	// Typing presence (best-effort).
+	// 2. Typing presence — start before the turn, stop when we return.
+	//    Because handleWAIncoming is called synchronously from the consumer
+	//    loop goroutine, the defer runs only after the engine finishes.
 	typingCtx, cancelTyping := context.WithTimeout(ctx, 3*time.Second)
 	_ = client.StartTyping(typingCtx, in)
 	cancelTyping()
@@ -72,20 +81,16 @@ func (s *Server) handleWAIncoming(ctx context.Context, client *wa.Client, in wa.
 		stopCancel()
 	}()
 
-	// Mirror the user message on the unified chat (same channel='web' so the
-	// browser sees it next to its own messages). The body is the raw text —
-	// the agent treats it as a normal user turn, no system preamble.
-	id, err := s.repos.Messages.Insert(ctx, store.Message{
-		Channel:   "web",
-		Direction: "in",
-		Body:      sqlStr(body),
-		TS:        time.Now().Unix(),
-	})
-	if err == nil {
-		s.broadcastMessage(id, "web", "in", body)
+	// 3. Build prompt — prepend quoted context when the user replied to a message.
+	enginePrompt := body
+	if in.QuotedID != "" {
+		if quoted, _ := s.repos.Messages.GetByExternalID(ctx, in.QuotedID); quoted != nil && quoted.Body.Valid && quoted.Body.String != "" {
+			enginePrompt = "[el user responde a este mensaje tuyo: \"" + quoted.Body.String + "\"]\n\n" + body
+		}
 	}
 
-	// Engine + model from settings (same source the web chat uses).
+	// 4. Engine + session — same source as the web chat so both channels share
+	//    the same Claude context (one brain, different surfaces).
 	engine := s.cfg.DefaultEngine
 	model := s.cfg.DefaultModel
 	if v, _ := s.repos.Settings.Get(ctx, "engine"); v != "" {
@@ -94,37 +99,99 @@ func (s *Server) handleWAIncoming(ctx context.Context, client *wa.Client, in wa.
 	if v, _ := s.repos.Settings.Get(ctx, "model"); v != "" {
 		model = v
 	}
-
 	mainSess := s.mainAgentSession(ctx, engine)
 	prev := ""
 	if mainSess != nil {
 		prev = mainSess.SessionID
 	}
 
-	// Use the resolved reply target. ReplyJID is set when sender is @lid; for
-	// @s.whatsapp.net senders it equals JID.
 	replyJID := in.ReplyJID
 	if replyJID == "" {
 		replyJID = in.JID
 	}
 
-	// If the user quoted a previous message, prepend its content as context so
-	// the agent knows which message is being replied to.
-	enginePrompt := body
-	if in.QuotedID != "" {
-		if quoted, err := s.repos.Messages.GetByExternalID(ctx, in.QuotedID); err == nil && quoted != nil {
-			quotedBody := ""
-			if quoted.Body.Valid {
-				quotedBody = quoted.Body.String
-			}
-			if quotedBody != "" {
-				enginePrompt = "[el user responde a este mensaje tuyo: \"" + quotedBody + "\"]\n\n" + body
-			}
+	s.runWATurn(ctx, enginePrompt, prev, engine, model, in, replyJID)
+}
+
+// runWATurn executes a single WA turn synchronously. It:
+//   - Runs the engine (blocks until the reply is ready)
+//   - Persists the reply in wa_messages(channel='wa', direction='out')
+//   - Enqueues the reply on wa_outbox for physical delivery
+//   - Updates the shared session ID in agent_sessions
+//
+// It intentionally does NOT insert into channel='web' and does NOT broadcast
+// on the WS hub — the web chat is a separate surface.
+func (s *Server) runWATurn(ctx context.Context, prompt, prev, engine, model string, in wa.IncomingMessage, replyJID string) {
+	s.runs.Inc("main")
+	defer s.runs.Dec("main")
+
+	turnCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	res, err := s.engines.Run(turnCtx, cliengine.RunOpts{
+		Prompt:    prompt,
+		SessionID: prev,
+		Channel:   "wa",
+		Cwd:       ".",
+		Engine:    engine,
+		Model:     model,
+		Scope:     "main",
+		AgentName: "main-agent",
+	})
+	if err != nil {
+		// Daemon shutdown or context cancelled — don't spam the user with an
+		// internal error message. The turn will be retried on next interaction.
+		if errors.Is(err, context.Canceled) || errors.Is(turnCtx.Err(), context.Canceled) {
+			s.log.Info("wa turn cancelled (shutdown)", "jid", in.JID)
+			return
 		}
+		s.log.Warn("wa turn error", "jid", in.JID, "err", err)
+		_, _ = s.repos.WaOutbox.Enqueue(context.Background(), store.WaOutboxItem{
+			JID:  replyJID,
+			Kind: "text",
+			Body: sql.NullString{String: "⚠ " + err.Error(), Valid: true},
+			ReplyTo: sql.NullString{
+				String: in.ExternalID,
+				Valid:  in.ExternalID != "",
+			},
+		})
+		return
 	}
 
-	go s.runMainAgentTurnTo(enginePrompt, prev, engine, model, &waReplyTarget{
-		JID:      replyJID,
-		StanzaID: in.ExternalID,
+	// Update shared session so the next turn (from web or WA) resumes context.
+	if res.SessionID != "" && res.SessionID != prev {
+		_ = s.repos.Sessions.UpsertAgentSession(context.Background(), store.AgentSession{
+			AgentName: mainAgentSessionName(engine),
+			Engine:    engine,
+			SessionID: res.SessionID,
+		})
+	}
+
+	reply := strings.TrimSpace(res.Text)
+	if reply == "" {
+		s.log.Info("wa engine produced empty reply", "jid", in.JID)
+		return
+	}
+
+	// Persist outgoing WA message (channel='wa') — the external_id will be
+	// filled later by the outbox worker via SendText.
+	_, _ = s.repos.Messages.Insert(context.Background(), store.Message{
+		Channel:   "wa",
+		Direction: "out",
+		JID:       sql.NullString{String: replyJID, Valid: true},
+		Body:      sql.NullString{String: reply, Valid: true},
+		Engine:    sql.NullString{String: engine, Valid: true},
+		Model:     sql.NullString{String: model, Valid: true},
+		TS:        time.Now().Unix(),
+	})
+
+	_, _ = s.repos.WaOutbox.Enqueue(context.Background(), store.WaOutboxItem{
+		JID:  replyJID,
+		Kind: "text",
+		Body: sql.NullString{String: reply, Valid: true},
+		ReplyTo: sql.NullString{
+			String: in.ExternalID,
+			Valid:  in.ExternalID != "",
+		},
 	})
 }
