@@ -19,7 +19,7 @@ Sos el agente de **AgentHub**. Path: `/home/nestor/agenthub`.
 
 - Leer `ROADMAP.md` antes de tocar fases del roadmap.
 - No cambiar decisiones congeladas sin discusión y entrada en changelog.
-- Commits conventional, chicos por capa, sin Co-Author ni atribución AI.
+- **Commitear inmediatamente después de cada cambio aplicado** — no acumular. Un fix = un commit. Un feature = un commit. Conventional commits, sin Co-Author ni atribución AI.
 - Backend: validar con `go test ./...` y build con tags `sqlite_fts5 sqlite_json` cuando corresponda.
 - Frontend: validar con `pnpm run build` desde `frontend/`.
 
