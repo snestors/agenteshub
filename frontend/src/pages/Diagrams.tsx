@@ -1,13 +1,13 @@
 import * as React from "react";
-import { Download, Eye, Plus, Save, Sparkles, Wand2 } from "lucide-react";
 import {
-  Excalidraw,
-  convertToExcalidrawElements,
-  exportToBlob,
-} from "@excalidraw/excalidraw";
-import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { parseMermaidToExcalidraw } from "@excalidraw/mermaid-to-excalidraw";
-import "@excalidraw/excalidraw/index.css";
+  Plus,
+  Save,
+  Sparkles,
+  Wand2,
+  Trash2,
+  Copy,
+  Check,
+} from "lucide-react";
 
 import { HudPanel } from "@/components/HudPanel";
 import { MermaidBlock } from "@/components/MermaidBlock";
@@ -19,11 +19,8 @@ import {
   type DiagramType,
 } from "@/lib/api";
 
-const EMPTY_SCENE = {
-  elements: [],
-  appState: { theme: "dark" as const },
-  files: {},
-};
+const DEFAULT_MERMAID =
+  "flowchart LR\n  User[Usuario] --> UI[AgentHub UI]\n  UI --> API[Go API]\n  API --> DB[(SQLite)]";
 
 function rel(ts?: number): string {
   if (!ts) return "—";
@@ -35,17 +32,6 @@ function rel(ts?: number): string {
 }
 
 export function Diagrams() {
-  const excalidrawRef = React.useRef<ExcalidrawImperativeAPI | null>(null);
-  const sceneRef = React.useRef<{
-    elements: ReturnType<ExcalidrawImperativeAPI["getSceneElements"]>;
-    appState: ReturnType<ExcalidrawImperativeAPI["getAppState"]>;
-    files: ReturnType<ExcalidrawImperativeAPI["getFiles"]>;
-  }>({
-    elements: [],
-    appState: {} as ReturnType<ExcalidrawImperativeAPI["getAppState"]>,
-    files: {},
-  });
-
   const [diagrams, setDiagrams] = React.useState<Diagram[]>([]);
   const [selectedId, setSelectedId] = React.useState<number | null>(null);
   const [title, setTitle] = React.useState("Nuevo diagrama");
@@ -53,14 +39,13 @@ export function Diagrams() {
     "diagrama de arquitectura de AgentHub",
   );
   const [type, setType] = React.useState<DiagramType | "auto">("auto");
-  const [mermaid, setMermaid] = React.useState(
-    "flowchart LR\n  User[Usuario] --> UI[AgentHub UI]\n  UI --> API[Go API]\n  API --> DB[(SQLite)]",
-  );
+  const [mermaid, setMermaid] = React.useState<string>(DEFAULT_MERMAID);
+  /** what's actually rendered. Decoupled from the editor so the user can edit
+   * without re-rendering on every keystroke. */
+  const [rendered, setRendered] = React.useState<string>(DEFAULT_MERMAID);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [mermaidOpen, setMermaidOpen] = React.useState(false);
-
-  const selected = diagrams.find((d) => d.id === selectedId) ?? null;
+  const [copied, setCopied] = React.useState(false);
 
   const refresh = React.useCallback(async () => {
     try {
@@ -75,69 +60,13 @@ export function Diagrams() {
     void refresh();
   }, [refresh]);
 
-  async function applyMermaid(src = mermaid) {
-    const raw = src.trim();
-    if (!raw) return;
-    setBusy(true);
-    try {
-      const parsed = await parseMermaidToExcalidraw(raw, {
-        startOnLoad: false,
-        themeVariables: { fontSize: "20px" },
-      });
-      const elements = convertToExcalidrawElements(parsed.elements);
-      if (parsed.files) {
-        excalidrawRef.current?.addFiles(Object.values(parsed.files));
-      }
-      excalidrawRef.current?.updateScene({
-        elements,
-        appState: { theme: "dark", viewBackgroundColor: "#060814" },
-      });
-      excalidrawRef.current?.scrollToContent(elements, { fitToContent: true });
-      setMermaid(raw);
-      setError(null);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "no se pudo convertir Mermaid",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function generate(mode: "new" | "improve") {
-    const base = prompt.trim();
-    if (!base) {
-      setError("prompt requerido");
-      return;
-    }
-    setBusy(true);
-    try {
-      const body =
-        mode === "improve" && mermaid.trim()
-          ? `${base}\n\nMejorá este diagrama y devolvé una versión más clara:\n${mermaid}`
-          : base;
-      const res = await api.generateDiagram({
-        prompt: body,
-        type: type === "auto" ? undefined : type,
-      });
-      setTitle((t) => (t === "Nuevo diagrama" || !t.trim() ? res.title : t));
-      setMermaid(res.mermaid);
-      await applyMermaid(res.mermaid);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "error generando diagrama");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   function newDiagram() {
     setSelectedId(null);
     setTitle("Nuevo diagrama");
     setPrompt("diagrama de arquitectura de AgentHub");
-    setMermaid(
-      "flowchart LR\n  User[Usuario] --> UI[AgentHub UI]\n  UI --> API[Go API]\n  API --> DB[(SQLite)]",
-    );
-    excalidrawRef.current?.resetScene();
+    setMermaid(DEFAULT_MERMAID);
+    setRendered(DEFAULT_MERMAID);
+    setError(null);
   }
 
   function loadDiagram(d: Diagram) {
@@ -145,39 +74,41 @@ export function Diagrams() {
     setTitle(d.title);
     setPrompt(d.prompt ?? "");
     const mer = d.mermaid_source || d.mermaid || "";
-    setMermaid(mer);
+    setMermaid(mer || DEFAULT_MERMAID);
+    setRendered(mer || DEFAULT_MERMAID);
+    setError(null);
+  }
 
-    // Try the persisted Excalidraw scene first; fall back to rendering from
-    // mermaid when (a) the JSON is invalid, or (b) the scene has zero
-    // elements but we DO have mermaid source — common case when a diagram
-    // was queued from the API without going through the canvas first.
-    let parsedScene: {
-      elements?: ReturnType<ExcalidrawImperativeAPI["getSceneElements"]>;
-      appState?: Partial<ReturnType<ExcalidrawImperativeAPI["getAppState"]>>;
-      files?: ReturnType<ExcalidrawImperativeAPI["getFiles"]>;
-    } | null = null;
+  async function generate() {
+    const p = prompt.trim();
+    if (!p) {
+      setError("escribí un prompt para generar");
+      return;
+    }
+    setBusy(true);
+    setError(null);
     try {
-      parsedScene = JSON.parse(d.excalidraw_json);
-    } catch {
-      parsedScene = null;
-    }
-    const hasElements =
-      parsedScene && Array.isArray(parsedScene.elements) && parsedScene.elements.length > 0;
-    if (hasElements) {
-      if (parsedScene!.files)
-        excalidrawRef.current?.addFiles(Object.values(parsedScene!.files));
-      excalidrawRef.current?.updateScene({
-        elements: parsedScene!.elements ?? [],
-        appState: {
-          ...(parsedScene!.appState ?? {}),
-          theme: "dark",
-        } as ReturnType<ExcalidrawImperativeAPI["getAppState"]>,
+      const out = await api.generateDiagram({
+        prompt: p,
+        type: type === "auto" ? undefined : type,
       });
-    } else if (mer.trim()) {
-      void applyMermaid(mer);
-    } else {
-      excalidrawRef.current?.resetScene();
+      const mer = out.mermaid || "";
+      if (!mer) {
+        setError("la IA no devolvió mermaid");
+      } else {
+        setMermaid(mer);
+        setRendered(mer);
+        if (out.title) setTitle(out.title);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "error generando");
+    } finally {
+      setBusy(false);
     }
+  }
+
+  function applyEdited() {
+    setRendered(mermaid);
   }
 
   async function save() {
@@ -186,19 +117,13 @@ export function Diagrams() {
       setError("title requerido");
       return;
     }
-    const current = excalidrawRef.current;
-    const scene = current
-      ? {
-          elements: current.getSceneElements(),
-          appState: current.getAppState(),
-          files: current.getFiles(),
-        }
-      : sceneRef.current;
     const payload: DiagramPayload = {
       title: cleanTitle,
       prompt: prompt.trim(),
       mermaid,
-      excalidraw_json: JSON.stringify(scene),
+      // Persist a stub Excalidraw scene for compat — we no longer render it,
+      // but the API still requires the column to be non-null.
+      excalidraw_json: '{"elements":[],"appState":{}}',
     };
     setBusy(true);
     try {
@@ -215,310 +140,237 @@ export function Diagrams() {
     }
   }
 
-  async function exportPNG() {
-    const current = excalidrawRef.current;
-    if (!current) return;
+  async function remove(id: number) {
+    if (!window.confirm("¿Borrar este diagrama?")) return;
     setBusy(true);
     try {
-      const blob = await exportToBlob({
-        elements: current.getSceneElements(),
-        appState: {
-          ...current.getAppState(),
-          exportBackground: true,
-          viewBackgroundColor: "#060814",
-        },
-        files: current.getFiles(),
-        mimeType: "image/png",
-        exportPadding: 24,
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${title.trim() || "diagram"}.png`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await api.deleteDiagram(id);
+      if (selectedId === id) newDiagram();
+      await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "error exportando PNG");
+      setError(err instanceof Error ? err.message : "error borrando");
     } finally {
       setBusy(false);
     }
   }
 
+  async function copyMermaid() {
+    try {
+      await navigator.clipboard.writeText(mermaid);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // noop
+    }
+  }
+
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex flex-col h-full min-h-0">
       <Topbar
         breadcrumb={[{ label: "AgentHub" }, { label: "Diagramas" }]}
         status={
           error
             ? { label: "ERROR", tone: "danger" }
-            : { label: busy ? "BUSY" : "READY", tone: busy ? "warn" : "ok" }
-        }
-        right={
-          <button
-            onClick={() => void save()}
-            className="clip-tag px-3 py-1 font-mono text-[10px] uppercase tracking-hud cursor-pointer"
-            style={{
-              color: "var(--color-lime)",
-              border: "1px solid var(--color-lime)",
-              background: "rgba(163,255,78,0.10)",
-            }}
-          >
-            guardar
-          </button>
+            : { label: `${diagrams.length} GUARDADOS`, tone: "ok" }
         }
       />
 
-      <div className="grid min-h-0 flex-1 grid-cols-[280px_1fr] gap-4 p-4">
-        <HudPanel
-          title="mis diagramas"
-          sub={`${diagrams.length} guardados`}
-          accent="cyan"
-          className="min-h-0"
-        >
+      <div className="flex-1 min-h-0 grid grid-cols-[260px_1fr] gap-3 p-3">
+        {/* Left: list */}
+        <div className="flex flex-col min-h-0 gap-2">
           <button
+            type="button"
             onClick={newDiagram}
-            className="mb-3 flex w-full items-center gap-2 px-3 py-2 clip-tag font-mono text-[10px] uppercase tracking-hud-tight cursor-pointer"
+            className="w-full px-3 py-2 clip-tag font-mono text-[11px] uppercase tracking-hud-tight border cursor-pointer transition-colors flex items-center gap-2"
             style={{
-              color: "var(--color-lime)",
-              border: "1px solid rgba(163,255,78,0.45)",
-              background: "rgba(163,255,78,0.08)",
+              color: "var(--color-cyan)",
+              borderColor: "var(--color-cyan)",
+              background: "rgba(94,240,255,0.06)",
             }}
           >
-            <Plus size={13} /> Nuevo
+            <Plus size={12} strokeWidth={1.8} /> nuevo diagrama
           </button>
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+
+          <div
+            className="flex-1 min-h-0 overflow-y-auto clip-hud-sm border"
+            style={{ borderColor: "var(--color-line)" }}
+          >
+            {diagrams.length === 0 && (
+              <div className="px-3 py-4 font-mono text-[10px] text-[var(--color-dim)] italic">
+                ▸ aún no hay diagramas guardados.
+              </div>
+            )}
             {diagrams.map((d) => {
               const active = d.id === selectedId;
               return (
-                <button
+                <div
                   key={d.id}
+                  className={`group flex items-center gap-1 px-2 py-2 cursor-pointer text-left border-b transition-colors ${
+                    active
+                      ? "bg-[rgba(94,240,255,0.10)]"
+                      : "hover:bg-[rgba(94,240,255,0.04)]"
+                  }`}
+                  style={{ borderColor: "var(--color-line)" }}
                   onClick={() => loadDiagram(d)}
-                  className="mb-2 w-full text-left px-3 py-2 clip-hud-sm font-mono cursor-pointer"
-                  style={{
-                    background: active
-                      ? "rgba(94,240,255,0.10)"
-                      : "rgba(255,255,255,0.03)",
-                    border: `1px solid ${active ? "var(--color-cyan)" : "var(--color-line)"}`,
-                  }}
                 >
-                  <div className="text-[11px] text-[var(--color-fg)] truncate">
-                    {d.title}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-mono text-[11px] truncate text-[var(--color-fg)]">
+                      {d.title}
+                    </div>
+                    <div className="font-mono text-[9px] text-[var(--color-dim)] tracking-hud-tight">
+                      #{d.id} · {rel(d.updated_at)}
+                    </div>
                   </div>
-                  <div className="mt-1 text-[9px] text-[var(--color-dim)]">
-                    upd {rel(d.updated_at)}
-                  </div>
-                </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void remove(d.id);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 text-[var(--color-dim)] hover:text-[var(--color-danger)] cursor-pointer p-1 transition-all"
+                    title="borrar"
+                  >
+                    <Trash2 size={11} strokeWidth={1.8} />
+                  </button>
+                </div>
               );
             })}
           </div>
-        </HudPanel>
+        </div>
 
-        <div className="grid min-h-0 grid-rows-[1fr_230px] gap-4">
-          <div
-            className="min-h-0 overflow-hidden clip-hud border bg-black/30"
-            style={{ borderColor: "var(--color-line)" }}
-          >
-            <Excalidraw
-              theme="dark"
-              initialData={EMPTY_SCENE}
-              excalidrawAPI={(apiRef) => {
-                excalidrawRef.current = apiRef;
-              }}
-              onChange={(elements, appState, files) => {
-                sceneRef.current = { elements, appState, files };
-              }}
-              UIOptions={{
-                canvasActions: {
-                  loadScene: false,
-                  saveAsImage: false,
-                  export: false,
-                },
-              }}
-            />
-          </div>
-
-          <HudPanel
-            title={selected ? `prompt panel · #${selected.id}` : "prompt panel"}
-            sub="Mermaid → Excalidraw"
-            accent="lime"
-            className="min-h-0"
-          >
-            <div className="grid grid-cols-[1fr_190px] gap-3">
-              <div className="min-w-0">
-                <input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="mb-2 w-full bg-transparent px-3 py-2 clip-tag font-mono text-[12px] outline-none"
-                  style={{ border: "1px solid var(--color-line)" }}
-                  placeholder="Título"
-                />
-                <textarea
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  className="h-[112px] w-full resize-none bg-transparent px-3 py-2 clip-hud-sm font-mono text-[12px] outline-none"
-                  style={{ border: "1px solid var(--color-line)" }}
-                  placeholder="Pedile un diagrama al diagram-architect…"
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <select
-                  value={type}
-                  onChange={(e) =>
-                    setType(e.target.value as DiagramType | "auto")
-                  }
-                  className="bg-[var(--color-bg-2)] px-2 py-1 clip-tag font-mono text-[10px]"
-                  style={{ border: "1px solid var(--color-line)" }}
-                >
-                  <option value="auto">auto</option>
-                  <option value="flowchart">flowchart</option>
-                  <option value="sequence">sequence</option>
-                  <option value="c4">c4</option>
-                  <option value="erd">erd</option>
-                  <option value="mindmap">mindmap</option>
-                </select>
-                <Action
-                  icon={<Sparkles size={13} />}
-                  label="Generar"
-                  onClick={() => void generate("new")}
-                />
-                <Action
-                  icon={<Wand2 size={13} />}
-                  label="Mejorar"
-                  onClick={() => void generate("improve")}
-                />
-                <Action
-                  label="Aplicar al canvas"
-                  onClick={() => void applyMermaid()}
-                />
-                <Action
-                  icon={<Eye size={13} />}
-                  label="Ver Mermaid"
-                  onClick={() => setMermaidOpen(true)}
-                />
-                <Action
-                  icon={<Download size={13} />}
-                  label="Exportar PNG"
-                  onClick={() => void exportPNG()}
-                />
-                <Action
-                  icon={<Save size={13} />}
-                  label="Guardar"
-                  onClick={() => void save()}
-                />
-              </div>
+        {/* Right: canvas + prompt + editor */}
+        <div className="flex flex-col min-h-0 gap-3">
+          <HudPanel title="diagrama" accent="cyan" className="flex-1 min-h-0">
+            <div className="flex-1 min-h-0 overflow-auto px-2">
+              <MermaidBlock content={rendered} />
             </div>
-            {error && (
-              <div className="mt-2 font-mono text-[10px] text-[var(--color-danger)]">
-                ✗ {error}
-              </div>
-            )}
           </HudPanel>
+
+          {/* Prompt + actions */}
+          <div
+            className="px-3 py-2 clip-hud-sm border space-y-2"
+            style={{
+              borderColor: "var(--color-line)",
+              background: "rgba(10,15,36,0.55)",
+            }}
+          >
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="título del diagrama"
+                className="font-mono text-[11.5px] px-2 py-1 clip-tag border bg-[rgba(255,255,255,0.02)] text-[var(--color-fg)] flex-1 min-w-[160px]"
+                style={{ borderColor: "var(--color-line)" }}
+              />
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value as DiagramType | "auto")}
+                className="font-mono text-[10px] uppercase tracking-hud-tight px-2 py-1 clip-tag border bg-[rgba(255,255,255,0.02)] text-[var(--color-fg)]"
+                style={{ borderColor: "var(--color-line)" }}
+              >
+                <option value="auto">auto</option>
+                <option value="flowchart">flowchart</option>
+                <option value="sequence">sequence</option>
+                <option value="c4">c4</option>
+                <option value="erd">erd</option>
+                <option value="mindmap">mindmap</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => void save()}
+                disabled={busy}
+                className="px-3 py-1.5 clip-tag font-mono text-[10px] uppercase tracking-hud-tight border cursor-pointer transition-colors disabled:opacity-60"
+                style={{
+                  color: "var(--color-lime)",
+                  borderColor: "var(--color-lime)",
+                  background: "rgba(163,255,78,0.06)",
+                }}
+              >
+                <Save size={11} strokeWidth={1.8} className="inline mr-1" />
+                {selectedId ? "guardar cambios" : "guardar"}
+              </button>
+            </div>
+
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="describí el diagrama (ej. 'arquitectura de mi backend Go')"
+              rows={2}
+              className="w-full font-mono text-[11.5px] px-2 py-1.5 clip-tag border bg-[rgba(255,255,255,0.02)] text-[var(--color-fg)] resize-y"
+              style={{ borderColor: "var(--color-line)" }}
+            />
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => void generate()}
+                disabled={busy}
+                className="px-3 py-1.5 clip-tag font-mono text-[10px] uppercase tracking-hud-tight font-semibold cursor-pointer transition-all hover:scale-[1.02] disabled:opacity-60"
+                style={{
+                  color: "var(--color-bg)",
+                  background: "var(--color-cyan)",
+                  boxShadow: "0 0 8px rgba(94,240,255,0.50)",
+                }}
+              >
+                <Wand2 size={11} strokeWidth={1.8} className="inline mr-1" />
+                {busy ? "generando…" : "generar con IA"}
+              </button>
+              <button
+                type="button"
+                onClick={applyEdited}
+                disabled={busy}
+                className="px-3 py-1.5 clip-tag font-mono text-[10px] uppercase tracking-hud-tight border cursor-pointer transition-colors disabled:opacity-60"
+                style={{
+                  color: "var(--color-magenta)",
+                  borderColor: "var(--color-magenta)",
+                  background: "rgba(255,78,214,0.06)",
+                }}
+              >
+                <Sparkles size={11} strokeWidth={1.8} className="inline mr-1" />
+                aplicar mermaid editado
+              </button>
+              <button
+                type="button"
+                onClick={() => void copyMermaid()}
+                className="px-3 py-1.5 clip-tag font-mono text-[10px] uppercase tracking-hud-tight border text-[var(--color-dim)] hover:text-[var(--color-fg)] cursor-pointer transition-colors"
+                style={{ borderColor: "var(--color-line)" }}
+              >
+                {copied ? (
+                  <>
+                    <Check size={11} strokeWidth={1.8} className="inline mr-1" />
+                    copiado
+                  </>
+                ) : (
+                  <>
+                    <Copy size={11} strokeWidth={1.8} className="inline mr-1" />
+                    copiar mermaid
+                  </>
+                )}
+              </button>
+              {error && (
+                <span className="font-mono text-[10px] text-[var(--color-danger)]">
+                  ⚠ {error}
+                </span>
+              )}
+            </div>
+
+            <details className="group">
+              <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-hud-tight text-[var(--color-dim)] hover:text-[var(--color-fg)]">
+                ▸ ver / editar mermaid source
+              </summary>
+              <textarea
+                value={mermaid}
+                onChange={(e) => setMermaid(e.target.value)}
+                rows={10}
+                spellCheck={false}
+                className="w-full mt-2 font-mono text-[11px] px-2 py-1.5 clip-tag border bg-[rgba(0,0,0,0.50)] text-[var(--color-fg)] resize-y"
+                style={{ borderColor: "var(--color-line)" }}
+              />
+            </details>
+          </div>
         </div>
       </div>
-
-      {mermaidOpen && (
-        <MermaidModal
-          value={mermaid}
-          onChange={setMermaid}
-          onClose={() => setMermaidOpen(false)}
-          onApply={(value) => {
-            setMermaid(value);
-            setMermaidOpen(false);
-            void applyMermaid(value);
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-function Action({
-  label,
-  icon,
-  onClick,
-}: {
-  label: string;
-  icon?: React.ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex items-center gap-2 px-2 py-1 clip-tag font-mono text-[10px] uppercase tracking-hud-tight cursor-pointer text-left"
-      style={{
-        color: "var(--color-cyan)",
-        border: "1px solid rgba(94,240,255,0.30)",
-        background: "rgba(94,240,255,0.05)",
-      }}
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
-  );
-}
-
-function MermaidModal({
-  value,
-  onChange,
-  onClose,
-  onApply,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  onClose: () => void;
-  onApply: (v: string) => void;
-}) {
-  const [draft, setDraft] = React.useState(value);
-  return (
-    <div className="fixed inset-0 z-50 grid grid-cols-[1fr_1fr] gap-4 bg-black/80 p-8">
-      <HudPanel
-        title="Mermaid editable"
-        sub="fuente intermedia"
-        accent="cyan"
-        className="min-h-0"
-      >
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          className="min-h-0 flex-1 resize-none bg-transparent p-3 clip-hud-sm font-mono text-[12px] outline-none"
-          style={{ border: "1px solid var(--color-line)" }}
-        />
-        <div className="mt-3 flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="px-3 py-1 clip-tag font-mono text-[10px] cursor-pointer"
-            style={{
-              border: "1px solid var(--color-line)",
-              color: "var(--color-dim)",
-            }}
-          >
-            cerrar
-          </button>
-          <button
-            onClick={() => {
-              onChange(draft);
-              onApply(draft);
-            }}
-            className="px-3 py-1 clip-tag font-mono text-[10px] cursor-pointer"
-            style={{
-              border: "1px solid var(--color-lime)",
-              color: "var(--color-lime)",
-              background: "rgba(163,255,78,0.10)",
-            }}
-          >
-            aplicar al canvas
-          </button>
-        </div>
-      </HudPanel>
-      <HudPanel
-        title="preview"
-        sub="mermaid render"
-        accent="magenta"
-        className="min-h-0 overflow-y-auto"
-      >
-        <MermaidBlock content={draft} />
-      </HudPanel>
     </div>
   );
 }
