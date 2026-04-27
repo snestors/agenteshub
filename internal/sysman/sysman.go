@@ -24,7 +24,7 @@ import (
 	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/shirou/gopsutil/v3/process"
 
-	"github.com/snestors/agenthub/internal/config"
+	"github.com/agenteshub/agenteshub/internal/config"
 )
 
 // Stats is a snapshot of host resource usage.

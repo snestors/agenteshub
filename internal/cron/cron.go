@@ -13,8 +13,8 @@ import (
 
 	"github.com/robfig/cron/v3"
 
-	"github.com/snestors/agenthub/internal/config"
-	"github.com/snestors/agenthub/internal/store"
+	"github.com/agenteshub/agenteshub/internal/config"
+	"github.com/agenteshub/agenteshub/internal/store"
 )
 
 // Runner owns the internal cron scheduler.

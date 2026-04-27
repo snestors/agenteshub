@@ -16,10 +16,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/snestors/agenthub/internal/cliengine"
-	projectfs "github.com/snestors/agenthub/internal/projects"
-	"github.com/snestors/agenthub/internal/store"
-	"github.com/snestors/agenthub/internal/ws"
+	"github.com/agenteshub/agenteshub/internal/cliengine"
+	projectfs "github.com/agenteshub/agenteshub/internal/projects"
+	"github.com/agenteshub/agenteshub/internal/store"
+	"github.com/agenteshub/agenteshub/internal/ws"
 )
 
 const proposeTpl = `Sos sdd-propose. Generá un proposal.md para este cambio:

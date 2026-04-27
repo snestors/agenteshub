@@ -17,7 +17,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/snestors/agenthub/internal/store"
+	"github.com/agenteshub/agenteshub/internal/store"
 )
 
 // Result is what a Sync() call returns to the caller (UI / API).

@@ -12,7 +12,7 @@ import (
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types/events"
 
-	"github.com/snestors/agenthub/internal/store"
+	"github.com/agenteshub/agenteshub/internal/store"
 )
 
 // dispatchIncoming is the second half of handleEvent: when the event is a

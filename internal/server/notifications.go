@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snestors/agenthub/internal/ws"
+	"github.com/agenteshub/agenteshub/internal/ws"
 )
 
 // Notification is what the frontend toast / badge consumes.

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/snestors/agenthub/internal/wa"
+	"github.com/agenteshub/agenteshub/internal/wa"
 )
 
 // waState exposes the WhatsApp client + the path of the latest QR image to

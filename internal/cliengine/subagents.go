@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/snestors/agenthub/internal/store"
+	"github.com/agenteshub/agenteshub/internal/store"
 )
 
 // captureSubagents parses the JSONL of a Claude session and persists any

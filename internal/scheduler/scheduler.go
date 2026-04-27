@@ -16,8 +16,8 @@ import (
 
 	"github.com/robfig/cron/v3"
 
-	"github.com/snestors/agenthub/internal/cliengine"
-	"github.com/snestors/agenthub/internal/store"
+	"github.com/agenteshub/agenteshub/internal/cliengine"
+	"github.com/agenteshub/agenteshub/internal/store"
 )
 
 // TickInterval is how often the scheduler polls for due jobs.

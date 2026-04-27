@@ -13,10 +13,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/snestors/agenthub/internal/cliengine"
-	projectcanon "github.com/snestors/agenthub/internal/projects"
-	"github.com/snestors/agenthub/internal/store"
-	"github.com/snestors/agenthub/internal/ws"
+	"github.com/agenteshub/agenteshub/internal/cliengine"
+	projectcanon "github.com/agenteshub/agenteshub/internal/projects"
+	"github.com/agenteshub/agenteshub/internal/store"
+	"github.com/agenteshub/agenteshub/internal/ws"
 )
 
 type projectWire struct {

@@ -11,8 +11,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"gopkg.in/yaml.v3"
 
-	projectfs "github.com/snestors/agenthub/internal/projects"
-	"github.com/snestors/agenthub/internal/projecttemplates"
+	projectfs "github.com/agenteshub/agenteshub/internal/projects"
+	"github.com/agenteshub/agenteshub/internal/projecttemplates"
 )
 
 // handleProjectTemplatesList returns every template available under

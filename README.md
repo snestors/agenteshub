@@ -1,4 +1,4 @@
-# AgentHub
+# AgentesHub
 
 A self-hosted AI agent hub that runs on your hardware. One brain, two surfaces: a web UI and WhatsApp. Chat with your agent, run AI-powered project sessions, manage mini-agents, and keep everything local.
 
@@ -27,31 +27,29 @@ A self-hosted AI agent hub that runs on your hardware. One brain, two surfaces: 
 ## Installation
 
 ```bash
-git clone https://github.com/your-username/agenthub
-cd agenthub
+git clone https://github.com/agenteshub/agenteshub
+cd agenteshub
 
-# 1. Copy and configure environment
-cp .env.example .env
-# Edit .env — at minimum set AGENTHUB_SECRET_KEY and AGENTHUB_JWT_SECRET
-
-# 2. Copy and configure your system prompt
-cp system-prompt.example.md data/system-prompt.md
-# Edit data/system-prompt.md — personalize for your setup
-
-# 3. Build the frontend
+# 1. Build the frontend
 cd frontend && pnpm install && pnpm run build && cd ..
 
-# 4. Build the backend
+# 2. Build the backend
 go build -tags 'sqlite_fts5 sqlite_json' \
-  -ldflags "-X github.com/your-username/agenthub/internal/buildinfo.Version=$(cat VERSION) \
-            -X github.com/your-username/agenthub/internal/buildinfo.GitCommit=$(git rev-parse --short HEAD)" \
-  -o bin/agenthub ./cmd/agenthub
+  -ldflags "-X github.com/agenteshub/agenteshub/internal/buildinfo.Version=$(cat VERSION) \
+            -X github.com/agenteshub/agenteshub/internal/buildinfo.GitCommit=$(git rev-parse --short HEAD)" \
+  -o bin/agenteshub ./cmd/agenthub
 
-# 5. Create your admin user
-./bin/agenthub setup-user --username admin --password yourpassword
+# 3. Run the setup wizard
+./bin/agenteshub setup
+# → generates .env with secure secrets
+# → creates data/system-prompt.md from the template
+# → creates your admin user
 
-# 6. Start the daemon
-./bin/agenthub serve
+# 4. Personalize your agent
+# Edit data/system-prompt.md — add your name, hardware, services, context
+
+# 5. Start the daemon
+./bin/agenteshub serve
 ```
 
 Open `http://localhost:8093` in your browser.
@@ -101,7 +99,7 @@ After=network.target
 Type=simple
 User=youruser
 WorkingDirectory=/home/youruser/agenthub
-ExecStart=/home/youruser/agenthub/bin/agenthub serve
+ExecStart=/home/youruser/agenteshub/bin/agenteshub serve
 Restart=on-failure
 RestartSec=5
 

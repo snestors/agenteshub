@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/snestors/agenthub/internal/skillsync"
-	"github.com/snestors/agenthub/internal/store"
+	"github.com/agenteshub/agenteshub/internal/skillsync"
+	"github.com/agenteshub/agenteshub/internal/store"
 )
 
 type skillWire struct {

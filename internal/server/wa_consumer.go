@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snestors/agenthub/internal/cliengine"
-	"github.com/snestors/agenthub/internal/store"
-	"github.com/snestors/agenthub/internal/wa"
+	"github.com/agenteshub/agenteshub/internal/cliengine"
+	"github.com/agenteshub/agenteshub/internal/store"
+	"github.com/agenteshub/agenteshub/internal/wa"
 )
 
 // StartWAConsumer drains the wa.Client incoming queue and runs each message

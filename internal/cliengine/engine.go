@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/snestors/agenthub/internal/config"
-	"github.com/snestors/agenthub/internal/store"
+	"github.com/agenteshub/agenteshub/internal/config"
+	"github.com/agenteshub/agenteshub/internal/store"
 )
 
 // RunOpts captures everything needed to spawn a CLI for one turn.

@@ -3,11 +3,13 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -15,17 +17,17 @@ import (
 	"github.com/mdp/qrterminal/v3"
 	"github.com/skip2/go-qrcode"
 
-	"github.com/snestors/agenthub/internal/buildinfo"
-	"github.com/snestors/agenthub/internal/cliengine"
-	"github.com/snestors/agenthub/internal/config"
-	intcron "github.com/snestors/agenthub/internal/cron"
-	"github.com/snestors/agenthub/internal/mcp"
-	"github.com/snestors/agenthub/internal/scheduler"
-	"github.com/snestors/agenthub/internal/server"
-	"github.com/snestors/agenthub/internal/setup"
-	"github.com/snestors/agenthub/internal/store"
-	"github.com/snestors/agenthub/internal/sysman"
-	"github.com/snestors/agenthub/internal/wa"
+	"github.com/agenteshub/agenteshub/internal/buildinfo"
+	"github.com/agenteshub/agenteshub/internal/cliengine"
+	"github.com/agenteshub/agenteshub/internal/config"
+	intcron "github.com/agenteshub/agenteshub/internal/cron"
+	"github.com/agenteshub/agenteshub/internal/mcp"
+	"github.com/agenteshub/agenteshub/internal/scheduler"
+	"github.com/agenteshub/agenteshub/internal/server"
+	"github.com/agenteshub/agenteshub/internal/setup"
+	"github.com/agenteshub/agenteshub/internal/store"
+	"github.com/agenteshub/agenteshub/internal/sysman"
+	"github.com/agenteshub/agenteshub/internal/wa"
 )
 
 func main() {
@@ -41,6 +43,8 @@ func main() {
 	switch mode {
 	case "serve":
 		runServe()
+	case "setup":
+		runSetup()
 	case "setup-user":
 		runSetupUser(args)
 	case "send", "send-image", "send-voice", "send-document", "status":
@@ -52,43 +56,40 @@ func main() {
 	case "migrate-bridge":
 		runMigrateBridge(args)
 	case "version", "-v", "--version":
-		fmt.Printf("agenthub %s (%s)\n", buildinfo.Version, buildinfo.GitCommit)
+		fmt.Printf("agenteshub %s (%s)\n", buildinfo.Version, buildinfo.GitCommit)
 	case "help", "-h", "--help":
 		printHelp()
 	default:
-		// fall through to serve so plain ./agenthub works
+		// fall through to serve so plain ./agenteshub works
 		runServe()
 	}
 }
 
 
 func printHelp() {
-	fmt.Println(`agenthub — tu asistente personal en la mini PC
+	fmt.Println(`agenteshub — your self-hosted AI agent hub
 
-USO:
-  agenthub                       arranca el daemon (default)
-  agenthub serve                 idem
-  agenthub setup-user --username NAME --password PASS
-                                 crea/actualiza el usuario único + TOTP QR
-  agenthub send <jid> <text>     manda un mensaje vía Unix socket
-  agenthub send-image <jid> <path> [caption]
-  agenthub send-voice <jid> <path>
-  agenthub send-document <jid> <path>
-  agenthub status                muestra el estado del daemon
-  agenthub mcp                   MCP server stdio (lo invoca Claude/Codex)
-  agenthub session backup [<id>] fuerza snapshot
-  agenthub session restore <id>  restaura desde snapshot
-  agenthub session list          lista sessions
-  agenthub migrate-bridge --from <path/messages.db>
-                                 importa el histórico del bridge legacy a wa_messages (idempotente)
+USAGE:
+  agenteshub                     start the daemon (default)
+  agenteshub serve               same
+  agenteshub setup               interactive first-run wizard
+  agenteshub setup-user --username NAME --password PASS
+                                 create/update the admin user + TOTP QR
+  agenteshub mcp                 MCP server stdio (invoked by Claude/Codex)
+  agenteshub version             print version and git commit
+  agenteshub migrate-bridge --from <path/messages.db>
+                                 import legacy bridge history into wa_messages
 
-VARIABLES IMPORTANTES (.env):
-  AGENTHUB_HTTP_ADDR         (default 0.0.0.0:8090)
+KEY ENV VARS (.env):
+  AGENTHUB_HTTP_ADDR         (default 0.0.0.0:8093)
   AGENTHUB_DB_PATH           (default data/agenthub.db)
-  AGENTHUB_DEV               (default false; en true autogen secrets)
-  AGENTHUB_DEV_BYPASS_TOTP   (default false; permite login sin TOTP)
-  AGENTHUB_SECRET_KEY        (32-byte hex; obligatorio salvo dev)
-  AGENTHUB_JWT_SECRET        (>=32 bytes; obligatorio salvo dev)`)
+  AGENTHUB_DEV               (default false; true = auto-generate secrets)
+  AGENTHUB_SECRET_KEY        (32-byte hex; required in production)
+  AGENTHUB_JWT_SECRET        (>=32 chars; required in production)
+  AGENTHUB_WA_ENABLED        (default false)
+  AGENTHUB_WA_NOTIFY_PHONE   (your WhatsApp number, international format)
+
+Run 'agenteshub setup' for a guided first-run configuration.`)
 }
 
 func runServe() {
@@ -300,6 +301,168 @@ func runMigrateBridge(args []string) {
 	}
 	fmt.Printf("legacy bridge migration done: total=%d imported=%d skipped=%d errors=%d\n",
 		res.Total, res.Imported, res.Skipped, res.Errors)
+}
+
+func runSetup() {
+	fmt.Println()
+	fmt.Println("  AgentesHub — Setup Wizard")
+	fmt.Println("  ─────────────────────────")
+	fmt.Println()
+
+	// Detect existing .env
+	envExists := false
+	if _, err := os.Stat(".env"); err == nil {
+		envExists = true
+		fmt.Println("  ⚠  .env already exists — values will be overwritten only if you confirm.")
+		fmt.Println()
+	}
+	_ = envExists
+
+	// Prompt helper
+	prompt := func(label, defaultVal string) string {
+		if defaultVal != "" {
+			fmt.Printf("  %s [%s]: ", label, defaultVal)
+		} else {
+			fmt.Printf("  %s: ", label)
+		}
+		var v string
+		fmt.Scanln(&v)
+		v = strings.TrimSpace(v)
+		if v == "" {
+			return defaultVal
+		}
+		return v
+	}
+
+	// [1/5] Admin user
+	fmt.Println("  [1/5] Admin user")
+	username := prompt("Username", "admin")
+	fmt.Printf("  Password (will not echo): ")
+	// Read password — use simple Scanln (no terminal echo suppression needed for basic setup)
+	var password string
+	fmt.Scanln(&password)
+	password = strings.TrimSpace(password)
+	if username == "" || password == "" {
+		fmt.Fprintln(os.Stderr, "\n  Error: username and password are required.")
+		os.Exit(1)
+	}
+	fmt.Println()
+
+	// [2/5] HTTP
+	fmt.Println("  [2/5] HTTP")
+	httpAddr := prompt("Listen address", "0.0.0.0:8093")
+	fmt.Println()
+
+	// [3/5] WhatsApp
+	fmt.Println("  [3/5] WhatsApp (press Enter to skip)")
+	waEnabled := false
+	waPhone := prompt("Your WhatsApp number (e.g. 15551234567)", "")
+	if waPhone != "" {
+		waEnabled = true
+	}
+	fmt.Println()
+
+	// [4/5] Secrets
+	fmt.Println("  [4/5] Generating secrets...")
+	secretKey, err := generateHex(32)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "  Error generating secret key:", err)
+		os.Exit(1)
+	}
+	jwtSecret, err := generateHex(32)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "  Error generating jwt secret:", err)
+		os.Exit(1)
+	}
+	fmt.Println("  SECRET_KEY ... ✓")
+	fmt.Println("  JWT_SECRET  ... ✓")
+	fmt.Println()
+
+	// [5/5] Write files
+	fmt.Println("  [5/5] Writing configuration...")
+
+	waEnabledStr := "false"
+	if waEnabled {
+		waEnabledStr = "true"
+	}
+
+	envContent := fmt.Sprintf(`# AgentesHub — generated by setup wizard
+AGENTHUB_HTTP_ADDR=%s
+AGENTHUB_DB_PATH=data/agenthub.db
+AGENTHUB_SECRET_KEY=%s
+AGENTHUB_JWT_SECRET=%s
+AGENTHUB_DEV=false
+AGENTHUB_DEV_BYPASS_TOTP=false
+AGENTHUB_WA_ENABLED=%s
+AGENTHUB_WA_NOTIFY_PHONE=%s
+AGENTHUB_DEFAULT_ENGINE=claude
+AGENTHUB_LOG_LEVEL=info
+AGENTHUB_COOKIE_SECURE=false
+`, httpAddr, secretKey, jwtSecret, waEnabledStr, waPhone)
+
+	if err := os.WriteFile(".env", []byte(envContent), 0600); err != nil {
+		fmt.Fprintln(os.Stderr, "  Error writing .env:", err)
+		os.Exit(1)
+	}
+	fmt.Println("  .env ... ✓")
+
+	// Copy system-prompt template if not present
+	if _, err := os.Stat("data/system-prompt.md"); os.IsNotExist(err) {
+		if tpl, err := os.ReadFile("system-prompt.example.md"); err == nil {
+			if err := os.MkdirAll("data", 0755); err == nil {
+				_ = os.WriteFile("data/system-prompt.md", tpl, 0644)
+				fmt.Println("  data/system-prompt.md ... ✓ (copied from template)")
+			}
+		} else {
+			fmt.Println("  data/system-prompt.md ... skipped (system-prompt.example.md not found)")
+		}
+	} else {
+		fmt.Println("  data/system-prompt.md ... already exists, skipped")
+	}
+
+	// Create admin user
+	fmt.Printf("  Creating user '%s'... ", username)
+	_ = godotenv.Load(".env")
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "\n  Error loading config:", err)
+		os.Exit(1)
+	}
+	logger := newLogger("warn")
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := os.MkdirAll("data", 0755); err != nil {
+		fmt.Fprintln(os.Stderr, "\n  Error creating data dir:", err)
+		os.Exit(1)
+	}
+	db, err := store.Open(ctx, cfg.DBPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "\n  Error opening DB:", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+	repos := store.NewRepos(db)
+	if err := setup.User(ctx, cfg, repos, username, password); err != nil {
+		fmt.Fprintln(os.Stderr, "\n  Error creating user:", err)
+		os.Exit(1)
+	}
+	_ = logger
+	fmt.Println("✓")
+	fmt.Println()
+	fmt.Println("  ✅ Setup complete!")
+	fmt.Println()
+	fmt.Printf("  Edit data/system-prompt.md to personalize your agent.\n")
+	fmt.Printf("  Then run: ./agenteshub serve\n")
+	fmt.Printf("  Open:     http://localhost:8093\n")
+	fmt.Println()
+}
+
+func generateHex(n int) (string, error) {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", b), nil
 }
 
 func newLogger(level string) *slog.Logger {

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/snestors/agenthub/internal/ws"
+	"github.com/agenteshub/agenteshub/internal/ws"
 )
 
 func (s *Server) registerWSActions() {

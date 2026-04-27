@@ -13,7 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	projectsvc "github.com/snestors/agenthub/internal/projects"
+	projectsvc "github.com/agenteshub/agenteshub/internal/projects"
 )
 
 func (s *Server) handleProjectServices(w http.ResponseWriter, r *http.Request) {

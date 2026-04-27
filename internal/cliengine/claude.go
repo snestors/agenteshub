@@ -16,8 +16,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/snestors/agenthub/internal/config"
-	"github.com/snestors/agenthub/internal/store"
+	"github.com/agenteshub/agenteshub/internal/config"
+	"github.com/agenteshub/agenteshub/internal/store"
 )
 
 // ClaudeEngine spawns the `claude` CLI with --resume, --output-format json.

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/snestors/agenthub/internal/domain/models"
+	"github.com/agenteshub/agenteshub/internal/domain/models"
 )
 
 // AuthRepo persists the single user and JWT revocations.

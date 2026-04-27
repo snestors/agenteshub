@@ -9,8 +9,8 @@ import (
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
 
-	"github.com/snestors/agenthub/internal/sysman"
-	"github.com/snestors/agenthub/internal/ws"
+	"github.com/agenteshub/agenteshub/internal/sysman"
+	"github.com/agenteshub/agenteshub/internal/ws"
 )
 
 // startSystemPoller pushes a stats envelope every 2s on the system topic.
