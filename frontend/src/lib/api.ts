@@ -284,6 +284,39 @@ export const skillsApi = {
   },
 };
 
+export interface ProjectTemplate {
+  name: string;
+  description: string;
+  stack?: Record<string, string>;
+  agents: Array<{ name: string; role: string; engine: string; model?: string; description?: string }>;
+  skills: string[];
+  services_initial?: Array<{ kind: string; description?: string; [k: string]: unknown }>;
+  claude_md_seed?: string;
+  spec_md_seed?: string;
+  path: string;
+}
+
+export interface ApplyTemplateResult {
+  applied: string;
+  written_files: string[];
+  skipped_files: string[];
+  agents_suggested: ProjectTemplate["agents"];
+  skills_suggested: string[];
+}
+
+export const projectTemplatesApi = {
+  async list(): Promise<ProjectTemplate[]> {
+    const res = await request<{ templates: ProjectTemplate[] | null }>("/api/project-templates");
+    return res.templates ?? [];
+  },
+  async apply(projectId: number, template: string, overwrite = false): Promise<ApplyTemplateResult> {
+    return request<ApplyTemplateResult>(`/api/projects/${projectId}/apply-template`, {
+      method: "POST",
+      body: JSON.stringify({ template, overwrite }),
+    });
+  },
+};
+
 export interface MiniAgent {
   id: number;
   name: string;

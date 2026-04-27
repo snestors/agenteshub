@@ -1,0 +1,189 @@
+package server
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/go-chi/chi/v5"
+	"gopkg.in/yaml.v3"
+
+	projectfs "github.com/snestors/agenthub/internal/projects"
+	"github.com/snestors/agenthub/internal/projecttemplates"
+)
+
+// handleProjectTemplatesList returns every template available under
+// ~/.claude/project-templates/.
+func (s *Server) handleProjectTemplatesList(w http.ResponseWriter, _ *http.Request) {
+	tpls, err := projecttemplates.List()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"templates": tpls})
+}
+
+// handleProjectTemplateGet returns a single template by name (case-insensitive).
+func (s *Server) handleProjectTemplateGet(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	tpl, err := projecttemplates.Get(name)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	writeJSON(w, http.StatusOK, tpl)
+}
+
+// applyTemplateReq is the body for POST /api/projects/{id}/apply-template.
+type applyTemplateReq struct {
+	Template      string `json:"template"`        // template name
+	Overwrite     bool   `json:"overwrite,omitempty"` // false = preserve existing files
+}
+
+// handleProjectApplyTemplate materialises a template onto an existing project:
+// renders the seed CLAUDE.md / SPECS.md / services.yaml and the agent +
+// skill suggestions go back to the user as a plan (NOT auto-applied —
+// agents/skills materialisation lives in B.1's agent-builder flow).
+func (s *Server) handleProjectApplyTemplate(w http.ResponseWriter, r *http.Request) {
+	project, ok := s.projectFromRequest(w, r)
+	if !ok {
+		return
+	}
+	var req applyTemplateReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad json", http.StatusBadRequest)
+		return
+	}
+	tpl, err := projecttemplates.Get(req.Template)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Ensure canonical layout exists first; we want the seeded files to land
+	// in their final spots (data/.../CLAUDE.md etc.) without surprises.
+	if err := projectfs.EnsureCanon(project.Path, project.Name, project.Description.String); err != nil {
+		http.Error(w, fmt.Sprintf("ensure canon: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	written := []string{}
+	skipped := []string{}
+
+	// CLAUDE.md (the canonical one is .claude/CLAUDE.md)
+	if seed := strings.TrimSpace(tpl.ClaudeMDSeed); seed != "" {
+		path := filepath.Join(project.Path, ".claude", "CLAUDE.md")
+		if shouldWrite(path, req.Overwrite) {
+			rendered := projecttemplates.Render(seed, project.Name)
+			if err := os.WriteFile(path, []byte(rendered+"\n"), 0o644); err != nil {
+				http.Error(w, fmt.Sprintf("write CLAUDE.md: %v", err), http.StatusInternalServerError)
+				return
+			}
+			written = append(written, ".claude/CLAUDE.md")
+		} else {
+			skipped = append(skipped, ".claude/CLAUDE.md")
+		}
+	}
+
+	// SPECS.md
+	if seed := strings.TrimSpace(tpl.SpecMDSeed); seed != "" {
+		path := filepath.Join(project.Path, "SPECS.md")
+		if shouldWrite(path, req.Overwrite) {
+			rendered := projecttemplates.Render(seed, project.Name)
+			if err := os.WriteFile(path, []byte(rendered+"\n"), 0o644); err != nil {
+				http.Error(w, fmt.Sprintf("write SPECS.md: %v", err), http.StatusInternalServerError)
+				return
+			}
+			written = append(written, "SPECS.md")
+		} else {
+			skipped = append(skipped, "SPECS.md")
+		}
+	}
+
+	// services.yaml — only seed when there are services AND the file is empty.
+	if len(tpl.ServicesInitial) > 0 {
+		path := filepath.Join(project.Path, ".agenthub", "services.yaml")
+		if shouldWrite(path, req.Overwrite) {
+			services := make([]map[string]any, 0, len(tpl.ServicesInitial))
+			for _, svc := range tpl.ServicesInitial {
+				m := map[string]any{"kind": svc.Kind}
+				if svc.Description != "" {
+					m["description"] = projecttemplates.Render(svc.Description, project.Name)
+				}
+				if svc.Unit != "" {
+					m["unit"] = projecttemplates.Render(svc.Unit, project.Name)
+				}
+				if svc.Container != "" {
+					m["container"] = projecttemplates.Render(svc.Container, project.Name)
+				}
+				if svc.Hostname != "" {
+					m["hostname"] = projecttemplates.Render(svc.Hostname, project.Name)
+				}
+				if svc.Target != "" {
+					m["target"] = projecttemplates.Render(svc.Target, project.Name)
+				}
+				if svc.Command != "" {
+					m["command"] = projecttemplates.Render(svc.Command, project.Name)
+				}
+				if svc.Cwd != "" {
+					m["cwd"] = svc.Cwd
+				}
+				if svc.HealthURL != "" {
+					m["health_url"] = projecttemplates.Render(svc.HealthURL, project.Name)
+				}
+				if svc.HealthCmd != "" {
+					m["health_cmd"] = svc.HealthCmd
+				}
+				if svc.PublicURL != "" {
+					m["public_url"] = projecttemplates.Render(svc.PublicURL, project.Name)
+				}
+				services = append(services, m)
+			}
+			out, _ := yaml.Marshal(map[string]any{"services": services})
+			header := "# Generated by AgentHub from template " + tpl.Name + "\n# Edit freely; the daemon re-reads on every services tick.\n"
+			if err := os.WriteFile(path, append([]byte(header), out...), 0o644); err != nil {
+				http.Error(w, fmt.Sprintf("write services.yaml: %v", err), http.StatusInternalServerError)
+				return
+			}
+			written = append(written, ".agenthub/services.yaml")
+		} else {
+			skipped = append(skipped, ".agenthub/services.yaml")
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"applied":         tpl.Name,
+		"written_files":   written,
+		"skipped_files":   skipped,
+		"agents_suggested": tpl.Agents, // returned as plan, NOT auto-created
+		"skills_suggested": tpl.Skills,
+	})
+}
+
+// shouldWrite returns true if `path` doesn't exist or `overwrite` is true,
+// or if the file is just whitespace (counts as empty).
+func shouldWrite(path string, overwrite bool) bool {
+	if overwrite {
+		return true
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return true
+	}
+	if info.IsDir() {
+		return false
+	}
+	if info.Size() == 0 {
+		return true
+	}
+	// Treat files that are just whitespace / TODOs as empty enough to seed.
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	stripped := strings.TrimSpace(string(raw))
+	return stripped == "" || strings.HasPrefix(stripped, "<!-- empty -->")
+}

@@ -186,6 +186,11 @@ func (s *Server) routes() http.Handler {
 		pr.Get("/api/skills", s.handleSkillsList)
 		pr.Post("/api/skills/sync", s.handleSkillsSync)
 
+		// Project templates (clones rápidos de stacks pre-armados)
+		pr.Get("/api/project-templates", s.handleProjectTemplatesList)
+		pr.Get("/api/project-templates/{name}", s.handleProjectTemplateGet)
+		pr.Post("/api/projects/{id}/apply-template", s.handleProjectApplyTemplate)
+
 		// Topics
 		pr.Get("/api/topics", s.handleTopicsList)
 		pr.Post("/api/topics", s.handleTopicsCreate)
