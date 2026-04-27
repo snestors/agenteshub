@@ -36,8 +36,26 @@ func (c *Client) dispatchIncoming(ctx context.Context, evt *events.Message) {
 	jid := evt.Info.Sender.String()
 	authorized := c.IsAuthorized(phone)
 
+	// Resolve the reply target. Whatsmeow rejects sends to @lid JIDs with a
+	// device part ("message recipient must be a user JID with no device
+	// part"), so when the sender is on the linked-id space we prefer the
+	// SenderAlt (real @s.whatsapp.net JID) WhatsApp ships in the same event.
+	// As a fallback we strip the device part — whatsmeow at least accepts
+	// the bare JID even if delivery may fail.
+	replyJID := jid
+	if evt.Info.Sender.Server == "lid" || evt.Info.Sender.Device != 0 {
+		if !evt.Info.SenderAlt.IsEmpty() {
+			replyJID = evt.Info.SenderAlt.String()
+		} else {
+			bare := evt.Info.Sender
+			bare.Device = 0
+			replyJID = bare.String()
+		}
+	}
+
 	in := IncomingMessage{
 		JID:        jid,
+		ReplyJID:   replyJID,
 		Phone:      phone,
 		Name:       evt.Info.PushName,
 		TS:         evt.Info.Timestamp,

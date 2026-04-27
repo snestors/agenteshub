@@ -642,7 +642,24 @@ func (s *Server) acceptMessage(ctx context.Context, req sendMsgReq) (sendMessage
 	return sendMessageAccepted{ID: id, MessageID: id, Accepted: true, Engine: engine, Model: model}, nil
 }
 
+// waReplyTarget tells runMainAgentTurn to ALSO emit the reply via WhatsApp.
+// nil = pure web turn. When non-nil the agent's text reply is enqueued on
+// wa_outbox with the reply_to/participant fields set so it threads correctly.
+type waReplyTarget struct {
+	JID     string // chat to reply to
+	StanzaID string // external WA message id we are quoting
+}
+
 func (s *Server) runMainAgentTurn(enginePrompt, prev, engine, model string) {
+	s.runMainAgentTurnTo(enginePrompt, prev, engine, model, nil)
+}
+
+// runMainAgentTurnTo runs the main agent and optionally fans the reply out to
+// a WA chat. The web channel is ALWAYS the source of truth: every turn lands
+// in messages(channel='web') and is broadcast to the WS hub, regardless of
+// whether the user typed in the browser or wrote on WhatsApp. WA is just
+// another I/O surface on the same brain.
+func (s *Server) runMainAgentTurnTo(enginePrompt, prev, engine, model string, waReply *waReplyTarget) {
 	// Run via cliengine. cwd=agenthub repo so .claude/skills/ is discovered.
 	// Stream events to the WS hub so the browser shows the agent's reasoning + tool calls
 	// while the turn is still in flight.
@@ -664,15 +681,19 @@ func (s *Server) runMainAgentTurn(enginePrompt, prev, engine, model string) {
 	})
 	if err != nil {
 		s.log.Error("cliengine", "err", err)
+		errBody := "⚠ engine: " + err.Error()
 		outID, _ := s.repos.Messages.Insert(context.Background(), store.Message{
 			Channel:   "web",
 			Direction: "out",
-			Body:      sqlStr("⚠ engine: " + err.Error()),
+			Body:      sqlStr(errBody),
 			TS:        time.Now().Unix(),
 			Engine:    sqlStr(engine),
 			Model:     sqlStr(model),
 		})
-		s.broadcastMessageWithModel(outID, "web", "out", "⚠ engine: "+err.Error(), engine, model)
+		s.broadcastMessageWithModel(outID, "web", "out", errBody, engine, model)
+		if waReply != nil {
+			s.enqueueWAReply(waReply, errBody)
+		}
 		s.broadcastNotification(Notification{
 			Kind:     "main_turn_failed",
 			Severity: "error",
@@ -707,6 +728,9 @@ func (s *Server) runMainAgentTurn(enginePrompt, prev, engine, model string) {
 	s.broadcastMessageWithModel(outID, "web", "out", res.Text, engine, model)
 	// Push fresh agent_status to all subscribers — ctx_used cambió
 	go s.broadcastAgentStatus(context.Background())
+	if waReply != nil {
+		s.enqueueWAReply(waReply, res.Text)
+	}
 	s.broadcastNotification(Notification{
 		Kind:     "main_turn_done",
 		Severity: "info",
@@ -714,6 +738,28 @@ func (s *Server) runMainAgentTurn(enginePrompt, prev, engine, model string) {
 		Body:     truncate(res.Text, 280),
 		Context:  map[string]any{"engine": engine, "model": model},
 	})
+}
+
+// enqueueWAReply pushes the agent's text reply onto wa_outbox so the existing
+// outbox worker dispatches it via whatsmeow. We thread the reply by quoting
+// the original incoming message when stanza id is known. Empty bodies are
+// dropped — outbox would reject them anyway.
+func (s *Server) enqueueWAReply(target *waReplyTarget, body string) {
+	body = strings.TrimSpace(body)
+	if body == "" || target == nil || target.JID == "" {
+		return
+	}
+	item := store.WaOutboxItem{
+		JID:  target.JID,
+		Kind: "text",
+		Body: sql.NullString{String: body, Valid: true},
+	}
+	if target.StanzaID != "" {
+		item.ReplyTo = sql.NullString{String: target.StanzaID, Valid: true}
+	}
+	if _, err := s.repos.WaOutbox.Enqueue(context.Background(), item); err != nil {
+		s.log.Warn("wa enqueue reply", "err", err)
+	}
 }
 
 func (s *Server) mainAgentSession(ctx context.Context, engine string) *store.AgentSession {

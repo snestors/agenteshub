@@ -19,6 +19,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
+	waTypes "go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
 
@@ -41,6 +42,7 @@ type Client struct {
 // IncomingMessage is what the handler dispatches to the cola serial of the main.
 type IncomingMessage struct {
 	JID        string
+	ReplyJID   string  // JID to use when replying. May differ from JID when sender is @lid (linked id) — we resolve to @s.whatsapp.net so whatsmeow accepts the send.
 	Phone      string
 	Name       string
 	Body       string
@@ -89,6 +91,43 @@ func (c *Client) LoggedIn() bool {
 		return false
 	}
 	return c.wmClient.IsLoggedIn()
+}
+
+// MarkRead emits a read receipt (✓✓ azul) for the given incoming message.
+// Best-effort: errors are returned but typically logged and ignored by callers.
+func (c *Client) MarkRead(ctx context.Context, in IncomingMessage) error {
+	if c.wmClient == nil || in.ExternalID == "" {
+		return nil
+	}
+	chat, err := waTypes.ParseJID(in.JID)
+	if err != nil {
+		return err
+	}
+	return c.wmClient.MarkRead(ctx, []waTypes.MessageID{waTypes.MessageID(in.ExternalID)}, time.Now(), chat, chat)
+}
+
+// StartTyping emits a "composing" presence so the user sees "typing…".
+func (c *Client) StartTyping(ctx context.Context, in IncomingMessage) error {
+	if c.wmClient == nil {
+		return nil
+	}
+	chat, err := waTypes.ParseJID(in.JID)
+	if err != nil {
+		return err
+	}
+	return c.wmClient.SendChatPresence(ctx, chat, waTypes.ChatPresenceComposing, waTypes.ChatPresenceMediaText)
+}
+
+// StopTyping clears the composing presence. Best-effort.
+func (c *Client) StopTyping(ctx context.Context, in IncomingMessage) error {
+	if c.wmClient == nil {
+		return nil
+	}
+	chat, err := waTypes.ParseJID(in.JID)
+	if err != nil {
+		return err
+	}
+	return c.wmClient.SendChatPresence(ctx, chat, waTypes.ChatPresencePaused, waTypes.ChatPresenceMediaText)
 }
 
 // QR returns a channel that emits QR scan codes during initial pairing.

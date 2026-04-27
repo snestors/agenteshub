@@ -159,10 +159,11 @@ func runServe() {
 			logger.Error("wa connect", "err", err)
 		}
 		waClient.StartOutboxWorker(ctx)
-		// IncomingConsumer is what wakes the agent on every new WA message:
-		// MarkRead → typing presence → engine.Run → enqueue reply on wa_outbox.
-		// Without this, messages land in the DB but the agent never replies.
-		waClient.StartIncomingConsumer(ctx, engines)
+		// WAConsumer feeds incoming WA messages into the SAME pipeline the
+		// web chat uses (mirror to messages(channel='web') + broadcast WS +
+		// runMainAgentTurn). Reply fans out to WA via wa_outbox. WA is just
+		// another I/O surface on the unified main agent.
+		srv.StartWAConsumer(ctx, waClient)
 		defer waClient.Disconnect()
 	}
 
