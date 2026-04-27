@@ -898,8 +898,12 @@ export const api = {
   },
 
   // ─── system ─────────────────────────────────
-  async health(): Promise<{ ok: boolean; ts: number }> {
-    return request<{ ok: boolean; ts: number }>("/healthz");
+  async health(): Promise<{ ok: boolean; ts: number; version?: string; git_commit?: string }> {
+    return request<{ ok: boolean; ts: number; version?: string; git_commit?: string }>("/healthz");
+  },
+
+  async releases(): Promise<{ content: string; version: string; git_commit: string }> {
+    return request<{ content: string; version: string; git_commit: string }>("/api/releases");
   },
 
   async systemStats(): Promise<SystemStats> {

@@ -118,6 +118,7 @@ func (s *Server) routes() http.Handler {
 	r.Get("/healthz", s.handleHealth)
 	r.Get("/api/runs", s.handleRunsStatus)
 	r.Post("/api/runs/schedule-restart", s.handleScheduleRestart)
+	r.Get("/api/releases", s.handleReleases)
 	r.Get("/api/wa/status", s.handleWaStatus)
 	r.Get("/api/wa/qr", s.handleWaQR)
 	r.Post("/api/auth/login", s.handleLogin)
@@ -942,6 +943,21 @@ func (s *Server) handleScheduleRestart(w http.ResponseWriter, r *http.Request) {
 		"scheduled":                true,
 		"active_runs":              total,
 		"will_restart_immediately": total == 0,
+	})
+}
+
+// handleReleases serves RELEASE_NOTES.md content along with current build info.
+// Public endpoint — no JWT required.
+func (s *Server) handleReleases(w http.ResponseWriter, r *http.Request) {
+	data, err := os.ReadFile("RELEASE_NOTES.md")
+	if err != nil {
+		http.Error(w, "release notes not found", http.StatusNotFound)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"content":    string(data),
+		"version":    buildinfo.Version,
+		"git_commit": buildinfo.GitCommit,
 	})
 }
 

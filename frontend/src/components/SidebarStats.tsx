@@ -1,6 +1,7 @@
 import * as React from "react";
-import { Cpu, MemoryStick, Thermometer, Bot } from "lucide-react";
+import { Cpu, MemoryStick, Thermometer, Bot, Tag } from "lucide-react";
 import { useTopic } from "@/lib/useTopic";
+import { api } from "@/lib/api";
 import type { SystemStats } from "@/lib/api";
 
 function parseStats(payload: unknown): SystemStats | null {
@@ -60,8 +61,12 @@ function Row({ Icon, label, value, pct, accent }: RowProps) {
   );
 }
 
+const UI_VERSION = __APP_VERSION__;
+const POLL_MS = 30_000;
+
 export function SidebarStats() {
   const [stats, setStats] = React.useState<SystemStats | null>(null);
+  const [serverVersion, setServerVersion] = React.useState<string | null>(null);
 
   const handle = React.useCallback((payload: unknown, evt: { type: string }) => {
     if (evt.type !== "stats") return;
@@ -70,6 +75,22 @@ export function SidebarStats() {
   }, []);
 
   useTopic("system", handle);
+
+  // Poll /healthz for server version
+  React.useEffect(() => {
+    let cancelled = false;
+    async function poll() {
+      try {
+        const h = await api.health();
+        if (!cancelled && h.version) setServerVersion(h.version);
+      } catch {
+        // ignore
+      }
+    }
+    poll();
+    const id = setInterval(poll, POLL_MS);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
 
   const cpu = stats?.cpu_pct ?? 0;
   const ramPct =
@@ -80,7 +101,6 @@ export function SidebarStats() {
   const agents = stats?.running_agents ?? 0;
   const total = stats?.running_total ?? main + project + agents;
 
-  // breakdown like "1m+2a" only when there's activity, else "idle"
   let runValue = "idle";
   if (total > 0) {
     const parts: string[] = [];
@@ -89,6 +109,19 @@ export function SidebarStats() {
     if (agents > 0) parts.push(`${agents}a`);
     runValue = parts.join("+");
   }
+
+  // Version badge
+  const versionMismatch = serverVersion !== null && serverVersion !== UI_VERSION;
+  const versionAccent = serverVersion === null
+    ? "var(--color-dim)"
+    : versionMismatch
+      ? "var(--color-orange)"
+      : "var(--color-lime)";
+  const versionValue = serverVersion === null
+    ? "..."
+    : versionMismatch
+      ? `ui:${UI_VERSION}`
+      : `v${serverVersion}`;
 
   return (
     <div className="px-1 py-2 border-t border-[var(--color-line)] flex flex-col gap-0.5">
@@ -100,6 +133,12 @@ export function SidebarStats() {
         label="RUN"
         value={runValue}
         accent={total > 0 ? "var(--color-orange)" : "var(--color-dim)"}
+      />
+      <Row
+        Icon={Tag}
+        label="VER"
+        value={versionValue}
+        accent={versionAccent}
       />
     </div>
   );

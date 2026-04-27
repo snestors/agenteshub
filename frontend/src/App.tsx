@@ -9,6 +9,7 @@ import { System } from "@/pages/System";
 import { Vault } from "@/pages/Vault";
 import { Diagrams } from "@/pages/Diagrams";
 import { Skills } from "@/pages/Skills";
+import { Releases } from "@/pages/Releases";
 import { AppShell } from "@/components/AppShell";
 
 function App() {
@@ -30,6 +31,7 @@ function App() {
           <Route path="system" element={<System />} />
           <Route path="vault" element={<Vault />} />
           <Route path="skills" element={<Skills />} />
+          <Route path="releases" element={<Releases />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

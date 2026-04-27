@@ -10,6 +10,7 @@ import {
   Lock,
   Network,
   Sparkles,
+  Tag,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -42,6 +43,7 @@ const ITEMS: NavItem[] = [
   { to: "/system", label: "Health", icon: Activity, accent: "lime" },
   { to: "/vault", label: "Vault", icon: Lock, accent: "orange" },
   { to: "/skills", label: "Skills", icon: Sparkles, accent: "cyan" },
+  { to: "/releases", label: "Releases", icon: Tag, accent: "lime" },
 ];
 
 const ACCENT_VAR: Record<NavItem["accent"], string> = {
