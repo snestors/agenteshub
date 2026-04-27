@@ -127,6 +127,7 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
   const [engines, setEngines] = React.useState<EngineDef[]>(FALLBACK_ENGINES);
   const [selected, setSelected] = React.useState<number>(routeSessionId || 0);
   const [sessionModalOpen, setSessionModalOpen] = React.useState(false);
+  const [deleteTarget, setDeleteTarget] = React.useState<{ id: number; name: string } | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [tab, setTab] = React.useState<"chat" | "services" | "changes">("chat");
 
@@ -175,9 +176,11 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
     nav(`/projects/${projectId}/sessions/${id}`);
   }
 
-  async function deleteSession(id: number, name: string) {
-    if (!window.confirm(`Eliminar sesión "${name}"?`)) return;
+  async function confirmDeleteSession() {
+    if (!deleteTarget) return;
+    const { id } = deleteTarget;
     const remaining = sessions.filter((s) => s.id !== id);
+    setDeleteTarget(null);
     try {
       await api.deleteProjectSession(projectId, id);
       await refresh();
@@ -238,7 +241,7 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
               onCreateSession={() => setSessionModalOpen(true)}
               onDeleteSession={(id) => {
                 const s = sessions.find((row) => row.id === id);
-                if (s) void deleteSession(s.id, s.name);
+                if (s) setDeleteTarget({ id: s.id, name: s.name });
               }}
               onSessionConfigChange={(patch) =>
                 setSessions((prev) =>
@@ -267,6 +270,13 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
           projectDefaultEngine={project?.default_engine}
           onClose={() => setSessionModalOpen(false)}
           onCreate={(payload) => void createSession(payload)}
+        />
+      )}
+      {deleteTarget && (
+        <DeleteSessionModal
+          name={deleteTarget.name}
+          onConfirm={() => void confirmDeleteSession()}
+          onClose={() => setDeleteTarget(null)}
         />
       )}
     </div>
@@ -722,6 +732,70 @@ function ActionButton({ onClick, children }: { onClick: () => void; children: Re
     >
       {children}
     </button>
+  );
+}
+
+function DeleteSessionModal({
+  name,
+  onConfirm,
+  onClose,
+}: {
+  name: string;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  React.useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={onClose}>
+      <div
+        className="clip-hud font-mono"
+        style={{
+          background: "rgba(10,15,36,0.97)",
+          border: "1px solid rgba(255,92,122,0.55)",
+          boxShadow: "0 0 24px rgba(255,92,122,0.2)",
+          minWidth: 340,
+          padding: "20px 24px",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="text-[10px] uppercase tracking-hud mb-1" style={{ color: "var(--color-danger)" }}>
+          confirmar eliminación
+        </p>
+        <p className="text-[13px] text-[var(--color-fg)] mb-1">
+          {name}
+        </p>
+        <p className="text-[10px] text-[var(--color-dim)] mb-5">
+          Se elimina la sesión y su historial de mensajes. Esta acción no se puede deshacer.
+        </p>
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 clip-tag font-mono text-[11px] tracking-hud cursor-pointer"
+            style={{ color: "var(--color-dim)", border: "1px solid var(--color-line)" }}
+          >
+            cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-1.5 clip-tag font-mono text-[11px] tracking-hud cursor-pointer"
+            style={{
+              color: "var(--color-danger)",
+              border: "1px solid rgba(255,92,122,0.6)",
+              background: "rgba(255,92,122,0.10)",
+            }}
+          >
+            eliminar
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
