@@ -276,10 +276,7 @@ func (s *Server) runProjectSessionTurn(project *store.Project, sess *store.Proje
 		s.runs.Dec("project")
 	}()
 
-	engineName := sess.Engine
-	if engineName == "" {
-		engineName = project.DefaultEngine
-	}
+	engineName := s.ensureProjectSessionEngine(sess, project)
 	prev := sess.SessionID
 	res, err := s.engines.Run(ctx, cliengine.RunOpts{
 		Prompt:        body,
@@ -379,7 +376,10 @@ func (s *Server) handleProjectSessionCancel(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, map[string]any{"cancelled": true, "session_id": sess.ID})
 }
 
-// handleProjectSessionSetEngine updates the engine for a project session.
+// handleProjectSessionSetEngine is intentionally a no-op for existing sessions:
+// a project session's engine is immutable because its resume id and summary are
+// engine-specific. The UI creates a separate session when a different engine is
+// desired.
 func (s *Server) handleProjectSessionSetEngine(w http.ResponseWriter, r *http.Request) {
 	_, sess, ok := s.projectSessionFromRequest(w, r)
 	if !ok {
@@ -392,11 +392,27 @@ func (s *Server) handleProjectSessionSetEngine(w http.ResponseWriter, r *http.Re
 		http.Error(w, "engine required", http.StatusBadRequest)
 		return
 	}
-	if err := s.repos.Projects.UpdateSessionEngine(r.Context(), sess.ID, req.Engine); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	req.Engine = strings.TrimSpace(req.Engine)
+	if !validEngine(req.Engine) {
+		http.Error(w, "engine not supported", http.StatusBadRequest)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"engine": req.Engine, "session_id": sess.ID})
+	if req.Engine != sess.Engine {
+		http.Error(w, "session engine is immutable; create a new session with the desired engine", http.StatusConflict)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"engine": sess.Engine, "session_id": sess.ID})
+}
+
+func (s *Server) ensureProjectSessionEngine(sess *store.ProjectSession, project *store.Project) string {
+	engine := strings.TrimSpace(sess.Engine)
+	if engine == "" {
+		engine = strings.TrimSpace(project.DefaultEngine)
+	}
+	if engine == "" {
+		engine = s.cfg.DefaultEngine
+	}
+	return engine
 }
 
 func (s *Server) streamEventBroadcasterForTopic(topic string) func(cliengine.StreamEvent) {

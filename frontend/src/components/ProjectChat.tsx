@@ -1,5 +1,5 @@
 import * as React from "react";
-import { api, FALLBACK_ENGINES, type AgentMessage, type MessageAttachmentRef, type ProjectMessage } from "@/lib/api";
+import { api, type AgentMessage, type MessageAttachmentRef, type ProjectMessage } from "@/lib/api";
 import { useTopic } from "@/lib/useTopic";
 import { Composer } from "@/components/Composer";
 import { MessageBubble } from "@/components/MessageBubble";
@@ -10,7 +10,6 @@ interface ProjectChatProps {
   sessionId: number;
   sessionName?: string;
   engine?: string;
-  onEngineChange?: (engine: string) => void;
 }
 
 interface WsEnvelope {
@@ -58,22 +57,13 @@ function projectMessageToAgent(m: ProjectMessage): AgentMessage {
   };
 }
 
-export function ProjectChat({ projectId, sessionId, sessionName, engine, onEngineChange }: ProjectChatProps) {
+export function ProjectChat({ projectId, sessionId, sessionName, engine }: ProjectChatProps) {
   const topic = React.useMemo(() => `project_session:${sessionId}`, [sessionId]);
   const [messages, setMessages] = React.useState<AgentMessage[]>([]);
   const [ghosts, setGhosts] = React.useState<Record<string, GhostBubbleData>>({});
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const scrollRef = React.useRef<HTMLDivElement>(null);
-  const [engines, setEngines] = React.useState(FALLBACK_ENGINES.map((e) => e.engine));
-  const [engineChanging, setEngineChanging] = React.useState(false);
-
-  React.useEffect(() => {
-    api.listEngines().then((list) => {
-      if (list.length > 0) setEngines(list.map((e) => e.engine));
-    }).catch(() => undefined);
-  }, []);
-
   const refresh = React.useCallback(async () => {
     try {
       const rows = await api.listProjectMessages(projectId, sessionId);
@@ -298,35 +288,20 @@ export function ProjectChat({ projectId, sessionId, sessionName, engine, onEngin
           className="flex items-center gap-3 px-4 py-1.5 font-mono text-[10px] tracking-hud-tight border-t border-[var(--color-line)] select-none"
           style={{ background: "rgba(0,0,0,0.55)", minHeight: 26 }}
         >
-          <select
-            value={engine ?? "claude"}
-            disabled={isRunning || engineChanging}
-            onChange={async (e) => {
-              const next = e.target.value;
-              setEngineChanging(true);
-              try {
-                await api.setProjectSessionEngine(projectId, sessionId, next);
-                onEngineChange?.(next);
-              } catch {
-                // parent state no cambia → visual revert automático
-              } finally {
-                setEngineChanging(false);
-              }
-            }}
-            className="clip-tag bg-transparent outline-none cursor-pointer"
+          <span
+            className="clip-tag bg-transparent outline-none cursor-default"
             style={{
-              color: engineChanging ? "var(--color-dim)" : "var(--color-cyan)",
+              color: "var(--color-cyan)",
               border: "1px solid rgba(94,240,255,0.45)",
               background: "rgba(94,240,255,0.10)",
               padding: "1px 6px",
               font: "inherit",
               letterSpacing: "inherit",
             }}
+            title="engine fijo de esta sesión; creá otra sesión para cambiarlo"
           >
-            {engines.map((eng) => (
-              <option key={eng} value={eng} style={{ background: "#0a0f24" }}>{eng}</option>
-            ))}
-          </select>
+            {engine ?? "claude"} · session engine
+          </span>
 
           {isRunning && (
             <>

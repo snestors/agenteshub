@@ -18,7 +18,8 @@ type Project struct {
 	UpdatedAt     int64
 }
 
-// ProjectSession is a single Claude/Codex resume session inside a project.
+// ProjectSession is a single engine-scoped resume session inside a project.
+// SessionID and Summary are owned by Engine; never reuse them across engines.
 type ProjectSession struct {
 	ID           int64
 	ProjectID    int64
@@ -185,6 +186,8 @@ func (r *ProjectsRepo) TouchSession(ctx context.Context, id int64) error {
 }
 
 // UpdateSessionEngine changes the engine for an existing project session.
+// Prefer treating Engine as immutable once exposed to users; this helper is
+// kept for legacy/admin repair paths only.
 func (r *ProjectsRepo) UpdateSessionEngine(ctx context.Context, id int64, engine string) error {
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE project_sessions SET engine=? WHERE id=?

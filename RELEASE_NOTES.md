@@ -8,6 +8,15 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.2 — 2026-04-27
+
+### Fixed
+- **Project sessions engine-scoped**: las sesiones de proyecto ahora fijan el `engine` al crearse; el `session_id` y `summary` quedan aislados por engine para evitar compartir contexto entre Claude, Codex u Ollama.
+- **Engine immutable en sesiones existentes**: el endpoint de cambio de engine ahora rechaza cambios reales con `409`; para usar otro engine se debe crear otra sesión.
+- **DB identity por engine**: `project_sessions` pasa a `UNIQUE(project_id, engine, name)` y agrega migración para permitir nombres iguales por proyecto en engines distintos.
+
+---
+
 ## v0.2.1 — 2026-04-27
 
 ### Fixed

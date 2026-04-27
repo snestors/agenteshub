@@ -124,8 +124,10 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
   const nav = useNavigate();
   const [project, setProject] = React.useState<Project | null>(null);
   const [sessions, setSessions] = React.useState<ProjectSession[]>([]);
+  const [engines, setEngines] = React.useState<EngineDef[]>(FALLBACK_ENGINES);
   const [selected, setSelected] = React.useState<number>(routeSessionId || 0);
   const [newName, setNewName] = React.useState("");
+  const [newEngine, setNewEngine] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [tab, setTab] = React.useState<"chat" | "services" | "changes">("chat");
 
@@ -134,6 +136,7 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
       const res = await api.getProject(projectId);
       setProject(res.project);
       setSessions(res.sessions);
+      setNewEngine((cur) => cur || res.project.default_engine || FALLBACK_ENGINES[0]?.engine || "claude");
       const wanted = routeSessionId || selected || res.sessions[0]?.id || 0;
       if (wanted && res.sessions.some((s) => s.id === wanted)) {
         setSelected(wanted);
@@ -150,12 +153,23 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
     void refresh();
   }, [refresh]);
 
+  React.useEffect(() => {
+    setNewEngine("");
+  }, [projectId]);
+
+  React.useEffect(() => {
+    void api.listEngines().then((list) => {
+      if (list.length > 0) setEngines(list);
+    }).catch(() => undefined);
+  }, []);
+
   const current = sessions.find((s) => s.id === selected) ?? null;
 
   async function createSession() {
     const name = newName.trim() || `session-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}`;
+    const engine = newEngine || project?.default_engine || engines[0]?.engine || "claude";
     try {
-      const s = await api.createProjectSession(projectId, { name });
+      const s = await api.createProjectSession(projectId, { name, engine });
       setNewName("");
       await refresh();
       nav(`/projects/${projectId}/sessions/${s.id}`);
@@ -200,6 +214,17 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
               className="flex-1 bg-transparent outline-none px-2 py-1 clip-tag font-mono text-[10px] text-[var(--color-fg)]"
               style={{ border: "1px solid var(--color-line)" }}
             />
+            <select
+              value={newEngine || project?.default_engine || "claude"}
+              onChange={(e) => setNewEngine(e.target.value)}
+              className="bg-[var(--color-bg-2)] outline-none px-2 py-1 clip-tag font-mono text-[10px] text-[var(--color-cyan)]"
+              style={{ border: "1px solid rgba(94,240,255,0.45)" }}
+              title="engine de la nueva sesión"
+            >
+              {engines.map((e) => (
+                <option key={e.engine} value={e.engine}>{e.engine}</option>
+              ))}
+            </select>
             <button
               onClick={() => void createSession()}
               className="px-2 clip-tag cursor-pointer"
@@ -260,11 +285,6 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
               sessionId={current.id}
               sessionName={current.name}
               engine={current.engine}
-              onEngineChange={(eng) =>
-                setSessions((prev) =>
-                  prev.map((s) => (s.id === current.id ? { ...s, engine: eng } : s))
-                )
-              }
             />
           ) : (
             <div className="h-full flex items-center justify-center font-mono text-[11px] text-[var(--color-dim)] tracking-hud-tight">

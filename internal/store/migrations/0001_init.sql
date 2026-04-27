@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS project_sessions (
   summary                  TEXT,                         -- summary liviano
   last_active_at           INTEGER,
   created_at               INTEGER NOT NULL,
-  UNIQUE(project_id, name)
+  UNIQUE(project_id, engine, name)
 );
 CREATE INDEX IF NOT EXISTS idx_project_sessions_active ON project_sessions(last_active_at DESC);
 
