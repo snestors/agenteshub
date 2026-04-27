@@ -77,6 +77,7 @@ func migrate(ctx context.Context, db *sql.DB) error {
 
 // Repos bundles all repositories for dependency injection.
 type Repos struct {
+	db        *sql.DB
 	Auth      *AuthRepo
 	Settings  *SettingsRepo
 	Messages  *MessagesRepo
@@ -95,9 +96,14 @@ type Repos struct {
 	SkillImprovements *SkillImprovementsRepo
 }
 
+// DB returns the underlying *sql.DB. Use only for health checks or
+// migration introspection — repos are the public API for normal queries.
+func (r *Repos) DB() *sql.DB { return r.db }
+
 // NewRepos wires up every repo around a single *sql.DB handle.
 func NewRepos(db *sql.DB) *Repos {
 	return &Repos{
+		db:        db,
 		Auth:      NewAuthRepo(db),
 		Settings:  NewSettingsRepo(db),
 		Messages:  NewMessagesRepo(db),

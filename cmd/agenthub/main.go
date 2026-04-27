@@ -46,6 +46,8 @@ func main() {
 		runMCP()
 	case "session":
 		runSession(args)
+	case "migrate-bridge":
+		runMigrateBridge(args)
 	case "version", "-v", "--version":
 		fmt.Println("agenthub", version)
 	case "help", "-h", "--help":
@@ -75,6 +77,8 @@ USO:
   agenthub session backup [<id>] fuerza snapshot
   agenthub session restore <id>  restaura desde snapshot
   agenthub session list          lista sessions
+  agenthub migrate-bridge --from <path/messages.db>
+                                 importa el histórico del bridge legacy a wa_messages (idempotente)
 
 VARIABLES IMPORTANTES (.env):
   AGENTHUB_HTTP_ADDR         (default 0.0.0.0:8090)
@@ -229,6 +233,39 @@ func runSession(args []string) {
 	}
 	fmt.Fprintln(os.Stderr, "agenthub session — no implementado todavía.")
 	os.Exit(2)
+}
+
+func runMigrateBridge(args []string) {
+	fs := flag.NewFlagSet("migrate-bridge", flag.ExitOnError)
+	from := fs.String("from", "/home/nestor/mcp-whatsapp/data/messages.db", "path to legacy bridge messages.db")
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "config:", err)
+		os.Exit(1)
+	}
+	logger := newLogger(cfg.LogLevel)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	db, err := store.Open(ctx, cfg.DBPath)
+	if err != nil {
+		logger.Error("db open", "err", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+	repos := store.NewRepos(db)
+
+	logger.Info("legacy bridge migration starting", "from", *from, "to", cfg.DBPath)
+	res, err := wa.MigrateLegacyMessages(ctx, repos.DB(), *from)
+	if err != nil {
+		logger.Error("migrate-bridge", "err", err)
+		os.Exit(1)
+	}
+	fmt.Printf("legacy bridge migration done: total=%d imported=%d skipped=%d errors=%d\n",
+		res.Total, res.Imported, res.Skipped, res.Errors)
 }
 
 func newLogger(level string) *slog.Logger {
