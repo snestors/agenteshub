@@ -363,8 +363,10 @@ export interface Diagram {
   project_id?: number;
   title: string;
   prompt?: string;
+  kind: "mermaid" | "html" | string;
   mermaid?: string;
   mermaid_source?: string;
+  html_content?: string;
   excalidraw_json: string;
   created_at: number;
   updated_at: number;
@@ -373,9 +375,11 @@ export interface Diagram {
 export interface DiagramPayload {
   title: string;
   prompt?: string;
+  kind?: "mermaid" | "html";
   mermaid?: string;
   mermaid_source?: string;
-  excalidraw_json: string;
+  html_content?: string;
+  excalidraw_json?: string;
   project_id?: number;
 }
 

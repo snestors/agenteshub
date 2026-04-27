@@ -43,6 +43,10 @@ export function Diagrams() {
   /** what's actually rendered. Decoupled from the editor so the user can edit
    * without re-rendering on every keystroke. */
   const [rendered, setRendered] = React.useState<string>(DEFAULT_MERMAID);
+  const [kind, setKind] = React.useState<"mermaid" | "html">("mermaid");
+  const [html, setHtml] = React.useState<string>("");
+  /** like `rendered` but for HTML — committed via the editor's apply button. */
+  const [htmlRendered, setHtmlRendered] = React.useState<string>("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
@@ -64,8 +68,11 @@ export function Diagrams() {
     setSelectedId(null);
     setTitle("Nuevo diagrama");
     setPrompt("diagrama de arquitectura de AgentHub");
+    setKind("mermaid");
     setMermaid(DEFAULT_MERMAID);
     setRendered(DEFAULT_MERMAID);
+    setHtml("");
+    setHtmlRendered("");
     setError(null);
   }
 
@@ -73,9 +80,14 @@ export function Diagrams() {
     setSelectedId(d.id);
     setTitle(d.title);
     setPrompt(d.prompt ?? "");
+    const k = (d.kind === "html" ? "html" : "mermaid") as "mermaid" | "html";
+    setKind(k);
     const mer = d.mermaid_source || d.mermaid || "";
     setMermaid(mer || DEFAULT_MERMAID);
     setRendered(mer || DEFAULT_MERMAID);
+    const h = d.html_content || "";
+    setHtml(h);
+    setHtmlRendered(h);
     setError(null);
   }
 
@@ -108,7 +120,11 @@ export function Diagrams() {
   }
 
   function applyEdited() {
-    setRendered(mermaid);
+    if (kind === "html") {
+      setHtmlRendered(html);
+    } else {
+      setRendered(mermaid);
+    }
   }
 
   async function save() {
@@ -120,9 +136,10 @@ export function Diagrams() {
     const payload: DiagramPayload = {
       title: cleanTitle,
       prompt: prompt.trim(),
-      mermaid,
-      // Persist a stub Excalidraw scene for compat — we no longer render it,
-      // but the API still requires the column to be non-null.
+      kind,
+      mermaid: kind === "mermaid" ? mermaid : "",
+      html_content: kind === "html" ? html : "",
+      // Persist a stub Excalidraw scene for compat with v1 schema.
       excalidraw_json: '{"elements":[],"appState":{}}',
     };
     setBusy(true);
@@ -154,9 +171,9 @@ export function Diagrams() {
     }
   }
 
-  async function copyMermaid() {
+  async function copySource() {
     try {
-      await navigator.clipboard.writeText(mermaid);
+      await navigator.clipboard.writeText(kind === "html" ? html : mermaid);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -242,7 +259,20 @@ export function Diagrams() {
         <div className="flex flex-col min-h-0 gap-3">
           <HudPanel title="diagrama" accent="cyan" className="flex-1 min-h-0">
             <div className="flex-1 min-h-0 px-2 pb-2">
-              <MermaidBlock content={rendered} size="fill" />
+              {kind === "html" ? (
+                <iframe
+                  title={title || "diagram"}
+                  srcDoc={htmlRendered || "<p style='color:#6b7aa8;font-family:monospace;padding:24px'>vacío — pegá HTML abajo y aplicá</p>"}
+                  sandbox="allow-same-origin"
+                  className="w-full h-full clip-hud-sm"
+                  style={{
+                    border: "1px solid rgba(94,240,255,0.22)",
+                    background: "#060814",
+                  }}
+                />
+              ) : (
+                <MermaidBlock content={rendered} size="fill" />
+              )}
             </div>
           </HudPanel>
 
@@ -264,18 +294,31 @@ export function Diagrams() {
                 style={{ borderColor: "var(--color-line)" }}
               />
               <select
-                value={type}
-                onChange={(e) => setType(e.target.value as DiagramType | "auto")}
+                value={kind}
+                onChange={(e) => setKind(e.target.value as "mermaid" | "html")}
                 className="font-mono text-[10px] uppercase tracking-hud-tight px-2 py-1 clip-tag border bg-[rgba(255,255,255,0.02)] text-[var(--color-fg)]"
                 style={{ borderColor: "var(--color-line)" }}
+                title="tipo de diagrama"
               >
-                <option value="auto">auto</option>
-                <option value="flowchart">flowchart</option>
-                <option value="sequence">sequence</option>
-                <option value="c4">c4</option>
-                <option value="erd">erd</option>
-                <option value="mindmap">mindmap</option>
+                <option value="mermaid">mermaid</option>
+                <option value="html">html</option>
               </select>
+              {kind === "mermaid" && (
+                <select
+                  value={type}
+                  onChange={(e) => setType(e.target.value as DiagramType | "auto")}
+                  className="font-mono text-[10px] uppercase tracking-hud-tight px-2 py-1 clip-tag border bg-[rgba(255,255,255,0.02)] text-[var(--color-fg)]"
+                  style={{ borderColor: "var(--color-line)" }}
+                  title="subtipo (mermaid)"
+                >
+                  <option value="auto">auto</option>
+                  <option value="flowchart">flowchart</option>
+                  <option value="sequence">sequence</option>
+                  <option value="c4">c4</option>
+                  <option value="erd">erd</option>
+                  <option value="mindmap">mindmap</option>
+                </select>
+              )}
               <button
                 type="button"
                 onClick={() => void save()}
@@ -302,20 +345,22 @@ export function Diagrams() {
             />
 
             <div className="flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={() => void generate()}
-                disabled={busy}
-                className="px-3 py-1.5 clip-tag font-mono text-[10px] uppercase tracking-hud-tight font-semibold cursor-pointer transition-all hover:scale-[1.02] disabled:opacity-60"
-                style={{
-                  color: "var(--color-bg)",
-                  background: "var(--color-cyan)",
-                  boxShadow: "0 0 8px rgba(94,240,255,0.50)",
-                }}
-              >
-                <Wand2 size={11} strokeWidth={1.8} className="inline mr-1" />
-                {busy ? "generando…" : "generar con IA"}
-              </button>
+              {kind === "mermaid" && (
+                <button
+                  type="button"
+                  onClick={() => void generate()}
+                  disabled={busy}
+                  className="px-3 py-1.5 clip-tag font-mono text-[10px] uppercase tracking-hud-tight font-semibold cursor-pointer transition-all hover:scale-[1.02] disabled:opacity-60"
+                  style={{
+                    color: "var(--color-bg)",
+                    background: "var(--color-cyan)",
+                    boxShadow: "0 0 8px rgba(94,240,255,0.50)",
+                  }}
+                >
+                  <Wand2 size={11} strokeWidth={1.8} className="inline mr-1" />
+                  {busy ? "generando…" : "generar con IA"}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={applyEdited}
@@ -328,11 +373,11 @@ export function Diagrams() {
                 }}
               >
                 <Sparkles size={11} strokeWidth={1.8} className="inline mr-1" />
-                aplicar mermaid editado
+                aplicar {kind === "html" ? "html" : "mermaid"} editado
               </button>
               <button
                 type="button"
-                onClick={() => void copyMermaid()}
+                onClick={() => void copySource()}
                 className="px-3 py-1.5 clip-tag font-mono text-[10px] uppercase tracking-hud-tight border text-[var(--color-dim)] hover:text-[var(--color-fg)] cursor-pointer transition-colors"
                 style={{ borderColor: "var(--color-line)" }}
               >
@@ -344,7 +389,7 @@ export function Diagrams() {
                 ) : (
                   <>
                     <Copy size={11} strokeWidth={1.8} className="inline mr-1" />
-                    copiar mermaid
+                    copiar {kind === "html" ? "html" : "mermaid"}
                   </>
                 )}
               </button>
@@ -357,16 +402,28 @@ export function Diagrams() {
 
             <details className="group">
               <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-hud-tight text-[var(--color-dim)] hover:text-[var(--color-fg)]">
-                ▸ ver / editar mermaid source
+                ▸ ver / editar source ({kind})
               </summary>
-              <textarea
-                value={mermaid}
-                onChange={(e) => setMermaid(e.target.value)}
-                rows={10}
-                spellCheck={false}
-                className="w-full mt-2 font-mono text-[11px] px-2 py-1.5 clip-tag border bg-[rgba(0,0,0,0.50)] text-[var(--color-fg)] resize-y"
-                style={{ borderColor: "var(--color-line)" }}
-              />
+              {kind === "html" ? (
+                <textarea
+                  value={html}
+                  onChange={(e) => setHtml(e.target.value)}
+                  rows={14}
+                  spellCheck={false}
+                  placeholder={"<!doctype html><html><body style='background:#0b0f14;color:#cbd5e1;font-family:monospace;padding:24px'><h1>HOLA</h1><img src='data:image/png;base64,…'/></body></html>"}
+                  className="w-full mt-2 font-mono text-[11px] px-2 py-1.5 clip-tag border bg-[rgba(0,0,0,0.50)] text-[var(--color-fg)] resize-y"
+                  style={{ borderColor: "var(--color-line)" }}
+                />
+              ) : (
+                <textarea
+                  value={mermaid}
+                  onChange={(e) => setMermaid(e.target.value)}
+                  rows={10}
+                  spellCheck={false}
+                  className="w-full mt-2 font-mono text-[11px] px-2 py-1.5 clip-tag border bg-[rgba(0,0,0,0.50)] text-[var(--color-fg)] resize-y"
+                  style={{ borderColor: "var(--color-line)" }}
+                />
+              )}
             </details>
           </div>
         </div>

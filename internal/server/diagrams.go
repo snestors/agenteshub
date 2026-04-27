@@ -24,8 +24,10 @@ type diagramWire struct {
 	ProjectID      int64  `json:"project_id,omitempty"`
 	Title          string `json:"title"`
 	Prompt         string `json:"prompt,omitempty"`
+	Kind           string `json:"kind"`
 	Mermaid        string `json:"mermaid,omitempty"`
 	MermaidSource  string `json:"mermaid_source,omitempty"`
+	HTMLContent    string `json:"html_content,omitempty"`
 	ExcalidrawJSON string `json:"excalidraw_json"`
 	CreatedAt      int64  `json:"created_at"`
 	UpdatedAt      int64  `json:"updated_at"`
@@ -35,8 +37,10 @@ type diagramUpsertReq struct {
 	ProjectID      *int64 `json:"project_id"`
 	Title          string `json:"title"`
 	Prompt         string `json:"prompt"`
+	Kind           string `json:"kind"`
 	Mermaid        string `json:"mermaid"`
 	MermaidSource  string `json:"mermaid_source"`
+	HTMLContent    string `json:"html_content"`
 	ExcalidrawJSON string `json:"excalidraw_json"`
 }
 
@@ -307,9 +311,31 @@ func diagramFromReq(w http.ResponseWriter, req diagramUpsertReq) (store.Diagram,
 	if mermaid == "" {
 		mermaid = strings.TrimSpace(req.Mermaid)
 	}
+	html := strings.TrimSpace(req.HTMLContent)
+	kind := strings.TrimSpace(req.Kind)
+	if kind == "" {
+		// infer: html if html_content is set and no mermaid; else mermaid
+		if html != "" && mermaid == "" {
+			kind = "html"
+		} else {
+			kind = "mermaid"
+		}
+	}
+	if kind != "mermaid" && kind != "html" {
+		http.Error(w, "kind must be 'mermaid' or 'html'", http.StatusBadRequest)
+		return store.Diagram{}, false
+	}
 	excalidrawJSON := strings.TrimSpace(req.ExcalidrawJSON)
 	if excalidrawJSON == "" {
-		http.Error(w, "excalidraw_json required", http.StatusBadRequest)
+		// Compat with v1 schema (NOT NULL): persist a stub.
+		excalidrawJSON = `{"elements":[],"appState":{}}`
+	}
+	if kind == "mermaid" && mermaid == "" {
+		http.Error(w, "mermaid source required for kind=mermaid", http.StatusBadRequest)
+		return store.Diagram{}, false
+	}
+	if kind == "html" && html == "" {
+		http.Error(w, "html_content required for kind=html", http.StatusBadRequest)
 		return store.Diagram{}, false
 	}
 	return store.Diagram{
@@ -318,6 +344,8 @@ func diagramFromReq(w http.ResponseWriter, req diagramUpsertReq) (store.Diagram,
 		Prompt:         sql.NullString{String: strings.TrimSpace(req.Prompt), Valid: strings.TrimSpace(req.Prompt) != ""},
 		MermaidSource:  sql.NullString{String: mermaid, Valid: mermaid != ""},
 		ExcalidrawJSON: excalidrawJSON,
+		Kind:           kind,
+		HTMLContent:    sql.NullString{String: html, Valid: html != ""},
 	}, true
 }
 
@@ -365,13 +393,19 @@ func diagramIDFromRequest(w http.ResponseWriter, r *http.Request) (int64, bool) 
 
 func diagramToWire(d store.Diagram) diagramWire {
 	mermaid := nullString(d.MermaidSource)
+	kind := d.Kind
+	if kind == "" {
+		kind = "mermaid"
+	}
 	return diagramWire{
 		ID:             d.ID,
 		ProjectID:      nullInt(d.ProjectID),
 		Title:          d.Title,
 		Prompt:         nullString(d.Prompt),
+		Kind:           kind,
 		Mermaid:        mermaid,
 		MermaidSource:  mermaid,
+		HTMLContent:    nullString(d.HTMLContent),
 		ExcalidrawJSON: d.ExcalidrawJSON,
 		CreatedAt:      d.CreatedAt,
 		UpdatedAt:      d.UpdatedAt,

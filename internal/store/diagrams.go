@@ -7,7 +7,10 @@ import (
 	"time"
 )
 
-// Diagram stores an editable Excalidraw scene plus its Mermaid source.
+// Diagram stores either a Mermaid source (rendered client-side as SVG) or
+// an arbitrary HTML body (rendered inside a sandboxed iframe). The 'kind'
+// column drives which one the UI shows. excalidraw_json is kept for
+// backwards-compat with v1 scenes but is no longer required.
 type Diagram struct {
 	ID             int64
 	ProjectID      sql.NullInt64
@@ -15,6 +18,8 @@ type Diagram struct {
 	Prompt         sql.NullString
 	MermaidSource  sql.NullString
 	ExcalidrawJSON string
+	Kind           string         // 'mermaid' (default) | 'html'
+	HTMLContent    sql.NullString // full HTML document, used when Kind='html'
 	CreatedAt      int64
 	UpdatedAt      int64
 }
@@ -26,7 +31,7 @@ func NewDiagramsRepo(db *sql.DB) *DiagramsRepo { return &DiagramsRepo{db: db} }
 
 // List returns diagrams sorted by updated_at desc, optionally scoped to a project.
 func (r *DiagramsRepo) List(ctx context.Context, projectID *int64) ([]Diagram, error) {
-	q := `SELECT id, project_id, title, prompt, mermaid_source, excalidraw_json, created_at, updated_at
+	q := `SELECT id, project_id, title, prompt, mermaid_source, excalidraw_json, kind, html_content, created_at, updated_at
 	      FROM diagrams`
 	args := []any{}
 	if projectID != nil {
@@ -42,7 +47,7 @@ func (r *DiagramsRepo) List(ctx context.Context, projectID *int64) ([]Diagram, e
 	out := []Diagram{}
 	for rows.Next() {
 		var d Diagram
-		if err := rows.Scan(&d.ID, &d.ProjectID, &d.Title, &d.Prompt, &d.MermaidSource, &d.ExcalidrawJSON, &d.CreatedAt, &d.UpdatedAt); err != nil {
+		if err := rows.Scan(&d.ID, &d.ProjectID, &d.Title, &d.Prompt, &d.MermaidSource, &d.ExcalidrawJSON, &d.Kind, &d.HTMLContent, &d.CreatedAt, &d.UpdatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, d)
@@ -57,10 +62,13 @@ func (r *DiagramsRepo) Create(ctx context.Context, d Diagram) (int64, error) {
 		d.CreatedAt = now
 	}
 	d.UpdatedAt = now
+	if d.Kind == "" {
+		d.Kind = "mermaid"
+	}
 	res, err := r.db.ExecContext(ctx, `
-		INSERT INTO diagrams(project_id, title, prompt, mermaid_source, excalidraw_json, created_at, updated_at)
-		VALUES(?,?,?,?,?,?,?)
-	`, d.ProjectID, d.Title, d.Prompt, d.MermaidSource, d.ExcalidrawJSON, d.CreatedAt, d.UpdatedAt)
+		INSERT INTO diagrams(project_id, title, prompt, mermaid_source, excalidraw_json, kind, html_content, created_at, updated_at)
+		VALUES(?,?,?,?,?,?,?,?,?)
+	`, d.ProjectID, d.Title, d.Prompt, d.MermaidSource, d.ExcalidrawJSON, d.Kind, d.HTMLContent, d.CreatedAt, d.UpdatedAt)
 	if err != nil {
 		return 0, fmt.Errorf("insert diagram: %w", err)
 	}
@@ -71,9 +79,9 @@ func (r *DiagramsRepo) Create(ctx context.Context, d Diagram) (int64, error) {
 func (r *DiagramsRepo) Get(ctx context.Context, id int64) (*Diagram, error) {
 	var d Diagram
 	err := r.db.QueryRowContext(ctx, `
-		SELECT id, project_id, title, prompt, mermaid_source, excalidraw_json, created_at, updated_at
+		SELECT id, project_id, title, prompt, mermaid_source, excalidraw_json, kind, html_content, created_at, updated_at
 		FROM diagrams WHERE id = ?
-	`, id).Scan(&d.ID, &d.ProjectID, &d.Title, &d.Prompt, &d.MermaidSource, &d.ExcalidrawJSON, &d.CreatedAt, &d.UpdatedAt)
+	`, id).Scan(&d.ID, &d.ProjectID, &d.Title, &d.Prompt, &d.MermaidSource, &d.ExcalidrawJSON, &d.Kind, &d.HTMLContent, &d.CreatedAt, &d.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -83,11 +91,14 @@ func (r *DiagramsRepo) Get(ctx context.Context, id int64) (*Diagram, error) {
 // Update replaces editable fields and bumps updated_at.
 func (r *DiagramsRepo) Update(ctx context.Context, d Diagram) error {
 	d.UpdatedAt = time.Now().Unix()
+	if d.Kind == "" {
+		d.Kind = "mermaid"
+	}
 	res, err := r.db.ExecContext(ctx, `
 		UPDATE diagrams
-		SET project_id=?, title=?, prompt=?, mermaid_source=?, excalidraw_json=?, updated_at=?
+		SET project_id=?, title=?, prompt=?, mermaid_source=?, excalidraw_json=?, kind=?, html_content=?, updated_at=?
 		WHERE id=?
-	`, d.ProjectID, d.Title, d.Prompt, d.MermaidSource, d.ExcalidrawJSON, d.UpdatedAt, d.ID)
+	`, d.ProjectID, d.Title, d.Prompt, d.MermaidSource, d.ExcalidrawJSON, d.Kind, d.HTMLContent, d.UpdatedAt, d.ID)
 	if err != nil {
 		return fmt.Errorf("update diagram: %w", err)
 	}
