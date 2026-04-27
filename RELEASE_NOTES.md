@@ -8,6 +8,14 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.10 — 2026-04-27
+
+### Added
+- **Ocultar lista de sesiones**: el panel izquierdo de sesiones puede colapsarse a una pestaña vertical.
+- **Dropdown de sesión en chat**: la barra inferior del project chat ahora incluye selector de sesión junto a modelo y reasoning effort.
+
+---
+
 ## v0.2.9 — 2026-04-27
 
 ### Fixed

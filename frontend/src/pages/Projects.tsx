@@ -131,6 +131,7 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
   const [newEffort, setNewEffort] = React.useState("medium");
   const [error, setError] = React.useState<string | null>(null);
   const [tab, setTab] = React.useState<"chat" | "services" | "changes">("chat");
+  const [sessionsHidden, setSessionsHidden] = React.useState(false);
 
   const refresh = React.useCallback(async () => {
     try {
@@ -234,12 +235,38 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
           </button>
         }
       />
-      <div className="flex-1 min-h-0 p-4 grid grid-cols-[310px_1fr] gap-4">
-        <HudPanel
-          title="sessions"
-          sub={`${sessions.length} · ${project?.default_engine ?? "engine"}`}
-          accent="lime"
-        >
+      <div className={`flex-1 min-h-0 p-4 grid ${sessionsHidden ? "grid-cols-[46px_1fr]" : "grid-cols-[310px_1fr]"} gap-4`}>
+        {sessionsHidden ? (
+          <button
+            type="button"
+            onClick={() => setSessionsHidden(false)}
+            className="h-full clip-hud-sm font-display text-[11px] tracking-hud uppercase cursor-pointer"
+            style={{
+              color: "var(--color-lime)",
+              border: "1px solid rgba(163,255,78,0.45)",
+              background: "rgba(163,255,78,0.06)",
+              writingMode: "vertical-rl",
+              textOrientation: "mixed",
+            }}
+            title="mostrar sesiones"
+          >
+            sessions
+          </button>
+        ) : (
+          <HudPanel
+            title="sessions"
+            sub={`${sessions.length} · ${project?.default_engine ?? "engine"}`}
+            accent="lime"
+          >
+          <button
+            type="button"
+            onClick={() => setSessionsHidden(true)}
+            className="self-end mb-2 px-2 py-0.5 clip-tag font-mono text-[9px] tracking-hud-tight cursor-pointer"
+            style={{ color: "var(--color-dim)", border: "1px solid var(--color-line)" }}
+            title="ocultar lista de sesiones"
+          >
+            ocultar
+          </button>
           <div className="font-mono text-[10px] text-[var(--color-dim)] mb-3 break-all">
             {project?.path}
           </div>
@@ -339,7 +366,8 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
               );
             })}
           </div>
-        </HudPanel>
+          </HudPanel>
+        )}
 
         <HudPanel
           title={tab === "changes" ? "openspec changes" : tab === "services" ? "project services" : current ? `project chat · ${current.name}` : "project chat"}
@@ -365,6 +393,8 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
               engine={current.engine}
               model={current.model}
               reasoningEffort={current.reasoning_effort}
+              sessions={sessions}
+              onSessionSelect={selectSession}
               onSessionConfigChange={(patch) =>
                 setSessions((prev) =>
                   prev.map((s) => (s.id === current.id ? { ...s, ...patch } : s))

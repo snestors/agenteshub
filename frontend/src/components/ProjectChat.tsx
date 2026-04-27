@@ -12,6 +12,8 @@ interface ProjectChatProps {
   engine?: string;
   model?: string;
   reasoningEffort?: string;
+  sessions?: ProjectSession[];
+  onSessionSelect?: (sessionId: number) => void;
   onSessionConfigChange?: (patch: Partial<ProjectSession>) => void;
 }
 
@@ -60,7 +62,17 @@ function projectMessageToAgent(m: ProjectMessage): AgentMessage {
   };
 }
 
-export function ProjectChat({ projectId, sessionId, sessionName, engine, model, reasoningEffort, onSessionConfigChange }: ProjectChatProps) {
+export function ProjectChat({
+  projectId,
+  sessionId,
+  sessionName,
+  engine,
+  model,
+  reasoningEffort,
+  sessions = [],
+  onSessionSelect,
+  onSessionConfigChange,
+}: ProjectChatProps) {
   const topic = React.useMemo(() => `project_session:${sessionId}`, [sessionId]);
   const [messages, setMessages] = React.useState<AgentMessage[]>([]);
   const [ghosts, setGhosts] = React.useState<Record<string, GhostBubbleData>>({});
@@ -324,6 +336,25 @@ export function ProjectChat({ projectId, sessionId, sessionName, engine, model, 
           className="flex items-center gap-3 px-4 py-1.5 font-mono text-[10px] tracking-hud-tight border-t border-[var(--color-line)] select-none"
           style={{ background: "rgba(0,0,0,0.55)", minHeight: 26 }}
         >
+          <select
+            value={sessionId}
+            onChange={(e) => onSessionSelect?.(Number(e.target.value))}
+            className="clip-tag bg-transparent outline-none cursor-pointer max-w-[180px]"
+            style={{
+              color: "var(--color-magenta)",
+              border: "1px solid rgba(255,78,214,0.45)",
+              background: "rgba(255,78,214,0.10)",
+              padding: "1px 6px",
+              font: "inherit",
+              letterSpacing: "inherit",
+            }}
+            title="cambiar sesión"
+          >
+            {(sessions.length > 0 ? sessions : [{ id: sessionId, name: sessionName ?? String(sessionId) } as ProjectSession]).map((s) => (
+              <option key={s.id} value={s.id} style={{ background: "#0a0f24" }}>{s.name}</option>
+            ))}
+          </select>
+
           <select
             value={selectedModel}
             disabled={isRunning || modelChanging}
