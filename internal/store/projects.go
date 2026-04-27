@@ -183,3 +183,11 @@ func (r *ProjectsRepo) TouchSession(ctx context.Context, id int64) error {
 	`, time.Now().Unix(), id)
 	return err
 }
+
+// UpdateSessionEngine changes the engine for an existing project session.
+func (r *ProjectsRepo) UpdateSessionEngine(ctx context.Context, id int64, engine string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE project_sessions SET engine=? WHERE id=?
+	`, engine, id)
+	return err
+}

@@ -379,6 +379,26 @@ func (s *Server) handleProjectSessionCancel(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, map[string]any{"cancelled": true, "session_id": sess.ID})
 }
 
+// handleProjectSessionSetEngine updates the engine for a project session.
+func (s *Server) handleProjectSessionSetEngine(w http.ResponseWriter, r *http.Request) {
+	_, sess, ok := s.projectSessionFromRequest(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Engine string `json:"engine"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Engine == "" {
+		http.Error(w, "engine required", http.StatusBadRequest)
+		return
+	}
+	if err := s.repos.Projects.UpdateSessionEngine(r.Context(), sess.ID, req.Engine); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"engine": req.Engine, "session_id": sess.ID})
+}
+
 func (s *Server) streamEventBroadcasterForTopic(topic string) func(cliengine.StreamEvent) {
 	if s.hub == nil {
 		return func(cliengine.StreamEvent) {}

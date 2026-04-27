@@ -255,7 +255,17 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
           ) : tab === "services" ? (
             <ProjectServices projectId={projectId} visible={tab === "services"} />
           ) : current ? (
-            <ProjectChat projectId={projectId} sessionId={current.id} sessionName={current.name} />
+            <ProjectChat
+              projectId={projectId}
+              sessionId={current.id}
+              sessionName={current.name}
+              engine={current.engine}
+              onEngineChange={(eng) =>
+                setSessions((prev) =>
+                  prev.map((s) => (s.id === current.id ? { ...s, engine: eng } : s))
+                )
+              }
+            />
           ) : (
             <div className="h-full flex items-center justify-center font-mono text-[11px] text-[var(--color-dim)] tracking-hud-tight">
               ▸ creá una sesión para empezar

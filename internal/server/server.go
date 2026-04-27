@@ -168,6 +168,7 @@ func (s *Server) routes() http.Handler {
 		pr.Post("/api/projects/{id}/sessions/{sid}/messages", s.handleProjectSessionMessagesSend)
 		pr.Get("/api/projects/{id}/sessions/{sid}/run", s.handleProjectSessionRunStatus)
 		pr.Delete("/api/projects/{id}/sessions/{sid}/run", s.handleProjectSessionCancel)
+		pr.Post("/api/projects/{id}/sessions/{sid}/engine", s.handleProjectSessionSetEngine)
 
 		// Diagrams — Mermaid + Excalidraw
 		pr.Get("/api/diagrams", s.handleDiagramsList)

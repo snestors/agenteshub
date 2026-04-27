@@ -659,6 +659,13 @@ export const api = {
     );
   },
 
+  async setProjectSessionEngine(projectId: number, sessionId: number, engine: string): Promise<void> {
+    await request<unknown>(
+      `/api/projects/${projectId}/sessions/${sessionId}/engine`,
+      { method: "POST", body: JSON.stringify({ engine }) },
+    );
+  },
+
   async listProjectServices(projectId: number): Promise<ProjectServiceStatus[]> {
     const res = await request<{ services: ProjectServiceStatus[] | null }>(
       `/api/projects/${projectId}/services`,
