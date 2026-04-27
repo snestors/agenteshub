@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.4 — 2026-04-27
+
+### Changed
+- **Alerta backend/UI version mismatch**: el badge `VER` ahora muestra `api:<version> ui:<version>` cuando backend y bundle frontend no coinciden y agrega acción para recargar la UI.
+
+---
+
 ## v0.2.3 — 2026-04-27
 
 ### Changed

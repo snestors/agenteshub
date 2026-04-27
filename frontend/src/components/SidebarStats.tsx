@@ -34,11 +34,12 @@ interface RowProps {
   value: string;
   pct?: number;
   accent: string;
+  title?: string;
 }
 
-function Row({ Icon, label, value, pct, accent }: RowProps) {
+function Row({ Icon, label, value, pct, accent, title }: RowProps) {
   return (
-    <div className="flex items-center gap-2 px-2 py-1">
+    <div className="flex items-center gap-2 px-2 py-1" title={title}>
       <Icon size={11} strokeWidth={1.6} style={{ color: accent }} />
       <span className="font-mono text-[9px] text-[var(--color-dim)] tracking-hud-tight uppercase w-7">
         {label}
@@ -120,7 +121,7 @@ export function SidebarStats() {
   const versionValue = serverVersion === null
     ? "..."
     : versionMismatch
-      ? `ui:${UI_VERSION}`
+      ? `api:${serverVersion} ui:${UI_VERSION}`
       : `v${serverVersion}`;
 
   return (
@@ -139,7 +140,23 @@ export function SidebarStats() {
         label="VER"
         value={versionValue}
         accent={versionAccent}
+        title={versionMismatch ? "Backend y UI desincronizados; recargá la UI" : "Backend y UI en la misma versión"}
       />
+      {versionMismatch && (
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="mx-2 mb-1 mt-0.5 px-2 py-1 text-left font-mono text-[9px] tracking-hud-tight uppercase clip-tag cursor-pointer"
+          style={{
+            color: "var(--color-orange)",
+            border: "1px solid rgba(255,159,67,0.55)",
+            background: "rgba(255,159,67,0.08)",
+          }}
+          title="Recargar la UI para tomar el bundle actual"
+        >
+          backend v{serverVersion} ≠ ui v{UI_VERSION} · recargar ui
+        </button>
+      )}
     </div>
   );
 }
