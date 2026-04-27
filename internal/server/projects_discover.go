@@ -51,7 +51,10 @@ var stackMarkers = map[string]string{
 func (s *Server) handleProjectsDiscover(w http.ResponseWriter, r *http.Request) {
 	root := strings.TrimSpace(r.URL.Query().Get("root"))
 	if root == "" {
-		root = "/home/nestor"
+		root = os.Getenv("HOME")
+	}
+	if root == "" {
+		root = "/home"
 	}
 	info, err := os.Stat(root)
 	if err != nil || !info.IsDir() {

@@ -188,13 +188,14 @@ func runServe() {
 
 func runSetupUser(args []string) {
 	fs := flag.NewFlagSet("setup-user", flag.ExitOnError)
-	username := fs.String("username", "", "username (default 'nestor')")
+	username := fs.String("username", "", "username for the single admin account")
 	password := fs.String("password", "", "password (plain)")
 	if err := fs.Parse(args); err != nil {
 		os.Exit(2)
 	}
 	if *username == "" {
-		*username = "nestor"
+		fmt.Fprintln(os.Stderr, "--username requerido")
+		os.Exit(2)
 	}
 	if *password == "" {
 		fmt.Fprintln(os.Stderr, "--password requerido")
@@ -266,8 +267,12 @@ func runSession(args []string) {
 
 func runMigrateBridge(args []string) {
 	fs := flag.NewFlagSet("migrate-bridge", flag.ExitOnError)
-	from := fs.String("from", "/home/nestor/mcp-whatsapp/data/messages.db", "path to legacy bridge messages.db")
+	from := fs.String("from", "", "path to legacy bridge messages.db (required)")
 	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+	if *from == "" {
+		fmt.Fprintln(os.Stderr, "--from requerido")
 		os.Exit(2)
 	}
 	cfg, err := config.Load()
