@@ -6,11 +6,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"os/exec"
 	"strings"
 	"syscall"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/snestors/agenteshub/internal/config"
 	"github.com/snestors/agenteshub/internal/store"
 )
@@ -47,6 +51,10 @@ type codexEvent struct {
 }
 
 func (e *CodexEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
+	if isNVIDIACodexModel(opts.Model) {
+		return e.runNVIDIAChat(ctx, opts)
+	}
+
 	args := []string{"exec"}
 	if opts.SessionID != "" {
 		args = append(args, "resume", opts.SessionID)
@@ -155,4 +163,169 @@ func (e *CodexEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 		finalText = strings.TrimSpace(stdout.String())
 	}
 	return &Result{Text: finalText, SessionID: sessionID, CostTokens: tokens}, nil
+}
+
+func isNVIDIACodexModel(model string) bool {
+	switch strings.ToLower(strings.TrimSpace(model)) {
+	case "glm-5.1", "z-ai/glm-5.1":
+		return true
+	default:
+		return false
+	}
+}
+
+func nvidiaCodexModelID(model string) string {
+	model = strings.TrimSpace(model)
+	if strings.EqualFold(model, "glm-5.1") {
+		return "z-ai/glm-5.1"
+	}
+	return model
+}
+
+type nvidiaChatMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+func (e *CodexEngine) runNVIDIAChat(ctx context.Context, opts RunOpts) (*Result, error) {
+	apiKey := strings.TrimSpace(e.cfg.NVIDIAAPIKey)
+	if apiKey == "" {
+		return nil, fmt.Errorf("nvidia: NVIDIA_API_KEY no está configurada; agrega la key en .env o en el entorno del servicio")
+	}
+	baseURL := strings.TrimRight(strings.TrimSpace(e.cfg.NVIDIABaseURL), "/")
+	if baseURL == "" {
+		baseURL = "https://integrate.api.nvidia.com/v1"
+	}
+
+	sessionID := opts.SessionID
+	if sessionID == "" {
+		sessionID = "nvidia-" + uuid.NewString()
+	}
+
+	messages := e.nvidiaMessages(ctx, opts)
+	reqBody := map[string]any{
+		"model":       nvidiaCodexModelID(opts.Model),
+		"messages":    messages,
+		"temperature": 0.2,
+		"stream":      false,
+	}
+	raw, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("nvidia request: %w", err)
+	}
+
+	httpCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	req, err := http.NewRequestWithContext(httpCtx, http.MethodPost, baseURL+"/chat/completions", bytes.NewReader(raw))
+	if err != nil {
+		return nil, fmt.Errorf("nvidia request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("nvidia: %w", err)
+	}
+	defer resp.Body.Close()
+	respRaw, err := io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024))
+	if err != nil {
+		return nil, fmt.Errorf("nvidia response: %w", err)
+	}
+
+	var out struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+			Text string `json:"text"`
+		} `json:"choices"`
+		Usage struct {
+			PromptTokens     int64 `json:"prompt_tokens"`
+			CompletionTokens int64 `json:"completion_tokens"`
+			TotalTokens      int64 `json:"total_tokens"`
+		} `json:"usage"`
+		Error struct {
+			Message string `json:"message"`
+			Type    string `json:"type"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(respRaw, &out); err != nil {
+		return nil, fmt.Errorf("nvidia decode: %w", err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		msg := strings.TrimSpace(out.Error.Message)
+		if msg == "" {
+			msg = strings.TrimSpace(string(respRaw))
+		}
+		if len(msg) > 500 {
+			msg = msg[:500] + "…"
+		}
+		return nil, fmt.Errorf("nvidia: status %d: %s", resp.StatusCode, msg)
+	}
+	if len(out.Choices) == 0 {
+		return nil, fmt.Errorf("nvidia: respuesta sin choices")
+	}
+	text := strings.TrimSpace(out.Choices[0].Message.Content)
+	if text == "" {
+		text = strings.TrimSpace(out.Choices[0].Text)
+	}
+	if text == "" {
+		return nil, fmt.Errorf("nvidia: respuesta vacía")
+	}
+
+	if opts.OnEvent != nil {
+		opts.OnEvent(StreamEvent{Kind: "text", Text: text, SessionID: sessionID, Seq: 1})
+		opts.OnEvent(StreamEvent{Kind: "final", Final: true, SessionID: sessionID, Seq: 2})
+	}
+	tokens := out.Usage.TotalTokens
+	if tokens == 0 {
+		tokens = out.Usage.PromptTokens + out.Usage.CompletionTokens
+	}
+	return &Result{Text: text, SessionID: sessionID, CostTokens: tokens}, nil
+}
+
+func (e *CodexEngine) nvidiaMessages(ctx context.Context, opts RunOpts) []nvidiaChatMessage {
+	persisted := e.persistedMessages(ctx, opts)
+	if len(persisted) == 0 {
+		return []nvidiaChatMessage{{Role: "user", Content: opts.Prompt}}
+	}
+	out := make([]nvidiaChatMessage, 0, len(persisted))
+	for _, m := range persisted {
+		if !m.Body.Valid || strings.TrimSpace(m.Body.String) == "" {
+			continue
+		}
+		role := strings.ToLower(strings.TrimSpace(m.Role))
+		switch role {
+		case "assistant", "system":
+		default:
+			role = "user"
+		}
+		out = append(out, nvidiaChatMessage{Role: role, Content: m.Body.String})
+	}
+	if len(out) == 0 {
+		return []nvidiaChatMessage{{Role: "user", Content: opts.Prompt}}
+	}
+	return out
+}
+
+func (e *CodexEngine) persistedMessages(ctx context.Context, opts RunOpts) []store.SessionMessage {
+	if e.repos == nil || e.repos.Sessions == nil {
+		return nil
+	}
+	if opts.Scope == "project" && opts.ProjectSessID != 0 {
+		msgs, err := e.repos.Sessions.MessagesForProjectSession(ctx, opts.ProjectSessID, 60)
+		if err == nil {
+			return msgs
+		}
+		e.log.Warn("nvidia history lookup failed", "scope", opts.Scope, "project_session", opts.ProjectSessID, "err", err)
+	}
+	if strings.TrimSpace(opts.SessionID) != "" {
+		msgs, err := e.repos.Sessions.MessagesForSession(ctx, opts.SessionID, 60)
+		if err == nil {
+			return msgs
+		}
+		e.log.Warn("nvidia history lookup failed", "session", opts.SessionID, "err", err)
+	}
+	return nil
 }

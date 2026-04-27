@@ -40,6 +40,8 @@ type Config struct {
 	ClaudeProjectsDir string
 	ClaudeBinPath     string
 	CodexBinPath      string
+	NVIDIAAPIKey      string
+	NVIDIABaseURL     string
 	OllamaURL         string
 	OllamaModel       string
 	// Path to a markdown file that gets passed as --append-system-prompt to
@@ -127,6 +129,8 @@ func Load() (*Config, error) {
 		ClaudeProjectsDir: env("CLAUDE_PROJECTS_DIR", filepath.Join(home, ".claude/projects")),
 		ClaudeBinPath:     env("CLAUDE_BIN", filepath.Join(home, ".local/bin/claude")),
 		CodexBinPath:      env("CODEX_BIN", filepath.Join(home, ".npm-global/bin/codex")),
+		NVIDIAAPIKey:      env("NVIDIA_API_KEY", ""),
+		NVIDIABaseURL:     env("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"),
 		OllamaURL:         env("OLLAMA_URL", "http://localhost:11434"),
 		OllamaModel:       env("OLLAMA_MODEL", "gemma:2b"),
 		SystemPromptPath:  env("AGENTHUB_SYSTEM_PROMPT", "data/system-prompt.md"),

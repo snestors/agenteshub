@@ -59,8 +59,8 @@ export const FALLBACK_ENGINES: EngineDef[] = [
   },
   {
     engine: "codex",
-    models: ["gpt-5.5", "gpt-5.4"],
-    ctx_windows: { "gpt-5.5": 400_000, "gpt-5.4": 400_000 },
+    models: ["gpt-5.5", "gpt-5.4", "glm-5.1"],
+    ctx_windows: { "gpt-5.5": 400_000, "gpt-5.4": 400_000, "glm-5.1": 128_000 },
     reasoning_efforts: ["low", "medium", "high", "xhigh"],
   },
   {

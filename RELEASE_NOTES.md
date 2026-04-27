@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.15 — 2026-04-27
+
+### Added
+- **Codex glm-5.1 vía NVIDIA NIM**: el engine Codex acepta `glm-5.1` usando `NVIDIA_API_KEY` y `NVIDIA_BASE_URL` OpenAI-compatible sin guardar secretos en git.
+
+---
+
 ## v0.2.14 — 2026-04-27
 
 ### Fixed

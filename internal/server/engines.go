@@ -39,10 +39,11 @@ var staticEngines = []engineDef{
 	},
 	{
 		Engine: "codex",
-		Models: []string{"gpt-5.5", "gpt-5.4"},
+		Models: []string{"gpt-5.5", "gpt-5.4", "glm-5.1"},
 		CtxWindows: map[string]int{
 			"gpt-5.5": 400_000,
 			"gpt-5.4": 400_000,
+			"glm-5.1": 128_000,
 		},
 		ReasoningEfforts: reasoningEfforts(),
 	},
