@@ -161,3 +161,23 @@ button:focus {
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
+
+/* Mermaid SVG — chat (inline) keeps natural size, /diagrams (fill) expands */
+.mermaid-block svg {
+  max-width: 100%;
+  height: auto;
+}
+.mermaid-block-fill svg {
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  display: block;
+}
+.mermaid-block svg .label,
+.mermaid-block-fill svg .label,
+.mermaid-block svg .nodeLabel,
+.mermaid-block-fill svg .nodeLabel,
+.mermaid-block svg .edgeLabel,
+.mermaid-block-fill svg .edgeLabel {
+  font-family: "JetBrains Mono", ui-monospace, monospace !important;
+}

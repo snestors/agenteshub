@@ -241,8 +241,8 @@ export function Diagrams() {
         {/* Right: canvas + prompt + editor */}
         <div className="flex flex-col min-h-0 gap-3">
           <HudPanel title="diagrama" accent="cyan" className="flex-1 min-h-0">
-            <div className="flex-1 min-h-0 overflow-auto px-2">
-              <MermaidBlock content={rendered} />
+            <div className="flex-1 min-h-0 px-2 pb-2">
+              <MermaidBlock content={rendered} size="fill" />
             </div>
           </HudPanel>
 
