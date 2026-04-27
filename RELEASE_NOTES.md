@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.7 — 2026-04-27
+
+### Fixed
+- **Botón crear sesión siempre visible**: el panel de Projects apila los selects de engine/model/effort y fija el botón `+` en una columna derecha para evitar overflow en el sidebar.
+
+---
+
 ## v0.2.6 — 2026-04-27
 
 ### Changed

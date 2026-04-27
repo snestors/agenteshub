@@ -224,48 +224,50 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
           <div className="font-mono text-[10px] text-[var(--color-dim)] mb-3 break-all">
             {project?.path}
           </div>
-          <div className="flex gap-2 mb-3">
-            <select
-              value={newEngine || project?.default_engine || "claude"}
-              onChange={(e) => {
-                const next = e.target.value;
-                setNewEngine(next);
-                const def = engines.find((eng) => eng.engine === next);
-                setNewModel(def?.models[0] ?? "");
-              }}
-              className="bg-[var(--color-bg-2)] outline-none px-2 py-1 clip-tag font-mono text-[10px] text-[var(--color-cyan)]"
-              style={{ border: "1px solid rgba(94,240,255,0.45)" }}
-              title="engine de la nueva sesión"
-            >
-              {engines.map((e) => (
-                <option key={e.engine} value={e.engine}>{e.engine}</option>
-              ))}
-            </select>
-            <select
-              value={newModel || newModelOptions[0] || ""}
-              onChange={(e) => setNewModel(e.target.value)}
-              className="bg-[var(--color-bg-2)] outline-none px-2 py-1 clip-tag font-mono text-[10px] text-[var(--color-lime)]"
-              style={{ border: "1px solid rgba(163,255,78,0.45)" }}
-              title="modelo de la nueva sesión"
-            >
-              {newModelOptions.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-            <select
-              value={newEffort}
-              onChange={(e) => setNewEffort(e.target.value)}
-              className="bg-[var(--color-bg-2)] outline-none px-2 py-1 clip-tag font-mono text-[10px] text-[var(--color-orange)]"
-              style={{ border: "1px solid rgba(255,159,67,0.45)" }}
-              title="reasoning effort de la nueva sesión"
-            >
-              {newEffortOptions.map((eff) => (
-                <option key={eff} value={eff}>{eff}</option>
-              ))}
-            </select>
+          <div className="grid grid-cols-[minmax(0,1fr)_34px] gap-2 mb-3 items-stretch">
+            <div className="grid grid-cols-1 gap-1 min-w-0">
+              <select
+                value={newEngine || project?.default_engine || "claude"}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setNewEngine(next);
+                  const def = engines.find((eng) => eng.engine === next);
+                  setNewModel(def?.models[0] ?? "");
+                }}
+                className="w-full min-w-0 bg-[var(--color-bg-2)] outline-none px-2 py-1 clip-tag font-mono text-[10px] text-[var(--color-cyan)]"
+                style={{ border: "1px solid rgba(94,240,255,0.45)" }}
+                title="engine de la nueva sesión"
+              >
+                {engines.map((e) => (
+                  <option key={e.engine} value={e.engine}>{e.engine}</option>
+                ))}
+              </select>
+              <select
+                value={newModel || newModelOptions[0] || ""}
+                onChange={(e) => setNewModel(e.target.value)}
+                className="w-full min-w-0 bg-[var(--color-bg-2)] outline-none px-2 py-1 clip-tag font-mono text-[10px] text-[var(--color-lime)]"
+                style={{ border: "1px solid rgba(163,255,78,0.45)" }}
+                title="modelo de la nueva sesión"
+              >
+                {newModelOptions.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+              <select
+                value={newEffort}
+                onChange={(e) => setNewEffort(e.target.value)}
+                className="w-full min-w-0 bg-[var(--color-bg-2)] outline-none px-2 py-1 clip-tag font-mono text-[10px] text-[var(--color-orange)]"
+                style={{ border: "1px solid rgba(255,159,67,0.45)" }}
+                title="reasoning effort de la nueva sesión"
+              >
+                {newEffortOptions.map((eff) => (
+                  <option key={eff} value={eff}>{eff}</option>
+                ))}
+              </select>
+            </div>
             <button
               onClick={() => void createSession()}
-              className="px-2 clip-tag cursor-pointer"
+              className="w-[34px] h-full min-h-[82px] flex items-center justify-center clip-tag cursor-pointer"
               style={{ color: "var(--color-lime)", border: "1px solid var(--color-lime)" }}
               title="crear sesión con nombre automático"
             >
