@@ -335,6 +335,7 @@ Política: **antes de importar**, el `agent-builder` o vos mismo revisan la skil
 
 | Fecha | Cambio |
 | --- | --- |
+| 2026-04-27 | Fases B.1 + B.2 implementadas: 7 agent templates en `~/.claude/agents/` (agent-builder, project-evaluator, ui-designer, frontend-specialist, backend-specialist, deploy-specialist, verifier) con frontmatter completo (role/engine/model/skills). `cliengine.RoleDefault()` cableado en `internal/server/openspec.go` — propose/design corren en opus, tasks/apply en codex, verify en sonnet. Endpoint `GET /api/agents/templates` lista los 7 con cache 30s. |
 | 2026-04-26 | Fase A.2 implementada: OpenSpec por proyecto con `openspec/{specs,changes,archive}/`, tabla `openspec_changes`, endpoints gated propose/design/tasks/apply/verify/archive, tab Changes, templates inline SDD y skill `sdd-workflow`. |
 | 2026-04-26 | Fase A.1 implementada: canon por proyecto, `.agenthub/services.yaml`, status live de servicios, tab Services y append-system-prompt con `CLAUDE.md` del proyecto por cwd. |
 | 2026-04-26 | Fase 0 implementada: render Mermaid inline en chat, previews de imágenes protegidas por auth, endpoint de uploads/file, CRUD + generate de diagramas, pantalla `/diagrams` con Excalidraw, y skill `diagram-architect` skeleton. |
