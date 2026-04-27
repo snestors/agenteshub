@@ -241,6 +241,9 @@ export function ProjectChat({ projectId, sessionId, sessionName, engine, model, 
   async function handleCancel() {
     try {
       await api.cancelProjectRun(projectId, sessionId);
+      setPending(false);
+      setGhosts({});
+      await refresh();
     } catch {
       // best-effort
     }

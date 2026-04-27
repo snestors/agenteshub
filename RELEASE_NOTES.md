@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.9 — 2026-04-27
+
+### Fixed
+- **Cancelar runs Codex/proyecto**: Codex ahora corre en process group y cancelación mata el grupo completo; el endpoint emite evento final y la UI limpia pending/ghosts al cancelar.
+
+---
+
 ## v0.2.8 — 2026-04-27
 
 ### Added

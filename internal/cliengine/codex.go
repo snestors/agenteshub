@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os/exec"
 	"strings"
+	"syscall"
 
 	"github.com/snestors/agenthub/internal/config"
 	"github.com/snestors/agenthub/internal/store"
@@ -71,6 +72,7 @@ func (e *CodexEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 		bin = "codex"
 	}
 	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if opts.Cwd != "" {
 		cmd.Dir = opts.Cwd
 	}
@@ -83,7 +85,18 @@ func (e *CodexEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 
 	// We always parse stdout — even on non-zero exit — because the JSONL
 	// usually contains the real reason (rate limit, model error, etc.).
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			if cmd.Process != nil {
+				_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+			}
+		case <-done:
+		}
+	}()
 	runErr := cmd.Run()
+	close(done)
 
 	scanner := bufio.NewScanner(&stdout)
 	scanner.Buffer(make([]byte, 1024*1024), 8*1024*1024)

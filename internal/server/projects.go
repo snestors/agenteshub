@@ -419,6 +419,7 @@ func (s *Server) handleProjectSessionCancel(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	v.(context.CancelFunc)()
+	s.broadcastStreamFinal(projectSessionTopic(sess.ID))
 	writeJSON(w, http.StatusOK, map[string]any{"cancelled": true, "session_id": sess.ID})
 }
 
