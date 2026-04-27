@@ -126,7 +126,6 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
   const [sessions, setSessions] = React.useState<ProjectSession[]>([]);
   const [engines, setEngines] = React.useState<EngineDef[]>(FALLBACK_ENGINES);
   const [selected, setSelected] = React.useState<number>(routeSessionId || 0);
-  const [newName, setNewName] = React.useState("");
   const [newEngine, setNewEngine] = React.useState("");
   const [newModel, setNewModel] = React.useState("");
   const [newEffort, setNewEffort] = React.useState("medium");
@@ -185,13 +184,11 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
   }, [engines, newEngine, newModel, newEffort, project?.default_engine]);
 
   async function createSession() {
-    const name = newName.trim() || `session-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}`;
     const engine = newEngine || project?.default_engine || engines[0]?.engine || "claude";
     const model = newModel || newModelOptions[0] || "";
     const reasoning_effort = newEffort || "medium";
     try {
-      const s = await api.createProjectSession(projectId, { name, engine, model, reasoning_effort });
-      setNewName("");
+      const s = await api.createProjectSession(projectId, { name: "", engine, model, reasoning_effort });
       await refresh();
       nav(`/projects/${projectId}/sessions/${s.id}`);
     } catch (err) {
@@ -228,13 +225,6 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
             {project?.path}
           </div>
           <div className="flex gap-2 mb-3">
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="nueva sesión"
-              className="flex-1 bg-transparent outline-none px-2 py-1 clip-tag font-mono text-[10px] text-[var(--color-fg)]"
-              style={{ border: "1px solid var(--color-line)" }}
-            />
             <select
               value={newEngine || project?.default_engine || "claude"}
               onChange={(e) => {
@@ -277,7 +267,7 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
               onClick={() => void createSession()}
               className="px-2 clip-tag cursor-pointer"
               style={{ color: "var(--color-lime)", border: "1px solid var(--color-lime)" }}
-              title="nueva sesión"
+              title="crear sesión con nombre automático"
             >
               <Plus size={13} />
             </button>

@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.6 — 2026-04-27
+
+### Changed
+- **Creación de sesiones automática**: se quitó el input manual de nombre en Projects; la UI envía `name: ""` y el backend genera el nombre de sesión automáticamente.
+
+---
+
 ## v0.2.5 — 2026-04-27
 
 ### Added
