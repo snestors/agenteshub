@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"strings"
 	"time"
 
@@ -139,9 +138,8 @@ func (s *Server) runWATurn(ctx context.Context, prompt, prev, engine, model stri
 		AgentName: "main-agent",
 	})
 	if err != nil {
-		// Daemon shutdown or context cancelled — don't spam the user with an
-		// internal error message. The turn will be retried on next interaction.
-		if errors.Is(err, context.Canceled) || errors.Is(turnCtx.Err(), context.Canceled) {
+		// Daemon shutdown or OS signal — don't spam the user.
+		if isShutdownError(turnCtx, err) {
 			s.log.Info("wa turn cancelled (shutdown)", "jid", in.JID)
 			return
 		}

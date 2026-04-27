@@ -293,8 +293,12 @@ func (s *Server) runProjectSessionTurn(project *store.Project, sess *store.Proje
 		OnEvent:       s.streamEventBroadcasterForTopic(topic),
 	})
 	if err != nil {
-		s.log.Warn("project run", "project", project.Name, "session", sess.Name, "err", err)
 		s.broadcastStreamFinal(topic)
+		if isShutdownError(ctx, err) {
+			s.log.Info("project turn cancelled (shutdown)", "project", project.Name, "session", sess.Name)
+			return
+		}
+		s.log.Warn("project run", "project", project.Name, "session", sess.Name, "err", err)
 		_, _ = s.repos.Sessions.AppendMessage(context.Background(), store.SessionMessage{
 			Scope:         "project",
 			ProjectID:     sql.NullInt64{Int64: project.ID, Valid: true},

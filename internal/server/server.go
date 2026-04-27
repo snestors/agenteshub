@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -115,6 +116,7 @@ func (s *Server) routes() http.Handler {
 	// public
 	r.Get("/healthz", s.handleHealth)
 	r.Get("/api/runs", s.handleRunsStatus)
+	r.Post("/api/runs/schedule-restart", s.handleScheduleRestart)
 	r.Get("/api/wa/status", s.handleWaStatus)
 	r.Get("/api/wa/qr", s.handleWaQR)
 	r.Post("/api/auth/login", s.handleLogin)
@@ -685,8 +687,8 @@ func (s *Server) runMainAgentTurnTo(enginePrompt, prev, engine, model string, wa
 		OnEvent:   s.streamEventBroadcasterWithActivity(activity),
 	})
 	if err != nil {
-		// Daemon shutdown — context cancelled. Don't persist a spurious error message.
-		if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+		// Daemon shutdown or OS signal — don't persist a spurious error message.
+		if isShutdownError(ctx, err) {
 			s.log.Info("main turn cancelled (shutdown)")
 			return
 		}
@@ -911,8 +913,32 @@ func (s *Server) handleRunsStatus(w http.ResponseWriter, r *http.Request) {
 		total += v
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"runs":  snap,
-		"total": total,
+		"runs":            snap,
+		"total":           total,
+		"pending_restart": s.runs.PendingRestart(),
+	})
+}
+
+// handleScheduleRestart schedules a daemon restart to occur once all in-flight
+// turns complete. If no turns are active, the restart is immediate.
+// This endpoint is public (no JWT) so safe-restart.sh can call it without credentials.
+// It is only accessible locally since the daemon binds to 127.0.0.1 in prod.
+func (s *Server) handleScheduleRestart(w http.ResponseWriter, r *http.Request) {
+	snap := s.runs.Snapshot()
+	total := 0
+	for _, v := range snap {
+		total += v
+	}
+	s.runs.ScheduleRestart(func() {
+		s.log.Info("safe-restart: all turns done, restarting via systemctl")
+		if err := exec.Command("sudo", "systemctl", "restart", "agenthub").Run(); err != nil {
+			s.log.Error("safe-restart: systemctl restart failed", "err", err)
+		}
+	})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"scheduled":                true,
+		"active_runs":              total,
+		"will_restart_immediately": total == 0,
 	})
 }
 

@@ -3,7 +3,9 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/snestors/agenthub/internal/ws"
@@ -68,6 +70,20 @@ func (s *Server) NotifyAgentRunFinished(_ context.Context, agentName string, age
 			"status":   status,
 		},
 	})
+}
+
+// isShutdownError returns true when the error is caused by the daemon shutting
+// down (context cancelled or the claude CLI receiving SIGTERM/SIGKILL from the
+// OS as a child-process). These are not real errors — the turn will resume
+// naturally on the next user message.
+func isShutdownError(ctx context.Context, err error) bool {
+	if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "exit status 143") ||
+		strings.Contains(msg, "signal: killed") ||
+		strings.Contains(msg, "signal: terminated")
 }
 
 func truncate(s string, n int) string {
