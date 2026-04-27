@@ -54,8 +54,7 @@ const ACCENT_VAR: Record<NavItem["accent"], string> = {
 };
 
 export function Sidebar({ username }: { username?: string }) {
-  const { unreadByKindPrefix, markAllRead, unreadCount, openDrawer } =
-    useNotifications();
+  const { unreadByKindPrefix, unreadCount, openDrawer } = useNotifications();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -69,12 +68,9 @@ export function Sidebar({ username }: { username?: string }) {
   }
 
   function handleNavClick(item: NavItem) {
-    if (item.notifPrefix && location.pathname.startsWith(item.to)) {
-      // already on the section — clearing unread is a no-op visually
+    if (item.notifPrefix && unreadByKindPrefix(item.notifPrefix) > 0) {
+      openDrawer();
       return;
-    }
-    if (item.notifPrefix) {
-      markAllRead();
     }
     navigate(item.to);
   }

@@ -37,11 +37,30 @@ function playBlip(severity: "info" | "warn" | "error") {
   }
 }
 
-// Map a notification kind to the route we should offer to navigate to.
-function routeForKind(kind: string): string | null {
-  if (kind.startsWith("main_turn")) return "/";
-  if (kind.startsWith("agent_run")) return "/agents";
-  if (kind.startsWith("project_turn")) return "/projects";
+function contextNumber(ctx: Record<string, unknown> | undefined, key: string): number | null {
+  const value = ctx?.[key];
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return null;
+}
+
+// Map a notification to the exact route we should offer to navigate to.
+function routeForNotification(n: Notification): string | null {
+  if (n.kind.startsWith("main_turn")) return "/";
+  if (n.kind.startsWith("agent_run")) {
+    const agentID = contextNumber(n.context, "agent_id");
+    return agentID ? `/agents/${agentID}` : "/agents";
+  }
+  if (n.kind.startsWith("project_turn")) {
+    const projectID = contextNumber(n.context, "project_id");
+    const sessionID = contextNumber(n.context, "session_id");
+    if (projectID && sessionID) return `/projects/${projectID}/sessions/${sessionID}`;
+    if (projectID) return `/projects/${projectID}`;
+    return "/projects";
+  }
   return null;
 }
 
@@ -174,7 +193,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   return (
     <Ctx.Provider value={value}>
       {children}
-      <RoutedToastStack items={items} dismiss={dismiss} />
+      <RoutedToastStack items={items} dismiss={dismiss} markRead={markRead} />
       {isDrawerOpen && (
         <NotificationDrawer
           items={items}
@@ -235,7 +254,7 @@ function NotificationDrawer({
   const read = items.filter((i) => i.read);
 
   function handleEntryClick(n: Notification) {
-    const route = routeForKind(n.kind);
+    const route = routeForNotification(n);
     if (!route || pathname === route || pathname.startsWith(route + "/")) {
       onMarkRead(n.id);
       return;
@@ -507,11 +526,10 @@ function ConfirmModal({ notif, route, onConfirm, onCancel }: ConfirmModalProps) 
 // shouldToast hides the toast when the user is already on the screen that
 // would naturally surface that event. The notification is still kept in the
 // store so the badge counter is honest.
-function shouldToast(kind: string, pathname: string): boolean {
-  if (kind.startsWith("main_turn") && pathname === "/") return false;
-  if (kind.startsWith("agent_run") && pathname.startsWith("/agents")) return false;
-  if (kind.startsWith("project_turn") && pathname.startsWith("/projects")) return false;
-  return true;
+function shouldToast(n: Notification, pathname: string): boolean {
+  const route = routeForNotification(n);
+  if (!route) return true;
+  return !(pathname === route || pathname.startsWith(route + "/"));
 }
 
 export function useNotifications(): NotificationsState {
@@ -525,9 +543,11 @@ export function useNotifications(): NotificationsState {
 function RoutedToastStack({
   items,
   dismiss,
+  markRead,
 }: {
   items: Notification[];
   dismiss: (id: string) => void;
+  markRead: (id: string) => void;
 }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -539,11 +559,11 @@ function RoutedToastStack({
     return () => window.clearInterval(t);
   }, []);
   const visible = items
-    .filter((i) => !i.read && now - i.ts * 1000 < TOAST_TTL_MS && shouldToast(i.kind, pathname))
+    .filter((i) => !i.read && now - i.ts * 1000 < TOAST_TTL_MS && shouldToast(i, pathname))
     .slice(0, 4);
 
   const handleClick = (n: Notification) => {
-    const route = routeForKind(n.kind);
+    const route = routeForNotification(n);
     if (!route || pathname === route || pathname.startsWith(route + "/")) {
       dismiss(n.id);
       return;
@@ -566,11 +586,11 @@ function RoutedToastStack({
           route={confirming.route}
           onConfirm={() => {
             navigate(confirming.route);
-            dismiss(confirming.notif.id);
+            markRead(confirming.notif.id);
             setConfirming(null);
           }}
           onCancel={() => {
-            dismiss(confirming.notif.id);
+            markRead(confirming.notif.id);
             setConfirming(null);
           }}
         />
@@ -595,7 +615,7 @@ function Toast({
       ? "var(--color-orange)"
       : "var(--color-cyan)";
   const Icon = n.severity === "error" ? AlertTriangle : n.kind.startsWith("agent_run") ? Bot : Info;
-  const hasRoute = routeForKind(n.kind) !== null;
+  const hasRoute = routeForNotification(n) !== null;
   return (
     <div
       role={hasRoute ? "button" : undefined}

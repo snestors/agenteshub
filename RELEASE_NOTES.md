@@ -8,6 +8,15 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.14 — 2026-04-27
+
+### Fixed
+- **Notificaciones a ubicación exacta**: las notificaciones de proyecto ahora navegan a `/projects/{project_id}/sessions/{session_id}` cuando el backend envía ese contexto.
+- **Confirmación antes de navegar**: el badge de secciones con notificaciones abre el drawer y el toast/drawer preguntan antes de ir; cancelar marca la notificación como leída sin borrarla.
+- **Guardrail no visible**: se retiró el prefijo runtime de project chat que podía aparecer como mensaje del usuario.
+
+---
+
 ## v0.2.13 — 2026-04-27
 
 ### Fixed
