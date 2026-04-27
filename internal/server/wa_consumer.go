@@ -108,10 +108,22 @@ func (s *Server) handleWAIncoming(ctx context.Context, client *wa.Client, in wa.
 		replyJID = in.JID
 	}
 
-	// Run the SAME pipeline the web chat uses. The prompt is the raw user
-	// text — same as a web turn — so the agent answers in plain conversation
-	// instead of "Mensaje enviado por WhatsApp." style confirmations.
-	go s.runMainAgentTurnTo(body, prev, engine, model, &waReplyTarget{
+	// If the user quoted a previous message, prepend its content as context so
+	// the agent knows which message is being replied to.
+	enginePrompt := body
+	if in.QuotedID != "" {
+		if quoted, err := s.repos.Messages.GetByExternalID(ctx, in.QuotedID); err == nil && quoted != nil {
+			quotedBody := ""
+			if quoted.Body.Valid {
+				quotedBody = quoted.Body.String
+			}
+			if quotedBody != "" {
+				enginePrompt = "[el user responde a este mensaje tuyo: \"" + quotedBody + "\"]\n\n" + body
+			}
+		}
+	}
+
+	go s.runMainAgentTurnTo(enginePrompt, prev, engine, model, &waReplyTarget{
 		JID:      replyJID,
 		StanzaID: in.ExternalID,
 	})

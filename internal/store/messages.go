@@ -151,6 +151,33 @@ func (r *MessagesRepo) Search(ctx context.Context, channel, query string, limit 
 	return out, rows.Err()
 }
 
+// GetByExternalID returns the message whose WA StanzaID matches externalID.
+// Returns nil, nil when not found.
+func (r *MessagesRepo) GetByExternalID(ctx context.Context, externalID string) (*Message, error) {
+	if externalID == "" {
+		return nil, nil
+	}
+	row := r.db.QueryRowContext(ctx, `
+		SELECT id, channel, direction, jid, body, media_type, media_path, media_caption,
+		       location_lat, location_lng, location_name, quoted_id, reply_to, ts, is_read,
+		       engine, model, activity, external_id
+		FROM wa_messages WHERE external_id = ? LIMIT 1
+	`, externalID)
+	var m Message
+	err := row.Scan(
+		&m.ID, &m.Channel, &m.Direction, &m.JID, &m.Body, &m.MediaType, &m.MediaPath, &m.MediaCaption,
+		&m.LocationLat, &m.LocationLng, &m.LocationName, &m.QuotedID, &m.ReplyTo, &m.TS, &m.IsRead,
+		&m.Engine, &m.Model, &m.Activity, &m.ExternalID,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
 // MarkRead sets is_read=1 for the message.
 func (r *MessagesRepo) MarkRead(ctx context.Context, id int64) error {
 	_, err := r.db.ExecContext(ctx, `UPDATE wa_messages SET is_read=1 WHERE id=?`, id)
