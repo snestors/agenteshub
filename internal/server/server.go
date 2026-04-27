@@ -185,11 +185,19 @@ func (s *Server) routes() http.Handler {
 		// Skills registry
 		pr.Get("/api/skills", s.handleSkillsList)
 		pr.Post("/api/skills/sync", s.handleSkillsSync)
+		// Skill improvements (auto-mejora propose-and-approve)
+		pr.Get("/api/skills/improvements", s.handleSkillImprovementsList)
+		pr.Post("/api/skills/improvements", s.handleSkillImprovementsCreate)
+		pr.Post("/api/skills/improvements/{id}/resolve", s.handleSkillImprovementResolve)
 
 		// Project templates (clones rápidos de stacks pre-armados)
 		pr.Get("/api/project-templates", s.handleProjectTemplatesList)
 		pr.Get("/api/project-templates/{name}", s.handleProjectTemplateGet)
 		pr.Post("/api/projects/{id}/apply-template", s.handleProjectApplyTemplate)
+
+		// Canonical project docs (CLAUDE.md, SPECS.md, DESIGN.md, AGENTS.md, RELEASE_NOTES.md)
+		pr.Get("/api/projects/{id}/docs", s.handleProjectDocsList)
+		pr.Get("/api/projects/{id}/docs/{doc}", s.handleProjectDocGet)
 
 		// Topics
 		pr.Get("/api/topics", s.handleTopicsList)

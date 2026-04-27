@@ -90,8 +90,9 @@ type Repos struct {
 	Secrets   *SecretsRepo
 	Diagrams  *DiagramsRepo
 	OpenSpec  *OpenSpecChangesRepo
-	WaOutbox  *WaOutboxRepo
-	Skills    *SkillsRepo
+	WaOutbox          *WaOutboxRepo
+	Skills            *SkillsRepo
+	SkillImprovements *SkillImprovementsRepo
 }
 
 // NewRepos wires up every repo around a single *sql.DB handle.
@@ -110,8 +111,9 @@ func NewRepos(db *sql.DB) *Repos {
 		Secrets:   NewSecretsRepo(db),
 		Diagrams:  NewDiagramsRepo(db),
 		OpenSpec:  NewOpenSpecChangesRepo(db),
-		WaOutbox:  NewWaOutboxRepo(db),
-		Skills:    NewSkillsRepo(db),
+		WaOutbox:          NewWaOutboxRepo(db),
+		Skills:            NewSkillsRepo(db),
+		SkillImprovements: NewSkillImprovementsRepo(db),
 	}
 }
 

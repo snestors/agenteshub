@@ -428,6 +428,16 @@ func (s *Server) regenerateOpenSpecPhase(ctx context.Context, project *store.Pro
 	return s.repos.OpenSpec.UpdateState(ctx, change.ID, stateForPhaseApproval(phase), phase)
 }
 
+// resolvePhaseModel applies the per-project override (.claude/phase-models.yaml)
+// on top of the role default. Phase G of the roadmap.
+func resolvePhaseModel(projectPath, phase, defEngine, defModel string) (string, string) {
+	cfg, err := projectfs.LoadPhaseModels(projectPath)
+	if err != nil || cfg == nil {
+		return defEngine, defModel
+	}
+	return cfg.PhaseEngineModel(phase, defEngine, defModel)
+}
+
 // roleForOpenSpecPhase maps a SDD phase to the agent role that should run it.
 // See ROADMAP "Decisiones clave" — orchestrators get the heavy thinking,
 // executors get the mechanical breakdown, verifiers get the judgment call.
@@ -454,7 +464,8 @@ func (s *Server) generateOpenSpecArtifact(ctx context.Context, project *store.Pr
 	//   tasks            → executor (codex, mechanical breakdown)
 	//   verify           → verifier (sonnet, judgment)
 	// apply runs in runOpenSpecApplyAndVerify and uses its own resolution.
-	engineName, model := cliengine.RoleDefault(roleForOpenSpecPhase(phase))
+	defEngine, defModel := cliengine.RoleDefault(roleForOpenSpecPhase(phase))
+	engineName, model := resolvePhaseModel(project.Path, phase, defEngine, defModel)
 	runCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 	res, err := s.engines.Run(runCtx, cliengine.RunOpts{
@@ -505,7 +516,8 @@ func (s *Server) runOpenSpecApplyAndVerify(projectID, changeID int64, dryRun boo
 		_ = s.repos.OpenSpec.UpdateState(ctx, change.ID, "awaiting_approval_verify", "verify")
 		return
 	}
-	applyEngine, applyModel := cliengine.RoleDefault(cliengine.RoleExecutor)
+	applyDefEngine, applyDefModel := cliengine.RoleDefault(cliengine.RoleExecutor)
+	applyEngine, applyModel := resolvePhaseModel(project.Path, "apply", applyDefEngine, applyDefModel)
 	applyRes, applyErr := s.engines.Run(ctx, cliengine.RunOpts{
 		Prompt:    applyPrompt,
 		Channel:   "project",
@@ -525,7 +537,8 @@ func (s *Server) runOpenSpecApplyAndVerify(projectID, changeID int64, dryRun boo
 	} else if applyRes != nil {
 		verifyPrompt += "\n\n## Apply result\n" + applyRes.Text
 	}
-	verifyEngine, verifyModel := cliengine.RoleDefault(cliengine.RoleVerifier)
+	verifyDefEngine, verifyDefModel := cliengine.RoleDefault(cliengine.RoleVerifier)
+	verifyEngine, verifyModel := resolvePhaseModel(project.Path, "verify", verifyDefEngine, verifyDefModel)
 	verifyRes, verifyErr := s.engines.Run(ctx, cliengine.RunOpts{
 		Prompt:    verifyPrompt,
 		Channel:   "project",
