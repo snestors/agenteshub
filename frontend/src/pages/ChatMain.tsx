@@ -229,11 +229,16 @@ export function ChatMain() {
   }, [markAgentPending]));
 
   // On reconnect, refresh once to reconcile anything missed while offline.
+  // Also clear any stale "done" ghosts — they belong to a turn that already
+  // finished while we were away; the persisted message is in the DB already.
   React.useEffect(() => {
     if (wsStatus === "open") {
       void refresh();
+      if (ghostList.some((g) => g.done)) {
+        clearAgentGhosts();
+      }
     }
-  }, [wsStatus, refresh]);
+  }, [wsStatus, refresh, ghostList, clearAgentGhosts]);
 
   // ─── auto-scroll on new messages or ghost activity ─
   const ghostSig = React.useMemo(
