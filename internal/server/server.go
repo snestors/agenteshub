@@ -167,6 +167,9 @@ func (s *Server) routes() http.Handler {
 		// Mini-agents — persistent scheduled/manual agents
 		pr.Get("/api/agents", s.handleAgentsList)
 		pr.Post("/api/agents", s.handleAgentsCreate)
+		// Templates: literal route registered before /{id} so chi doesn't
+		// treat "templates" as a numeric agent id.
+		pr.Get("/api/agents/templates", s.handleAgentsTemplates)
 		pr.Get("/api/agents/{id}", s.handleAgentGet)
 		pr.Post("/api/agents/{id}/enabled", s.handleAgentSetEnabled)
 		pr.Post("/api/agents/{id}/run", s.handleAgentRunNow)
