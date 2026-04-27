@@ -8,10 +8,10 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/agenteshub/agenteshub/internal/auth"
-	"github.com/agenteshub/agenteshub/internal/config"
-	"github.com/agenteshub/agenteshub/internal/domain/models"
-	"github.com/agenteshub/agenteshub/internal/store"
+	"github.com/snestors/agenteshub/internal/auth"
+	"github.com/snestors/agenteshub/internal/config"
+	"github.com/snestors/agenteshub/internal/domain/models"
+	"github.com/snestors/agenteshub/internal/store"
 )
 
 // User creates or replaces the single AgentHub user, prints the TOTP otpauth URL.

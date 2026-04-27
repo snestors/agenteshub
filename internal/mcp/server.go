@@ -16,11 +16,11 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/robfig/cron/v3"
 
-	"github.com/agenteshub/agenteshub/internal/auth"
-	"github.com/agenteshub/agenteshub/internal/cliengine"
-	"github.com/agenteshub/agenteshub/internal/config"
-	"github.com/agenteshub/agenteshub/internal/store"
-	"github.com/agenteshub/agenteshub/internal/sysman"
+	"github.com/snestors/agenteshub/internal/auth"
+	"github.com/snestors/agenteshub/internal/cliengine"
+	"github.com/snestors/agenteshub/internal/config"
+	"github.com/snestors/agenteshub/internal/store"
+	"github.com/snestors/agenteshub/internal/sysman"
 )
 
 // Server wraps the MCP server bound to repos.

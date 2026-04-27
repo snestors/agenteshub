@@ -9,8 +9,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/agenteshub/agenteshub/internal/auth"
-	"github.com/agenteshub/agenteshub/internal/store"
+	"github.com/snestors/agenteshub/internal/auth"
+	"github.com/snestors/agenteshub/internal/store"
 )
 
 // secretWire is the metadata-only shape returned by listings. Plaintext

@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/agenteshub/agenteshub/internal/store"
+	"github.com/snestors/agenteshub/internal/store"
 )
 
 // subagentWire is the JSON shape consumed by the frontend.

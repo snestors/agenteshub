@@ -1,4 +1,4 @@
-module github.com/agenteshub/agenteshub
+module github.com/snestors/agenteshub
 
 go 1.25.5
 

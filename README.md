@@ -27,7 +27,7 @@ A self-hosted AI agent hub that runs on your hardware. One brain, two surfaces: 
 ## Installation
 
 ```bash
-git clone https://github.com/agenteshub/agenteshub
+git clone https://github.com/snestors/agenteshub
 cd agenteshub
 
 # 1. Build the frontend
@@ -35,8 +35,8 @@ cd frontend && pnpm install && pnpm run build && cd ..
 
 # 2. Build the backend
 go build -tags 'sqlite_fts5 sqlite_json' \
-  -ldflags "-X github.com/agenteshub/agenteshub/internal/buildinfo.Version=$(cat VERSION) \
-            -X github.com/agenteshub/agenteshub/internal/buildinfo.GitCommit=$(git rev-parse --short HEAD)" \
+  -ldflags "-X github.com/snestors/agenteshub/internal/buildinfo.Version=$(cat VERSION) \
+            -X github.com/snestors/agenteshub/internal/buildinfo.GitCommit=$(git rev-parse --short HEAD)" \
   -o bin/agenteshub ./cmd/agenthub
 
 # 3. Run the setup wizard

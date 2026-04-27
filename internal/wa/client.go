@@ -23,8 +23,8 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
 
-	"github.com/agenteshub/agenteshub/internal/config"
-	"github.com/agenteshub/agenteshub/internal/store"
+	"github.com/snestors/agenteshub/internal/config"
+	"github.com/snestors/agenteshub/internal/store"
 )
 
 // Client wraps whatsmeow's Client with persistence + queue glue.

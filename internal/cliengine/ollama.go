@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/agenteshub/agenteshub/internal/config"
+	"github.com/snestors/agenteshub/internal/config"
 )
 
 // OllamaEngine talks to a local ollama server (default :11434).

@@ -13,9 +13,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/robfig/cron/v3"
 
-	"github.com/agenteshub/agenteshub/internal/cliengine"
-	"github.com/agenteshub/agenteshub/internal/store"
-	"github.com/agenteshub/agenteshub/internal/ws"
+	"github.com/snestors/agenteshub/internal/cliengine"
+	"github.com/snestors/agenteshub/internal/store"
+	"github.com/snestors/agenteshub/internal/ws"
 )
 
 type agentWire struct {

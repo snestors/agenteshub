@@ -17,17 +17,17 @@ import (
 	"github.com/mdp/qrterminal/v3"
 	"github.com/skip2/go-qrcode"
 
-	"github.com/agenteshub/agenteshub/internal/buildinfo"
-	"github.com/agenteshub/agenteshub/internal/cliengine"
-	"github.com/agenteshub/agenteshub/internal/config"
-	intcron "github.com/agenteshub/agenteshub/internal/cron"
-	"github.com/agenteshub/agenteshub/internal/mcp"
-	"github.com/agenteshub/agenteshub/internal/scheduler"
-	"github.com/agenteshub/agenteshub/internal/server"
-	"github.com/agenteshub/agenteshub/internal/setup"
-	"github.com/agenteshub/agenteshub/internal/store"
-	"github.com/agenteshub/agenteshub/internal/sysman"
-	"github.com/agenteshub/agenteshub/internal/wa"
+	"github.com/snestors/agenteshub/internal/buildinfo"
+	"github.com/snestors/agenteshub/internal/cliengine"
+	"github.com/snestors/agenteshub/internal/config"
+	intcron "github.com/snestors/agenteshub/internal/cron"
+	"github.com/snestors/agenteshub/internal/mcp"
+	"github.com/snestors/agenteshub/internal/scheduler"
+	"github.com/snestors/agenteshub/internal/server"
+	"github.com/snestors/agenteshub/internal/setup"
+	"github.com/snestors/agenteshub/internal/store"
+	"github.com/snestors/agenteshub/internal/sysman"
+	"github.com/snestors/agenteshub/internal/wa"
 )
 
 func main() {

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/agenteshub/agenteshub/internal/store"
+	"github.com/snestors/agenteshub/internal/store"
 )
 
 func nsStr(n sql.NullString) string {

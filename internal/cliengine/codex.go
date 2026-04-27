@@ -11,8 +11,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/agenteshub/agenteshub/internal/config"
-	"github.com/agenteshub/agenteshub/internal/store"
+	"github.com/snestors/agenteshub/internal/config"
+	"github.com/snestors/agenteshub/internal/store"
 )
 
 // CodexEngine spawns OpenAI Codex CLI with --json + resume.

@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/agenteshub/agenteshub/internal/ws"
+	"github.com/snestors/agenteshub/internal/ws"
 )
 
 // ---------- system endpoints (require JWT) ----------

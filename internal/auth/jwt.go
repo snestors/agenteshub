@@ -9,7 +9,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
-	"github.com/agenteshub/agenteshub/internal/config"
+	"github.com/snestors/agenteshub/internal/config"
 )
 
 // RevocationStore checks and records JWT revocation state.

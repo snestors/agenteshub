@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/agenteshub/agenteshub/internal/store"
-	"github.com/agenteshub/agenteshub/internal/ws"
+	"github.com/snestors/agenteshub/internal/store"
+	"github.com/snestors/agenteshub/internal/ws"
 )
 
 // agentStatus is what the StatusBar consumes.

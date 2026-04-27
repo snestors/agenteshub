@@ -22,13 +22,13 @@ import (
 	"github.com/go-chi/cors"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/agenteshub/agenteshub/internal/auth"
-	"github.com/agenteshub/agenteshub/internal/buildinfo"
-	"github.com/agenteshub/agenteshub/internal/cliengine"
-	"github.com/agenteshub/agenteshub/internal/config"
-	"github.com/agenteshub/agenteshub/internal/store"
-	"github.com/agenteshub/agenteshub/internal/sysman"
-	"github.com/agenteshub/agenteshub/internal/ws"
+	"github.com/snestors/agenteshub/internal/auth"
+	"github.com/snestors/agenteshub/internal/buildinfo"
+	"github.com/snestors/agenteshub/internal/cliengine"
+	"github.com/snestors/agenteshub/internal/config"
+	"github.com/snestors/agenteshub/internal/store"
+	"github.com/snestors/agenteshub/internal/sysman"
+	"github.com/snestors/agenteshub/internal/ws"
 )
 
 const cookieName = "agenthub_token"
