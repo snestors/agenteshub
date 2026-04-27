@@ -4,7 +4,6 @@ import { useTopic } from "@/lib/useTopic";
 import { Composer } from "@/components/Composer";
 import { MessageBubble } from "@/components/MessageBubble";
 import { GhostBubble, type GhostBubbleData, type ToolCall } from "@/components/GhostBubble";
-import { StatusBar } from "@/components/StatusBar";
 
 interface ProjectChatProps {
   projectId: number;
@@ -293,8 +292,12 @@ export function ProjectChat({ projectId, sessionId, sessionName, engine, onEngin
       )}
 
       <div className="mt-2 -mx-4 -mb-3">
-        <div className="flex items-center justify-between px-4 pb-1 gap-2">
-          {/* Engine selector */}
+        <Composer onSend={handleSend} disabled={sessionId <= 0 || isRunning} />
+        {/* Session status bar — reemplaza StatusBar del main agent */}
+        <div
+          className="flex items-center gap-3 px-4 py-1.5 font-mono text-[10px] tracking-hud-tight border-t border-[var(--color-line)] select-none"
+          style={{ background: "rgba(0,0,0,0.55)", minHeight: 26 }}
+        >
           <select
             value={engine ?? "claude"}
             disabled={isRunning || engineChanging}
@@ -305,40 +308,48 @@ export function ProjectChat({ projectId, sessionId, sessionName, engine, onEngin
                 await api.setProjectSessionEngine(projectId, sessionId, next);
                 onEngineChange?.(next);
               } catch {
-                // revert visually handled by parent state not changing
+                // parent state no cambia → visual revert automático
               } finally {
                 setEngineChanging(false);
               }
             }}
-            className="font-mono text-[10px] tracking-hud-tight bg-transparent outline-none cursor-pointer"
+            className="clip-tag bg-transparent outline-none cursor-pointer"
             style={{
               color: engineChanging ? "var(--color-dim)" : "var(--color-cyan)",
-              border: "1px solid var(--color-line)",
-              padding: "1px 4px",
+              border: "1px solid rgba(94,240,255,0.45)",
+              background: "rgba(94,240,255,0.10)",
+              padding: "1px 6px",
+              font: "inherit",
+              letterSpacing: "inherit",
             }}
           >
-            {engines.map((e) => (
-              <option key={e} value={e} style={{ background: "#0a0f24" }}>{e}</option>
+            {engines.map((eng) => (
+              <option key={eng} value={eng} style={{ background: "#0a0f24" }}>{eng}</option>
             ))}
           </select>
 
           {isRunning && (
-            <button
-              onClick={() => void handleCancel()}
-              className="font-mono text-[10px] px-2 py-0.5 clip-hud-sm"
-              style={{
-                background: "rgba(255,92,122,0.08)",
-                border: "1px solid rgba(255,92,122,0.4)",
-                color: "var(--color-danger)",
-                cursor: "pointer",
-              }}
-            >
-              ✕ cancelar
-            </button>
+            <>
+              <span className="text-[var(--color-dim)]">·</span>
+              <button
+                onClick={() => void handleCancel()}
+                className="clip-tag cursor-pointer hover:opacity-80"
+                style={{
+                  background: "rgba(255,92,122,0.08)",
+                  border: "1px solid rgba(255,92,122,0.4)",
+                  color: "var(--color-danger)",
+                  font: "inherit",
+                  letterSpacing: "inherit",
+                  padding: "1px 6px",
+                }}
+              >
+                ✕ cancelar
+              </button>
+            </>
           )}
+
+          <span className="ml-auto text-[var(--color-dim)]">{transportLabel}</span>
         </div>
-        <Composer onSend={handleSend} disabled={sessionId <= 0 || isRunning} />
-        <StatusBar transportLabel={transportLabel} />
       </div>
     </div>
   );

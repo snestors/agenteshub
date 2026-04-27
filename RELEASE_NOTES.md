@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.1 — 2026-04-27
+
+### Fixed
+- **Engine selector en project sessions**: reemplaza el `StatusBar` del main agent por una barra de sesión propia. El selector de engine (`claude` / `codex` / `ollama`) vive en esa barra junto al botón cancelar y el label de transporte — sin duplicados.
+
+---
+
 ## v0.2.0 — 2026-04-27
 
 ### Added
