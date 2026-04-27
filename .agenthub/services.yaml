@@ -4,7 +4,7 @@ services:
     unit: agenthub.service
     description: AgentHub daemon Go + frontend estático
     health_url: http://127.0.0.1:8093/healthz
-    public_url: http://127.0.0.1:8093
+    public_url: https://agenthub.kyn3d.com
 
   - kind: docker
     container: engram-cloud-postgres

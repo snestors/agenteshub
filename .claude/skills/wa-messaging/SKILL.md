@@ -37,9 +37,11 @@ persiste para la web). Con `jid + reply_to` cita un mensaje específico.
 
 ## Reglas duras
 
-1. **`send_message` ES obligatorio en canal WA**. Tu output natural NO se
-   entrega al user cuando el canal es WhatsApp. Sin `send_message`, el
-   user no recibe nada.
+1. **NO uses `send_message` para responderle al user que te escribió.** El
+   daemon (converger) toma tu output de texto natural y lo entrega al canal
+   correcto automáticamente: si te escribió por WA → vuelve por WA Y queda
+   en el chat web. `send_message` queda **únicamente** para mandar a OTRO
+   contacto distinto (notificación cruzada, alerta a un tercero, etc).
 2. **Las rutas son del filesystem del daemon**, no del cliente. Si querés
    enviar una imagen que el user te subió por la web, ya está en
    `data/uploads/<id>` — usá esa ruta directamente.
@@ -74,27 +76,8 @@ Cada row trae también:
 Para revisar lo que llegó:
 - `recent_messages(channel='wa', limit=N)` — últimos N
 - Si `media_path` está set, podés leer el archivo con la tool Read.
-- Para voice notes, transcribir con whisper local:
-  ```bash
-  /home/nestor/tts-venv/bin/python3 -c "
-  import whisper; m = whisper.load_model('tiny')
-  print(m.transcribe('/path/audio.ogg', language='es')['text'])
-  "
-  ```
-
-## TTS (texto → voz) para mandar notas
-
-Voz preferida: **es-US-PalomaNeural** ("Paloma").
-
-```bash
-/home/nestor/tts-venv/bin/python3 -m edge_tts \
-  --text "hola, esto es lo que querías saber" \
-  --voice es-US-PalomaNeural \
-  --write-media /tmp/voz.mp3
-ffmpeg -y -i /tmp/voz.mp3 -c:a libopus -b:a 64k /tmp/voz.ogg
-# después:
-send_voice jid="51922743968" path="/tmp/voz.ogg"
-```
+- Para **transcribir notas de voz** entrantes, leé la skill `audio-stt`.
+- Para **mandar una nota de voz** (TTS), leé la skill `voice-tts`.
 
 ## Flujo típico al recibir un mensaje WA
 
