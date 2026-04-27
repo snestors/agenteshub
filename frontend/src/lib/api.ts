@@ -646,6 +646,19 @@ export const api = {
     );
   },
 
+  async getProjectRunStatus(projectId: number, sessionId: number): Promise<{ running: boolean }> {
+    return request<{ running: boolean }>(
+      `/api/projects/${projectId}/sessions/${sessionId}/run`,
+    );
+  },
+
+  async cancelProjectRun(projectId: number, sessionId: number): Promise<void> {
+    await request<unknown>(
+      `/api/projects/${projectId}/sessions/${sessionId}/run`,
+      { method: "DELETE" },
+    );
+  },
+
   async listProjectServices(projectId: number): Promise<ProjectServiceStatus[]> {
     const res = await request<{ services: ProjectServiceStatus[] | null }>(
       `/api/projects/${projectId}/services`,

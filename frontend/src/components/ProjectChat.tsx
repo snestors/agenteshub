@@ -80,10 +80,19 @@ export function ProjectChat({ projectId, sessionId, sessionName }: ProjectChatPr
     setGhosts({});
     setPending(false);
     void refresh();
-  }, [refresh]);
+    // Check if a turn is already in flight (e.g. user navigated away and back).
+    if (sessionId > 0) {
+      api.getProjectRunStatus(projectId, sessionId)
+        .then(({ running }) => { if (running) setPending(true); })
+        .catch(() => {});
+    }
+  }, [refresh, projectId, sessionId]);
 
   const applyStreamChunk = React.useCallback((chunk: WsStreamPayload) => {
     const sid = chunk.session_id || `project-${sessionId}`;
+    if (chunk.final) {
+      setPending(false);
+    }
     setGhosts((curr) => {
       if (chunk.final) {
         const next = { ...curr };
@@ -212,11 +221,18 @@ export function ProjectChat({ projectId, sessionId, sessionName }: ProjectChatPr
     try {
       await api.sendProjectMessage(projectId, sessionId, body);
       setError(null);
-      window.setTimeout(() => void refresh(), 1200);
     } catch (err) {
       setError(err instanceof Error ? err.message : "fallo enviando mensaje");
       setMessages((curr) => curr.filter((m) => m.id !== optimisticId));
       setPending(false);
+    }
+  }
+
+  async function handleCancel() {
+    try {
+      await api.cancelProjectRun(projectId, sessionId);
+    } catch {
+      // best-effort
     }
   }
 
@@ -227,6 +243,7 @@ export function ProjectChat({ projectId, sessionId, sessionName }: ProjectChatPr
         ? "ws · connecting…"
         : "ws · reconnect…";
   const hasGhost = ghostList.length > 0;
+  const isRunning = pending || hasGhost;
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -266,7 +283,23 @@ export function ProjectChat({ projectId, sessionId, sessionName }: ProjectChatPr
       )}
 
       <div className="mt-2 -mx-4 -mb-3">
-        <Composer onSend={handleSend} disabled={sessionId <= 0} />
+        {isRunning && (
+          <div className="flex justify-end px-4 pb-1">
+            <button
+              onClick={() => void handleCancel()}
+              className="font-mono text-[10px] px-2 py-0.5 clip-hud-sm"
+              style={{
+                background: "rgba(255,92,122,0.08)",
+                border: "1px solid rgba(255,92,122,0.4)",
+                color: "var(--color-danger)",
+                cursor: "pointer",
+              }}
+            >
+              ✕ cancelar
+            </button>
+          </div>
+        )}
+        <Composer onSend={handleSend} disabled={sessionId <= 0 || isRunning} />
         <StatusBar transportLabel={transportLabel} />
       </div>
     </div>

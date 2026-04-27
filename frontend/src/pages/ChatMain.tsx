@@ -216,11 +216,17 @@ export function ChatMain() {
   // subscribe to the unified /ws endpoint, topic "agent"
   const { status: wsStatus } = useTopic("agent", handleWsMessage);
 
-  // Keep the agent_status topic active for the shared connection; StatusBar
-  // owns the payload rendering.
-  useTopic("agent_status", () => {
-    /* no-op */
-  });
+  // Keep the agent_status topic active. If a turn is in flight when the user
+  // navigates back here (ghostList is empty because no chunks were received
+  // after mount), mark a pending ghost immediately so the UI shows activity.
+  useTopic("agent_status", React.useCallback((_payload: unknown, evt: WsEnvelope) => {
+    if (evt.type !== "agent_status") return;
+    type StatusPayload = { running_main?: number };
+    const p = parseEnvelopePayload<StatusPayload>(evt.payload);
+    if (p && (p.running_main ?? 0) > 0) {
+      markAgentPending();
+    }
+  }, [markAgentPending]));
 
   // On reconnect, refresh once to reconcile anything missed while offline.
   React.useEffect(() => {

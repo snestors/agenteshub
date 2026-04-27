@@ -3,27 +3,6 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Brain, ChevronRight, Loader2, CheckCircle2 } from "lucide-react";
 
-// safeMarkdownStream balances open markers so an in-flight stream doesn't
-// render as a half-broken block. When the stream is done we trust the text
-// as-is. Currently handles: ``` fences, single ` inline code, ** bold, * italic.
-function safeMarkdownStream(text: string, done: boolean): string {
-  if (done) return text;
-  const fences = (text.match(/```/g) || []).length;
-  let out = text;
-  if (fences % 2 === 1) {
-    out += "\n```";
-  } else {
-    // close stray inline code only when there's no open fence (else we'd
-    // close the fence accidentally).
-    const inline = (out.match(/`/g) || []).length;
-    if (inline % 2 === 1) out += "`";
-  }
-  // Bold (**) and italic (*) — handled together: count free '*' outside code
-  // blocks. Cheap heuristic: count total ** pairs.
-  const bolds = (out.match(/\*\*/g) || []).length;
-  if (bolds % 2 === 1) out += "**";
-  return out;
-}
 
 export type ToolStatus = "running" | "ok" | "error";
 
@@ -233,24 +212,26 @@ export function GhostBubble({ data }: { data: GhostBubbleData }) {
             </div>
           )}
 
-          {/* live text — markdown */}
+          {/* live text — plain while streaming, markdown once done */}
           {data.text ? (
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
-              {safeMarkdownStream(data.text, !!data.done)}
-            </ReactMarkdown>
+            data.done ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+                {data.text}
+              </ReactMarkdown>
+            ) : (
+              <div className="whitespace-pre-wrap break-words leading-[1.55] text-[12.5px]">
+                {data.text}
+                <span
+                  className="inline-block w-1.5 h-3 ml-0.5 animate-pulse align-middle"
+                  style={{ background: "var(--color-magenta)" }}
+                />
+              </div>
+            )
           ) : !data.thinking && data.tools.length === 0 ? (
             <span className="text-[var(--color-dim)] italic">
               ◂ MAIN está pensando…
             </span>
           ) : null}
-
-          {/* blinking cursor while streaming text */}
-          {data.text && (
-            <span
-              className="inline-block w-1.5 h-3 ml-0.5 animate-pulse align-middle"
-              style={{ background: "var(--color-magenta)" }}
-            />
-          )}
         </div>
       </div>
     </div>
