@@ -159,6 +159,10 @@ func runServe() {
 			logger.Error("wa connect", "err", err)
 		}
 		waClient.StartOutboxWorker(ctx)
+		// IncomingConsumer is what wakes the agent on every new WA message:
+		// MarkRead → typing presence → engine.Run → enqueue reply on wa_outbox.
+		// Without this, messages land in the DB but the agent never replies.
+		waClient.StartIncomingConsumer(ctx, engines)
 		defer waClient.Disconnect()
 	}
 
