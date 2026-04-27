@@ -268,7 +268,14 @@ func (s *Server) handleProjectSessionMessagesSend(w http.ResponseWriter, r *http
 
 func (s *Server) runProjectSessionTurn(project *store.Project, sess *store.ProjectSession, body, topic string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
+	s.projectCancels.Store(sess.ID, cancel)
+	s.runs.Inc("project")
+	defer func() {
+		cancel()
+		s.projectCancels.Delete(sess.ID)
+		s.runs.Dec("project")
+	}()
+
 	engineName := sess.Engine
 	if engineName == "" {
 		engineName = project.DefaultEngine
@@ -287,6 +294,7 @@ func (s *Server) runProjectSessionTurn(project *store.Project, sess *store.Proje
 	})
 	if err != nil {
 		s.log.Warn("project run", "project", project.Name, "session", sess.Name, "err", err)
+		s.broadcastStreamFinal(topic)
 		_, _ = s.repos.Sessions.AppendMessage(context.Background(), store.SessionMessage{
 			Scope:         "project",
 			ProjectID:     sql.NullInt64{Int64: project.ID, Valid: true},
@@ -297,6 +305,13 @@ func (s *Server) runProjectSessionTurn(project *store.Project, sess *store.Proje
 		})
 		_ = s.repos.Projects.TouchSession(context.Background(), sess.ID)
 		s.broadcastLatestProjectMessage(context.Background(), project.ID, sess.ID, topic)
+		s.broadcastNotification(Notification{
+			Kind:     "project_turn_failed",
+			Severity: "error",
+			Title:    project.Name + " · " + sess.Name,
+			Body:     truncate(err.Error(), 280),
+			Context:  map[string]any{"project_id": project.ID, "session_id": sess.ID},
+		})
 		return
 	}
 	if res != nil && res.SessionID != "" && res.SessionID != prev {
@@ -306,6 +321,13 @@ func (s *Server) runProjectSessionTurn(project *store.Project, sess *store.Proje
 		_ = s.repos.Projects.TouchSession(context.Background(), sess.ID)
 	}
 	s.broadcastLatestProjectMessage(context.Background(), project.ID, sess.ID, topic)
+	s.broadcastNotification(Notification{
+		Kind:     "project_turn_done",
+		Severity: "info",
+		Title:    project.Name + " · " + sess.Name,
+		Body:     truncate(res.Text, 280),
+		Context:  map[string]any{"project_id": project.ID, "session_id": sess.ID},
+	})
 }
 
 func (s *Server) broadcastLatestProjectMessage(ctx context.Context, projectID, sessID int64, topic string) {
@@ -316,6 +338,41 @@ func (s *Server) broadcastLatestProjectMessage(ctx context.Context, projectID, s
 	m := msgs[len(msgs)-1]
 	raw, _ := json.Marshal(sessionMessageToWire(projectID, sessID, m))
 	s.hub.Broadcast(ws.Envelope{Type: "message", Topic: topic, Payload: raw})
+}
+
+// broadcastStreamFinal emits a synthetic final stream event so the frontend
+// clears the ghost bubble even when the turn ended with an error or was cancelled.
+func (s *Server) broadcastStreamFinal(topic string) {
+	if s.hub == nil {
+		return
+	}
+	raw, _ := json.Marshal(map[string]any{"kind": "final", "final": true, "seq": 0})
+	s.hub.Broadcast(ws.Envelope{Type: "stream", Topic: topic, Payload: raw})
+}
+
+// handleProjectSessionRunStatus returns whether a turn is currently in flight.
+func (s *Server) handleProjectSessionRunStatus(w http.ResponseWriter, r *http.Request) {
+	_, sess, ok := s.projectSessionFromRequest(w, r)
+	if !ok {
+		return
+	}
+	_, running := s.projectCancels.Load(sess.ID)
+	writeJSON(w, http.StatusOK, map[string]any{"running": running, "session_id": sess.ID})
+}
+
+// handleProjectSessionCancel cancels the in-flight turn for a project session.
+func (s *Server) handleProjectSessionCancel(w http.ResponseWriter, r *http.Request) {
+	_, sess, ok := s.projectSessionFromRequest(w, r)
+	if !ok {
+		return
+	}
+	v, loaded := s.projectCancels.Load(sess.ID)
+	if !loaded {
+		http.Error(w, "no turn running", http.StatusConflict)
+		return
+	}
+	v.(context.CancelFunc)()
+	writeJSON(w, http.StatusOK, map[string]any{"cancelled": true, "session_id": sess.ID})
 }
 
 func (s *Server) streamEventBroadcasterForTopic(topic string) func(cliengine.StreamEvent) {

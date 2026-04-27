@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -32,16 +33,17 @@ const cookieName = "agenthub_token"
 
 // Server owns the HTTP server + dependencies.
 type Server struct {
-	cfg     *config.Config
-	repos   *store.Repos
-	tokens  *auth.TokenService
-	engines *cliengine.Manager
-	sysman  *sysman.Manager
-	hub     *ws.Hub
-	runs    *RunTracker
-	log     *slog.Logger
-	httpSrv *http.Server
-	waState waState
+	cfg            *config.Config
+	repos          *store.Repos
+	tokens         *auth.TokenService
+	engines        *cliengine.Manager
+	sysman         *sysman.Manager
+	hub            *ws.Hub
+	runs           *RunTracker
+	log            *slog.Logger
+	httpSrv        *http.Server
+	waState        waState
+	projectCancels sync.Map // key: project_session id (int64) → context.CancelFunc
 }
 
 // Hub exposes the WS hub for producers (poller, message handlers).
@@ -159,6 +161,8 @@ func (s *Server) routes() http.Handler {
 		pr.Post("/api/projects/{id}/sessions", s.handleProjectSessionsCreate)
 		pr.Get("/api/projects/{id}/sessions/{sid}/messages", s.handleProjectSessionMessagesList)
 		pr.Post("/api/projects/{id}/sessions/{sid}/messages", s.handleProjectSessionMessagesSend)
+		pr.Get("/api/projects/{id}/sessions/{sid}/run", s.handleProjectSessionRunStatus)
+		pr.Delete("/api/projects/{id}/sessions/{sid}/run", s.handleProjectSessionCancel)
 
 		// Diagrams — Mermaid + Excalidraw
 		pr.Get("/api/diagrams", s.handleDiagramsList)
