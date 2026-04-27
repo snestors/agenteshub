@@ -1,5 +1,5 @@
 import * as React from "react";
-import { api, type AgentMessage, type MessageAttachmentRef, type ProjectMessage } from "@/lib/api";
+import { api, DEFAULT_REASONING_EFFORTS, FALLBACK_ENGINES, type AgentMessage, type EngineDef, type MessageAttachmentRef, type ProjectMessage, type ProjectSession } from "@/lib/api";
 import { useTopic } from "@/lib/useTopic";
 import { Composer } from "@/components/Composer";
 import { MessageBubble } from "@/components/MessageBubble";
@@ -10,6 +10,9 @@ interface ProjectChatProps {
   sessionId: number;
   sessionName?: string;
   engine?: string;
+  model?: string;
+  reasoningEffort?: string;
+  onSessionConfigChange?: (patch: Partial<ProjectSession>) => void;
 }
 
 interface WsEnvelope {
@@ -57,13 +60,21 @@ function projectMessageToAgent(m: ProjectMessage): AgentMessage {
   };
 }
 
-export function ProjectChat({ projectId, sessionId, sessionName, engine }: ProjectChatProps) {
+export function ProjectChat({ projectId, sessionId, sessionName, engine, model, reasoningEffort, onSessionConfigChange }: ProjectChatProps) {
   const topic = React.useMemo(() => `project_session:${sessionId}`, [sessionId]);
   const [messages, setMessages] = React.useState<AgentMessage[]>([]);
   const [ghosts, setGhosts] = React.useState<Record<string, GhostBubbleData>>({});
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [engines, setEngines] = React.useState<EngineDef[]>(FALLBACK_ENGINES);
+  const [modelChanging, setModelChanging] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    void api.listEngines().then((list) => {
+      if (list.length > 0) setEngines(list);
+    }).catch(() => undefined);
+  }, []);
   const refresh = React.useCallback(async () => {
     try {
       const rows = await api.listProjectMessages(projectId, sessionId);
@@ -243,6 +254,28 @@ export function ProjectChat({ projectId, sessionId, sessionName, engine }: Proje
         : "ws · reconnect…";
   const hasGhost = ghostList.length > 0;
   const isRunning = pending || hasGhost;
+  const engineDef = engines.find((e) => e.engine === engine) ?? FALLBACK_ENGINES.find((e) => e.engine === engine) ?? FALLBACK_ENGINES[0];
+  const modelOptions = engineDef?.models ?? [];
+  const effortOptions = engineDef?.reasoning_efforts?.length ? engineDef.reasoning_efforts : DEFAULT_REASONING_EFFORTS;
+  const selectedModel = model || modelOptions[0] || "";
+  const selectedEffort = reasoningEffort || (effortOptions.includes("medium") ? "medium" : effortOptions[0] ?? "");
+
+  async function applySessionModel(nextModel: string, nextEffort: string) {
+    if (!nextModel) return;
+    setModelChanging(true);
+    try {
+      const res = await api.setProjectSessionModel(projectId, sessionId, {
+        model: nextModel,
+        reasoning_effort: nextEffort,
+      });
+      onSessionConfigChange?.({ model: res.model, reasoning_effort: res.reasoning_effort });
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "fallo cambiando modelo");
+    } finally {
+      setModelChanging(false);
+    }
+  }
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -288,20 +321,45 @@ export function ProjectChat({ projectId, sessionId, sessionName, engine }: Proje
           className="flex items-center gap-3 px-4 py-1.5 font-mono text-[10px] tracking-hud-tight border-t border-[var(--color-line)] select-none"
           style={{ background: "rgba(0,0,0,0.55)", minHeight: 26 }}
         >
-          <span
-            className="clip-tag bg-transparent outline-none cursor-default"
+          <select
+            value={selectedModel}
+            disabled={isRunning || modelChanging}
+            onChange={(e) => void applySessionModel(e.target.value, selectedEffort)}
+            className="clip-tag bg-transparent outline-none cursor-pointer"
             style={{
-              color: "var(--color-cyan)",
-              border: "1px solid rgba(94,240,255,0.45)",
-              background: "rgba(94,240,255,0.10)",
+              color: modelChanging ? "var(--color-dim)" : "var(--color-lime)",
+              border: "1px solid rgba(163,255,78,0.45)",
+              background: "rgba(163,255,78,0.10)",
               padding: "1px 6px",
               font: "inherit",
               letterSpacing: "inherit",
             }}
-            title="engine fijo de esta sesión; creá otra sesión para cambiarlo"
+            title={`modelo para esta sesión ${engine ? `(${engine})` : ""}`}
           >
-            {engine ?? "claude"} · session engine
-          </span>
+            {modelOptions.map((m) => (
+              <option key={m} value={m} style={{ background: "#0a0f24" }}>{m}</option>
+            ))}
+          </select>
+
+          <select
+            value={selectedEffort}
+            disabled={isRunning || modelChanging}
+            onChange={(e) => void applySessionModel(selectedModel, e.target.value)}
+            className="clip-tag bg-transparent outline-none cursor-pointer"
+            style={{
+              color: modelChanging ? "var(--color-dim)" : "var(--color-orange)",
+              border: "1px solid rgba(255,159,67,0.45)",
+              background: "rgba(255,159,67,0.10)",
+              padding: "1px 6px",
+              font: "inherit",
+              letterSpacing: "inherit",
+            }}
+            title="reasoning effort para esta sesión"
+          >
+            {effortOptions.map((eff) => (
+              <option key={eff} value={eff} style={{ background: "#0a0f24" }}>{eff}</option>
+            ))}
+          </select>
 
           {isRunning && (
             <>

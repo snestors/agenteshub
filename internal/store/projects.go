@@ -21,14 +21,16 @@ type Project struct {
 // ProjectSession is a single engine-scoped resume session inside a project.
 // SessionID and Summary are owned by Engine; never reuse them across engines.
 type ProjectSession struct {
-	ID           int64
-	ProjectID    int64
-	Name         string
-	SessionID    string
-	Engine       string
-	Summary      sql.NullString
-	LastActiveAt sql.NullInt64
-	CreatedAt    int64
+	ID              int64
+	ProjectID       int64
+	Name            string
+	SessionID       string
+	Engine          string
+	Model           sql.NullString
+	ReasoningEffort sql.NullString
+	Summary         sql.NullString
+	LastActiveAt    sql.NullInt64
+	CreatedAt       int64
 }
 
 // ProjectsRepo persists projects + project_sessions.
@@ -123,7 +125,7 @@ func (r *ProjectsRepo) SessionCount(ctx context.Context, projectID int64) (int64
 // ListSessions returns all sessions of a project.
 func (r *ProjectsRepo) ListSessions(ctx context.Context, projectID int64) ([]ProjectSession, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, project_id, name, session_id, engine, summary, last_active_at, created_at
+		SELECT id, project_id, name, session_id, engine, model, reasoning_effort, summary, last_active_at, created_at
 		FROM project_sessions WHERE project_id = ? ORDER BY last_active_at DESC
 	`, projectID)
 	if err != nil {
@@ -133,7 +135,7 @@ func (r *ProjectsRepo) ListSessions(ctx context.Context, projectID int64) ([]Pro
 	out := []ProjectSession{}
 	for rows.Next() {
 		var s ProjectSession
-		if err := rows.Scan(&s.ID, &s.ProjectID, &s.Name, &s.SessionID, &s.Engine, &s.Summary, &s.LastActiveAt, &s.CreatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.ProjectID, &s.Name, &s.SessionID, &s.Engine, &s.Model, &s.ReasoningEffort, &s.Summary, &s.LastActiveAt, &s.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, s)
@@ -145,9 +147,9 @@ func (r *ProjectsRepo) ListSessions(ctx context.Context, projectID int64) ([]Pro
 func (r *ProjectsRepo) GetSession(ctx context.Context, projectID, sessionID int64) (*ProjectSession, error) {
 	var s ProjectSession
 	err := r.db.QueryRowContext(ctx, `
-		SELECT id, project_id, name, session_id, engine, summary, last_active_at, created_at
+		SELECT id, project_id, name, session_id, engine, model, reasoning_effort, summary, last_active_at, created_at
 		FROM project_sessions WHERE project_id=? AND id=?
-	`, projectID, sessionID).Scan(&s.ID, &s.ProjectID, &s.Name, &s.SessionID, &s.Engine, &s.Summary, &s.LastActiveAt, &s.CreatedAt)
+	`, projectID, sessionID).Scan(&s.ID, &s.ProjectID, &s.Name, &s.SessionID, &s.Engine, &s.Model, &s.ReasoningEffort, &s.Summary, &s.LastActiveAt, &s.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -160,9 +162,9 @@ func (r *ProjectsRepo) CreateSession(ctx context.Context, s ProjectSession) (int
 		s.CreatedAt = time.Now().Unix()
 	}
 	res, err := r.db.ExecContext(ctx, `
-		INSERT INTO project_sessions(project_id, name, session_id, engine, summary, last_active_at, created_at)
-		VALUES(?,?,?,?,?,?,?)
-	`, s.ProjectID, s.Name, s.SessionID, s.Engine, s.Summary, s.LastActiveAt, s.CreatedAt)
+		INSERT INTO project_sessions(project_id, name, session_id, engine, model, reasoning_effort, summary, last_active_at, created_at)
+		VALUES(?,?,?,?,?,?,?,?,?)
+	`, s.ProjectID, s.Name, s.SessionID, s.Engine, s.Model, s.ReasoningEffort, s.Summary, s.LastActiveAt, s.CreatedAt)
 	if err != nil {
 		return 0, fmt.Errorf("insert project session: %w", err)
 	}
@@ -193,4 +195,19 @@ func (r *ProjectsRepo) UpdateSessionEngine(ctx context.Context, id int64, engine
 		UPDATE project_sessions SET engine=? WHERE id=?
 	`, engine, id)
 	return err
+}
+
+// UpdateSessionModel changes the model/effort policy for an engine-scoped project session.
+func (r *ProjectsRepo) UpdateSessionModel(ctx context.Context, id int64, model, reasoningEffort string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE project_sessions SET model=?, reasoning_effort=? WHERE id=?
+	`, nullStr(model), nullStr(reasoningEffort), id)
+	return err
+}
+
+func nullStr(v string) sql.NullString {
+	if v == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: v, Valid: true}
 }

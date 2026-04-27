@@ -18,13 +18,14 @@ import (
 
 // RunOpts captures everything needed to spawn a CLI for one turn.
 type RunOpts struct {
-	Prompt    string
-	SessionID string // resume id; empty = first run, engine assigns one
-	Channel   string // 'wa' | 'web' | 'topic' | 'project' | 'agent' | 'mini-agent'
-	Cwd       string // working dir (where .claude/skills/ is discovered)
-	Engine    string // 'claude' | 'codex' | 'ollama'
-	Model     string // 'opus-4-7' | 'sonnet' | 'haiku' (model selection per engine)
-	OutputFmt string // 'json' (final result) | 'stream-json' (chunks)
+	Prompt          string
+	SessionID       string // resume id; empty = first run, engine assigns one
+	Channel         string // 'wa' | 'web' | 'topic' | 'project' | 'agent' | 'mini-agent'
+	Cwd             string // working dir (where .claude/skills/ is discovered)
+	Engine          string // 'claude' | 'codex' | 'ollama'
+	Model           string // 'opus-4-7' | 'sonnet' | 'haiku' (model selection per engine)
+	ReasoningEffort string // codex reasoning effort: low | medium | high | xhigh
+	OutputFmt       string // 'json' (final result) | 'stream-json' (chunks)
 
 	// scope identifiers for persisting session_messages
 	Scope         string // 'main' | 'topic' | 'project' | 'agent'
@@ -44,7 +45,7 @@ type RunOpts struct {
 
 // StreamEvent is a single observable event during a turn.
 type StreamEvent struct {
-	Kind       string         `json:"kind"`              // 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'system' | 'final'
+	Kind       string         `json:"kind"` // 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'system' | 'final'
 	Text       string         `json:"text,omitempty"`
 	ToolName   string         `json:"tool_name,omitempty"`
 	ToolID     string         `json:"tool_use_id,omitempty"`

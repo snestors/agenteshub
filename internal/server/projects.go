@@ -31,14 +31,16 @@ type projectWire struct {
 }
 
 type projectSessionWire struct {
-	ID           int64  `json:"id"`
-	ProjectID    int64  `json:"project_id"`
-	Name         string `json:"name"`
-	SessionID    string `json:"session_id"`
-	Engine       string `json:"engine"`
-	Summary      string `json:"summary,omitempty"`
-	LastActiveAt int64  `json:"last_active_at,omitempty"`
-	CreatedAt    int64  `json:"created_at"`
+	ID              int64  `json:"id"`
+	ProjectID       int64  `json:"project_id"`
+	Name            string `json:"name"`
+	SessionID       string `json:"session_id"`
+	Engine          string `json:"engine"`
+	Model           string `json:"model,omitempty"`
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+	Summary         string `json:"summary,omitempty"`
+	LastActiveAt    int64  `json:"last_active_at,omitempty"`
+	CreatedAt       int64  `json:"created_at"`
 }
 
 type sessionMessageWire struct {
@@ -63,9 +65,11 @@ type createProjectReq struct {
 }
 
 type createProjectSessionReq struct {
-	Name    string `json:"name"`
-	Engine  string `json:"engine"`
-	Summary string `json:"summary"`
+	Name            string `json:"name"`
+	Engine          string `json:"engine"`
+	Model           string `json:"model"`
+	ReasoningEffort string `json:"reasoning_effort"`
+	Summary         string `json:"summary"`
 }
 
 type sendProjectMessageReq struct {
@@ -199,14 +203,32 @@ func (s *Server) handleProjectSessionsCreate(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "engine not supported", http.StatusBadRequest)
 		return
 	}
+	model := strings.TrimSpace(req.Model)
+	if model == "" {
+		model = defaultModelForEngine(engine, s.cfg.OllamaModel)
+	}
+	if !validEngineModel(engine, model) {
+		http.Error(w, "model not supported for engine", http.StatusBadRequest)
+		return
+	}
+	effort := normalizeReasoningEffort(req.ReasoningEffort)
+	if effort == "" {
+		effort = defaultReasoningEffort()
+	}
+	if !validReasoningEffort(effort) {
+		http.Error(w, "reasoning_effort not supported", http.StatusBadRequest)
+		return
+	}
 	now := time.Now().Unix()
 	id, err := s.repos.Projects.CreateSession(r.Context(), store.ProjectSession{
-		ProjectID:    project.ID,
-		Name:         name,
-		SessionID:    "",
-		Engine:       engine,
-		Summary:      sql.NullString{String: strings.TrimSpace(req.Summary), Valid: strings.TrimSpace(req.Summary) != ""},
-		LastActiveAt: sql.NullInt64{Int64: now, Valid: true},
+		ProjectID:       project.ID,
+		Name:            name,
+		SessionID:       "",
+		Engine:          engine,
+		Model:           sql.NullString{String: model, Valid: model != ""},
+		ReasoningEffort: sql.NullString{String: effort, Valid: effort != ""},
+		Summary:         sql.NullString{String: strings.TrimSpace(req.Summary), Valid: strings.TrimSpace(req.Summary) != ""},
+		LastActiveAt:    sql.NullInt64{Int64: now, Valid: true},
 	})
 	if err != nil {
 		if isUniqueConstraint(err) {
@@ -277,17 +299,21 @@ func (s *Server) runProjectSessionTurn(project *store.Project, sess *store.Proje
 	}()
 
 	engineName := s.ensureProjectSessionEngine(sess, project)
+	model := s.ensureProjectSessionModel(sess, engineName)
+	effort := s.ensureProjectSessionReasoningEffort(sess)
 	prev := sess.SessionID
 	res, err := s.engines.Run(ctx, cliengine.RunOpts{
-		Prompt:        body,
-		SessionID:     prev,
-		Channel:       "project",
-		Cwd:           project.Path,
-		Engine:        engineName,
-		Scope:         "project",
-		ProjectID:     project.ID,
-		ProjectSessID: sess.ID,
-		OnEvent:       s.streamEventBroadcasterForTopic(topic),
+		Prompt:          body,
+		SessionID:       prev,
+		Channel:         "project",
+		Cwd:             project.Path,
+		Engine:          engineName,
+		Model:           model,
+		ReasoningEffort: effort,
+		Scope:           "project",
+		ProjectID:       project.ID,
+		ProjectSessID:   sess.ID,
+		OnEvent:         s.streamEventBroadcasterForTopic(topic),
 	})
 	if err != nil {
 		s.broadcastStreamFinal(topic)
@@ -404,6 +430,43 @@ func (s *Server) handleProjectSessionSetEngine(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, map[string]any{"engine": sess.Engine, "session_id": sess.ID})
 }
 
+// handleProjectSessionSetModel updates the model/effort for an engine-scoped project session.
+func (s *Server) handleProjectSessionSetModel(w http.ResponseWriter, r *http.Request) {
+	_, sess, ok := s.projectSessionFromRequest(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Model           string `json:"model"`
+		ReasoningEffort string `json:"reasoning_effort"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad json", http.StatusBadRequest)
+		return
+	}
+	model := strings.TrimSpace(req.Model)
+	if model == "" {
+		model = defaultModelForEngine(sess.Engine, s.cfg.OllamaModel)
+	}
+	if !validEngineModel(sess.Engine, model) {
+		http.Error(w, "model not supported for engine", http.StatusBadRequest)
+		return
+	}
+	effort := normalizeReasoningEffort(req.ReasoningEffort)
+	if effort == "" {
+		effort = defaultReasoningEffort()
+	}
+	if !validReasoningEffort(effort) {
+		http.Error(w, "reasoning_effort not supported", http.StatusBadRequest)
+		return
+	}
+	if err := s.repos.Projects.UpdateSessionModel(r.Context(), sess.ID, model, effort); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"session_id": sess.ID, "model": model, "reasoning_effort": effort})
+}
+
 func (s *Server) ensureProjectSessionEngine(sess *store.ProjectSession, project *store.Project) string {
 	engine := strings.TrimSpace(sess.Engine)
 	if engine == "" {
@@ -413,6 +476,20 @@ func (s *Server) ensureProjectSessionEngine(sess *store.ProjectSession, project 
 		engine = s.cfg.DefaultEngine
 	}
 	return engine
+}
+
+func (s *Server) ensureProjectSessionModel(sess *store.ProjectSession, engine string) string {
+	if sess.Model.Valid && strings.TrimSpace(sess.Model.String) != "" {
+		return strings.TrimSpace(sess.Model.String)
+	}
+	return defaultModelForEngine(engine, s.cfg.OllamaModel)
+}
+
+func (s *Server) ensureProjectSessionReasoningEffort(sess *store.ProjectSession) string {
+	if sess.ReasoningEffort.Valid && strings.TrimSpace(sess.ReasoningEffort.String) != "" {
+		return normalizeReasoningEffort(sess.ReasoningEffort.String)
+	}
+	return defaultReasoningEffort()
 }
 
 func (s *Server) streamEventBroadcasterForTopic(topic string) func(cliengine.StreamEvent) {
@@ -482,14 +559,16 @@ func projectToWire(p store.Project) projectWire {
 
 func projectSessionToWire(s store.ProjectSession) projectSessionWire {
 	return projectSessionWire{
-		ID:           s.ID,
-		ProjectID:    s.ProjectID,
-		Name:         s.Name,
-		SessionID:    s.SessionID,
-		Engine:       s.Engine,
-		Summary:      nullString(s.Summary),
-		LastActiveAt: nullInt(s.LastActiveAt),
-		CreatedAt:    s.CreatedAt,
+		ID:              s.ID,
+		ProjectID:       s.ProjectID,
+		Name:            s.Name,
+		SessionID:       s.SessionID,
+		Engine:          s.Engine,
+		Model:           nullString(s.Model),
+		ReasoningEffort: nullString(s.ReasoningEffort),
+		Summary:         nullString(s.Summary),
+		LastActiveAt:    nullInt(s.LastActiveAt),
+		CreatedAt:       s.CreatedAt,
 	}
 }
 

@@ -8,6 +8,14 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.5 — 2026-04-27
+
+### Added
+- **Modelo y effort por project session**: las sesiones de proyecto ahora guardan `model` y `reasoning_effort`; la barra inferior del chat permite cambiar modelo y effort sin cambiar el engine fijo de la sesión.
+- **Codex gpt-5.4**: agregado `gpt-5.4` al catálogo de modelos Codex junto a `gpt-5.5`.
+
+---
+
 ## v0.2.4 — 2026-04-27
 
 ### Changed

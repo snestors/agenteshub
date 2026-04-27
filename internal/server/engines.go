@@ -13,9 +13,10 @@ import (
 
 // engineDef describes a CLI engine and its supported models with their context windows.
 type engineDef struct {
-	Engine     string         `json:"engine"`
-	Models     []string       `json:"models"`
-	CtxWindows map[string]int `json:"ctx_windows"`
+	Engine           string         `json:"engine"`
+	Models           []string       `json:"models"`
+	CtxWindows       map[string]int `json:"ctx_windows"`
+	ReasoningEfforts []string       `json:"reasoning_efforts,omitempty"`
 }
 
 // staticEngines is the always-present part of the catalogue. Ollama is
@@ -34,13 +35,16 @@ var staticEngines = []engineDef{
 			"haiku":   200_000,
 			"opus-1m": 1_000_000,
 		},
+		ReasoningEfforts: reasoningEfforts(),
 	},
 	{
 		Engine: "codex",
-		Models: []string{"gpt-5.5"},
+		Models: []string{"gpt-5.5", "gpt-5.4"},
 		CtxWindows: map[string]int{
 			"gpt-5.5": 400_000,
+			"gpt-5.4": 400_000,
 		},
+		ReasoningEfforts: reasoningEfforts(),
 	},
 }
 
@@ -124,7 +128,7 @@ func fetchOllamaModels(ctx context.Context, baseURL string) *engineDef {
 	if len(models) == 0 {
 		return nil
 	}
-	return &engineDef{Engine: "ollama", Models: models, CtxWindows: ctxWindows}
+	return &engineDef{Engine: "ollama", Models: models, CtxWindows: ctxWindows, ReasoningEfforts: reasoningEfforts()}
 }
 
 func isEmbeddingModel(name, family string) bool {
@@ -207,6 +211,41 @@ func validEngineModel(engine, model string) bool {
 	// the model isn't pulled).
 	if engine == "ollama" && strings.TrimSpace(model) != "" {
 		return true
+	}
+	return false
+}
+
+func defaultModelForEngine(engine, ollamaDefault string) string {
+	for _, e := range staticEngines {
+		if e.Engine == engine && len(e.Models) > 0 {
+			return e.Models[0]
+		}
+	}
+	if engine == "ollama" {
+		if strings.TrimSpace(ollamaDefault) != "" {
+			return strings.TrimSpace(ollamaDefault)
+		}
+		return "gemma:2b"
+	}
+	return ""
+}
+
+func reasoningEfforts() []string {
+	return []string{"low", "medium", "high", "xhigh"}
+}
+
+func defaultReasoningEffort() string { return "medium" }
+
+func normalizeReasoningEffort(v string) string {
+	return strings.ToLower(strings.TrimSpace(v))
+}
+
+func validReasoningEffort(v string) bool {
+	v = normalizeReasoningEffort(v)
+	for _, e := range reasoningEfforts() {
+		if e == v {
+			return true
+		}
 	}
 	return false
 }

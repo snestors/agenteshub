@@ -169,6 +169,7 @@ func (s *Server) routes() http.Handler {
 		pr.Get("/api/projects/{id}/sessions/{sid}/run", s.handleProjectSessionRunStatus)
 		pr.Delete("/api/projects/{id}/sessions/{sid}/run", s.handleProjectSessionCancel)
 		pr.Post("/api/projects/{id}/sessions/{sid}/engine", s.handleProjectSessionSetEngine)
+		pr.Post("/api/projects/{id}/sessions/{sid}/model", s.handleProjectSessionSetModel)
 
 		// Diagrams — Mermaid + Excalidraw
 		pr.Get("/api/diagrams", s.handleDiagramsList)
@@ -658,7 +659,7 @@ func (s *Server) acceptMessage(ctx context.Context, req sendMsgReq) (sendMessage
 // nil = pure web turn. When non-nil the agent's text reply is enqueued on
 // wa_outbox with the reply_to/participant fields set so it threads correctly.
 type waReplyTarget struct {
-	JID     string // chat to reply to
+	JID      string // chat to reply to
 	StanzaID string // external WA message id we are quoting
 }
 

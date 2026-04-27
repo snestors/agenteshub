@@ -47,6 +47,7 @@ export interface EngineDef {
   engine: string;
   models: string[];
   ctx_windows?: Record<string, number>;
+  reasoning_efforts?: string[];
 }
 
 export const FALLBACK_ENGINES: EngineDef[] = [
@@ -54,18 +55,23 @@ export const FALLBACK_ENGINES: EngineDef[] = [
     engine: "claude",
     models: ["sonnet", "opus", "haiku"],
     ctx_windows: { sonnet: 200_000, opus: 200_000, haiku: 200_000 },
+    reasoning_efforts: ["low", "medium", "high", "xhigh"],
   },
   {
     engine: "codex",
-    models: ["gpt-5.5"],
-    ctx_windows: { "gpt-5.5": 400_000 },
+    models: ["gpt-5.5", "gpt-5.4"],
+    ctx_windows: { "gpt-5.5": 400_000, "gpt-5.4": 400_000 },
+    reasoning_efforts: ["low", "medium", "high", "xhigh"],
   },
   {
     engine: "ollama",
     models: ["gemma:2b"],
     ctx_windows: { "gemma:2b": 8_192 },
+    reasoning_efforts: ["low", "medium", "high", "xhigh"],
   },
 ];
+
+export const DEFAULT_REASONING_EFFORTS = ["low", "medium", "high", "xhigh"];
 
 export const AGENT_STATUS_FALLBACK: AgentStatus = {
   engine: "claude",
@@ -165,6 +171,8 @@ export interface ProjectSession {
   name: string;
   session_id: string;
   engine: string;
+  model?: string;
+  reasoning_effort?: string;
   summary?: string;
   last_active_at?: number;
   created_at: number;
@@ -616,7 +624,7 @@ export const api = {
 
   async createProjectSession(
     projectId: number,
-    payload: { name: string; engine?: string; summary?: string },
+    payload: { name: string; engine?: string; model?: string; reasoning_effort?: string; summary?: string },
   ): Promise<ProjectSession> {
     const res = await request<{ session: ProjectSession }>(
       `/api/projects/${projectId}/sessions`,
@@ -663,6 +671,17 @@ export const api = {
     await request<unknown>(
       `/api/projects/${projectId}/sessions/${sessionId}/engine`,
       { method: "POST", body: JSON.stringify({ engine }) },
+    );
+  },
+
+  async setProjectSessionModel(
+    projectId: number,
+    sessionId: number,
+    payload: { model: string; reasoning_effort?: string },
+  ): Promise<{ model: string; reasoning_effort: string }> {
+    return request<{ model: string; reasoning_effort: string }>(
+      `/api/projects/${projectId}/sessions/${sessionId}/model`,
+      { method: "POST", body: JSON.stringify(payload) },
     );
   },
 

@@ -58,6 +58,9 @@ func (e *CodexEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 	if opts.Model != "" {
 		args = append(args, "-m", opts.Model)
 	}
+	if opts.ReasoningEffort != "" {
+		args = append(args, "-c", "model_reasoning_effort="+opts.ReasoningEffort)
+	}
 	if opts.Cwd != "" && opts.SessionID == "" {
 		args = append(args, "-C", opts.Cwd)
 	}

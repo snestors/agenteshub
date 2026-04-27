@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Check, ExternalLink, FileText, FolderKanban, Loader2, Pencil, Plus, RefreshCw, TerminalSquare, X } from "lucide-react";
-import { api, FALLBACK_ENGINES, type EngineDef, type OpenSpecChange, type OpenSpecChangeDetail, type OpenSpecSpec, type Project, type ProjectServiceStatus, type ProjectSession } from "@/lib/api";
+import { api, DEFAULT_REASONING_EFFORTS, FALLBACK_ENGINES, type EngineDef, type OpenSpecChange, type OpenSpecChangeDetail, type OpenSpecSpec, type Project, type ProjectServiceStatus, type ProjectSession } from "@/lib/api";
 import { HudPanel } from "@/components/HudPanel";
 import { Topbar } from "@/components/Topbar";
 import { ProjectChat } from "@/components/ProjectChat";
@@ -128,6 +128,8 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
   const [selected, setSelected] = React.useState<number>(routeSessionId || 0);
   const [newName, setNewName] = React.useState("");
   const [newEngine, setNewEngine] = React.useState("");
+  const [newModel, setNewModel] = React.useState("");
+  const [newEffort, setNewEffort] = React.useState("medium");
   const [error, setError] = React.useState<string | null>(null);
   const [tab, setTab] = React.useState<"chat" | "services" | "changes">("chat");
 
@@ -155,6 +157,8 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
 
   React.useEffect(() => {
     setNewEngine("");
+    setNewModel("");
+    setNewEffort("medium");
   }, [projectId]);
 
   React.useEffect(() => {
@@ -164,12 +168,29 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
   }, []);
 
   const current = sessions.find((s) => s.id === selected) ?? null;
+  const newEngineDef = engines.find((e) => e.engine === (newEngine || project?.default_engine)) ?? engines[0] ?? FALLBACK_ENGINES[0];
+  const newModelOptions = newEngineDef?.models ?? [];
+  const newEffortOptions = newEngineDef?.reasoning_efforts?.length ? newEngineDef.reasoning_efforts : DEFAULT_REASONING_EFFORTS;
+
+  React.useEffect(() => {
+    const def = engines.find((e) => e.engine === (newEngine || project?.default_engine));
+    if (!def) return;
+    if (!newModel || !def.models.includes(newModel)) {
+      setNewModel(def.models[0] ?? "");
+    }
+    const efforts = def.reasoning_efforts?.length ? def.reasoning_efforts : DEFAULT_REASONING_EFFORTS;
+    if (!efforts.includes(newEffort)) {
+      setNewEffort(efforts.includes("medium") ? "medium" : efforts[0] ?? "");
+    }
+  }, [engines, newEngine, newModel, newEffort, project?.default_engine]);
 
   async function createSession() {
     const name = newName.trim() || `session-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}`;
     const engine = newEngine || project?.default_engine || engines[0]?.engine || "claude";
+    const model = newModel || newModelOptions[0] || "";
+    const reasoning_effort = newEffort || "medium";
     try {
-      const s = await api.createProjectSession(projectId, { name, engine });
+      const s = await api.createProjectSession(projectId, { name, engine, model, reasoning_effort });
       setNewName("");
       await refresh();
       nav(`/projects/${projectId}/sessions/${s.id}`);
@@ -216,13 +237,40 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
             />
             <select
               value={newEngine || project?.default_engine || "claude"}
-              onChange={(e) => setNewEngine(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                setNewEngine(next);
+                const def = engines.find((eng) => eng.engine === next);
+                setNewModel(def?.models[0] ?? "");
+              }}
               className="bg-[var(--color-bg-2)] outline-none px-2 py-1 clip-tag font-mono text-[10px] text-[var(--color-cyan)]"
               style={{ border: "1px solid rgba(94,240,255,0.45)" }}
               title="engine de la nueva sesión"
             >
               {engines.map((e) => (
                 <option key={e.engine} value={e.engine}>{e.engine}</option>
+              ))}
+            </select>
+            <select
+              value={newModel || newModelOptions[0] || ""}
+              onChange={(e) => setNewModel(e.target.value)}
+              className="bg-[var(--color-bg-2)] outline-none px-2 py-1 clip-tag font-mono text-[10px] text-[var(--color-lime)]"
+              style={{ border: "1px solid rgba(163,255,78,0.45)" }}
+              title="modelo de la nueva sesión"
+            >
+              {newModelOptions.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+            <select
+              value={newEffort}
+              onChange={(e) => setNewEffort(e.target.value)}
+              className="bg-[var(--color-bg-2)] outline-none px-2 py-1 clip-tag font-mono text-[10px] text-[var(--color-orange)]"
+              style={{ border: "1px solid rgba(255,159,67,0.45)" }}
+              title="reasoning effort de la nueva sesión"
+            >
+              {newEffortOptions.map((eff) => (
+                <option key={eff} value={eff}>{eff}</option>
               ))}
             </select>
             <button
@@ -285,6 +333,13 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
               sessionId={current.id}
               sessionName={current.name}
               engine={current.engine}
+              model={current.model}
+              reasoningEffort={current.reasoning_effort}
+              onSessionConfigChange={(patch) =>
+                setSessions((prev) =>
+                  prev.map((s) => (s.id === current.id ? { ...s, ...patch } : s))
+                )
+              }
             />
           ) : (
             <div className="h-full flex items-center justify-center font-mono text-[11px] text-[var(--color-dim)] tracking-hud-tight">
