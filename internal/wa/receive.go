@@ -2,27 +2,23 @@ package wa
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types/events"
-
-	"github.com/snestors/agenteshub/internal/store"
 )
 
 // dispatchIncoming is the second half of handleEvent: when the event is a
 // real *events.Message we extract whichever payload it carries (text,
-// image, audio, video, document, location), download media if any, persist
-// the row in wa_messages and push an IncomingMessage onto the queue.
+// image, audio, video, document, location), download media if any and push an IncomingMessage onto the queue. The
+// server-side conversation router owns durable message persistence.
 //
-// Authorization is enforced here: messages from senders not in
-// cfg.WAAuthorized are persisted with Authorized=false but NOT pushed
-// onto the queue. The queue is what wakes the main agent up.
+// Authorization is classified here: unauthorized senders still enter the
+// queue so the router can persist/audit them, but the router will not run
+// the agent for them.
 func (c *Client) dispatchIncoming(ctx context.Context, evt *events.Message) {
 	if evt == nil || evt.Message == nil {
 		return
@@ -132,13 +128,8 @@ func (c *Client) dispatchIncoming(ctx context.Context, evt *events.Message) {
 		return
 	}
 
-	// Persist into wa_messages (every authorized + unauthorized message
-	// lands in the DB so we have a complete audit trail).
-	c.persistIncoming(in)
-
 	if !authorized {
 		c.log.Warn("wa unauthorized sender", "phone", phone)
-		return
 	}
 	select {
 	case c.queue <- in:
@@ -177,35 +168,6 @@ type downloadable interface {
 	GetFileEncSHA256() []byte
 	GetFileSHA256() []byte
 	GetFileLength() uint64
-}
-
-func (c *Client) persistIncoming(in IncomingMessage) {
-	row := store.Message{
-		Channel:   "wa",
-		Direction: "in",
-		JID:       sql.NullString{String: in.JID, Valid: in.JID != ""},
-		Body:      sql.NullString{String: in.Body, Valid: in.Body != ""},
-		MediaType: sql.NullString{String: in.MediaKind, Valid: in.MediaKind != ""},
-		MediaPath: sql.NullString{String: in.MediaPath, Valid: in.MediaPath != ""},
-		LocationLat: sql.NullFloat64{
-			Float64: in.LocLat,
-			Valid:   in.LocLat != 0,
-		},
-		LocationLng: sql.NullFloat64{
-			Float64: in.LocLng,
-			Valid:   in.LocLng != 0,
-		},
-		LocationName: sql.NullString{String: in.LocName, Valid: in.LocName != ""},
-		ReplyTo:      sql.NullString{String: in.QuotedID, Valid: in.QuotedID != ""},
-		ExternalID:   sql.NullString{String: in.ExternalID, Valid: in.ExternalID != ""},
-		TS:           in.TS.Unix(),
-	}
-	if row.TS == 0 {
-		row.TS = time.Now().Unix()
-	}
-	if _, err := c.repos.Messages.Insert(context.Background(), row); err != nil {
-		c.log.Warn("wa persist incoming", "err", err)
-	}
 }
 
 // extractQuotedID returns the StanzaID of the message being quoted, if any.

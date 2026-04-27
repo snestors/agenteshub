@@ -613,150 +613,20 @@ type sendMessageAccepted struct {
 }
 
 func (s *Server) acceptMessage(ctx context.Context, req sendMsgReq) (sendMessageAccepted, error) {
-	if strings.TrimSpace(req.Body) == "" {
-		return sendMessageAccepted{}, errors.New("empty")
-	}
-	// Persist the user message verbatim (without the attachments footer — that's
-	// only for the agent prompt). The UI shows what the user wrote, not the path
-	// list.
-	id, err := s.repos.Messages.Insert(ctx, store.Message{
-		Channel:   "web",
-		Direction: "in",
-		Body:      sqlStr(req.Body),
-		TS:        time.Now().Unix(),
+	return s.routeConversationInput(ctx, conversationInput{
+		Channel:     "web",
+		Body:        req.Body,
+		Attachments: req.Attachments,
+		Async:       true,
 	})
-	if err != nil {
-		return sendMessageAccepted{}, err
-	}
-	s.broadcastMessage(id, "web", "in", req.Body)
-
-	// Build the actual prompt sent to the engine: user text + attachments footer.
-	enginePrompt := req.Body + formatAttachments(req.Attachments)
-
-	// Read engine/model from settings (set by /api/agent/engine), with config fallback.
-	engine := s.cfg.DefaultEngine
-	model := s.cfg.DefaultModel
-	if v, _ := s.repos.Settings.Get(ctx, "engine"); v != "" {
-		engine = v
-	}
-	if v, _ := s.repos.Settings.Get(ctx, "model"); v != "" {
-		model = v
-	}
-
-	// Resume id of the main agent's session (persisted between turns). Session
-	// ids are engine-specific; never feed a Claude session id into Codex, etc.
-	mainSess := s.mainAgentSession(ctx, engine)
-	prev := ""
-	if mainSess != nil {
-		prev = mainSess.SessionID
-	}
-
-	go s.runMainAgentTurn(enginePrompt, prev, engine, model)
-
-	return sendMessageAccepted{ID: id, MessageID: id, Accepted: true, Engine: engine, Model: model}, nil
 }
 
-// waReplyTarget tells runMainAgentTurn to ALSO emit the reply via WhatsApp.
-// nil = pure web turn. When non-nil the agent's text reply is enqueued on
-// wa_outbox with the reply_to/participant fields set so it threads correctly.
+// waReplyTarget tells the shared conversation runtime to also emit the reply
+// via WhatsApp. nil = no WA fan-out. When non-nil the agent's text reply is
+// enqueued on wa_outbox with reply_to fields set so it threads correctly.
 type waReplyTarget struct {
 	JID      string // chat to reply to
 	StanzaID string // external WA message id we are quoting
-}
-
-func (s *Server) runMainAgentTurn(enginePrompt, prev, engine, model string) {
-	s.runMainAgentTurnTo(enginePrompt, prev, engine, model, nil)
-}
-
-// runMainAgentTurnTo runs the main agent and optionally fans the reply out to
-// a WA chat. The web channel is ALWAYS the source of truth: every turn lands
-// in messages(channel='web') and is broadcast to the WS hub, regardless of
-// whether the user typed in the browser or wrote on WhatsApp. WA is just
-// another I/O surface on the same brain.
-func (s *Server) runMainAgentTurnTo(enginePrompt, prev, engine, model string, waReply *waReplyTarget) {
-	// Run via cliengine. cwd=agenthub repo so .claude/skills/ is discovered.
-	// Stream events to the WS hub so the browser shows the agent's reasoning + tool calls
-	// while the turn is still in flight.
-	s.runs.Inc("main")
-	defer s.runs.Dec("main")
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-	activity := &turnActivity{}
-	res, err := s.engines.Run(ctx, cliengine.RunOpts{
-		Prompt:    enginePrompt,
-		SessionID: prev,
-		Channel:   "web",
-		Cwd:       ".",
-		Engine:    engine,
-		Model:     model,
-		Scope:     "main",
-		AgentName: "main-agent",
-		OnEvent:   s.streamEventBroadcasterWithActivity(activity),
-	})
-	if err != nil {
-		// Daemon shutdown or OS signal — don't persist a spurious error message.
-		if isShutdownError(ctx, err) {
-			s.log.Info("main turn cancelled (shutdown)")
-			return
-		}
-		s.log.Error("cliengine", "err", err)
-		errBody := "⚠ engine: " + err.Error()
-		outID, _ := s.repos.Messages.Insert(context.Background(), store.Message{
-			Channel:   "web",
-			Direction: "out",
-			Body:      sqlStr(errBody),
-			TS:        time.Now().Unix(),
-			Engine:    sqlStr(engine),
-			Model:     sqlStr(model),
-		})
-		s.broadcastMessageWithModel(outID, "web", "out", errBody, engine, model)
-		if waReply != nil {
-			s.enqueueWAReply(waReply, errBody)
-		}
-		s.broadcastNotification(Notification{
-			Kind:     "main_turn_failed",
-			Severity: "error",
-			Title:    "Main · " + engine,
-			Body:     truncate(err.Error(), 280),
-			Context:  map[string]any{"engine": engine, "model": model},
-		})
-		return
-	}
-	if res.SessionID != "" && res.SessionID != prev {
-		_ = s.repos.Sessions.UpsertAgentSession(context.Background(), store.AgentSession{
-			AgentName: mainAgentSessionName(engine),
-			Engine:    engine,
-			SessionID: res.SessionID,
-		})
-	}
-	activityJSON := ""
-	if activity.Thinking != "" || len(activity.Tools) > 0 {
-		if buf, err := json.Marshal(activity); err == nil {
-			activityJSON = string(buf)
-		}
-	}
-	outID, _ := s.repos.Messages.Insert(context.Background(), store.Message{
-		Channel:   "web",
-		Direction: "out",
-		Body:      sqlStr(res.Text),
-		TS:        time.Now().Unix(),
-		Engine:    sqlStr(engine),
-		Model:     sqlStr(model),
-		Activity:  sqlStr(activityJSON),
-	})
-	s.broadcastMessageWithModel(outID, "web", "out", res.Text, engine, model)
-	// Push fresh agent_status to all subscribers — ctx_used cambió
-	go s.broadcastAgentStatus(context.Background())
-	if waReply != nil {
-		s.enqueueWAReply(waReply, res.Text)
-	}
-	s.broadcastNotification(Notification{
-		Kind:     "main_turn_done",
-		Severity: "info",
-		Title:    "Main · " + engine,
-		Body:     truncate(res.Text, 280),
-		Context:  map[string]any{"engine": engine, "model": model},
-	})
 }
 
 // enqueueWAReply pushes the agent's text reply onto wa_outbox so the existing

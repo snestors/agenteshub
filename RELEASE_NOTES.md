@@ -8,6 +8,15 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.12 — 2026-04-27
+
+### Changed
+- **Router común Web/WhatsApp**: Web UI y WhatsApp ahora entran por `routeConversationInput`, comparten resolución de engine/model, sesión del main agent, ejecución y emisión de respuestas.
+- **WhatsApp como adaptador**: el consumidor WA solo maneja read receipts/typing/reply target; no ejecuta el agente directamente.
+- **Mensajes WA visibles en Web**: los mensajes entrantes de WhatsApp se persisten y se emiten al topic `agent`; remitentes no autorizados quedan auditados sin ejecutar runtime.
+
+---
+
 ## v0.2.11 — 2026-04-27
 
 ### Changed
