@@ -8,6 +8,7 @@ import { Subagents } from "@/pages/Subagents";
 import { System } from "@/pages/System";
 import { Vault } from "@/pages/Vault";
 import { Diagrams } from "@/pages/Diagrams";
+import { Skills } from "@/pages/Skills";
 import { AppShell } from "@/components/AppShell";
 
 function App() {
@@ -28,6 +29,7 @@ function App() {
           <Route path="subagents" element={<Subagents />} />
           <Route path="system" element={<System />} />
           <Route path="vault" element={<Vault />} />
+          <Route path="skills" element={<Skills />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

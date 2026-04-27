@@ -91,6 +91,7 @@ type Repos struct {
 	Diagrams  *DiagramsRepo
 	OpenSpec  *OpenSpecChangesRepo
 	WaOutbox  *WaOutboxRepo
+	Skills    *SkillsRepo
 }
 
 // NewRepos wires up every repo around a single *sql.DB handle.
@@ -110,6 +111,7 @@ func NewRepos(db *sql.DB) *Repos {
 		Diagrams:  NewDiagramsRepo(db),
 		OpenSpec:  NewOpenSpecChangesRepo(db),
 		WaOutbox:  NewWaOutboxRepo(db),
+		Skills:    NewSkillsRepo(db),
 	}
 }
 

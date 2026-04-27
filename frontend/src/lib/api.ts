@@ -242,6 +242,48 @@ export interface ProjectMessage {
   ts: number;
 }
 
+export interface Skill {
+  name: string;
+  source: string;
+  description?: string;
+  role_hint?: string;
+  version?: string;
+  frontmatter?: Record<string, unknown>;
+  body: string;
+  path: string;
+  pulled_at: number;
+  updated_at: number;
+}
+
+export interface SkillSyncSourceResult {
+  source: string;
+  path: string;
+  discovered: number;
+  upserted: number;
+  removed: number;
+  error?: string;
+}
+
+export interface SkillSyncResult {
+  sources: SkillSyncSourceResult[];
+  started_at: number;
+  finished_at: number;
+  total_upserted: number;
+  total_removed: number;
+  errors?: string[];
+}
+
+export const skillsApi = {
+  async list(source?: string): Promise<Skill[]> {
+    const qs = source ? `?source=${encodeURIComponent(source)}` : "";
+    const res = await request<{ skills: Skill[] | null }>(`/api/skills${qs}`);
+    return res.skills ?? [];
+  },
+  async sync(): Promise<SkillSyncResult> {
+    return request<SkillSyncResult>("/api/skills/sync", { method: "POST" });
+  },
+};
+
 export interface MiniAgent {
   id: number;
   name: string;

@@ -182,6 +182,10 @@ func (s *Server) routes() http.Handler {
 		pr.Get("/api/subagents", s.handleSubagentsList)
 		pr.Get("/api/subagents/{id}", s.handleSubagentGet)
 
+		// Skills registry
+		pr.Get("/api/skills", s.handleSkillsList)
+		pr.Post("/api/skills/sync", s.handleSkillsSync)
+
 		// Topics
 		pr.Get("/api/topics", s.handleTopicsList)
 		pr.Post("/api/topics", s.handleTopicsCreate)
