@@ -196,18 +196,21 @@ func (c *Client) setConnected(v bool) {
 	c.connected = v
 }
 
-// SendText posts a plain message to a JID. Returns error if not connected.
+// SendText posts a plain message to a JID. Returns the WA message ID and error.
 // `reply` is optional — pass nil for a non-reply send.
-func (c *Client) SendText(ctx context.Context, jid, text string, reply *ReplyContext) error {
+func (c *Client) SendText(ctx context.Context, jid, text string, reply *ReplyContext) (string, error) {
 	if !c.Connected() {
-		return errors.New("wa not connected")
+		return "", errors.New("wa not connected")
 	}
 	parsed, err := parseJID(jid)
 	if err != nil {
-		return err
+		return "", err
 	}
-	_, err = c.wmClient.SendMessage(ctx, parsed, makeTextMessage(text, reply))
-	return err
+	resp, err := c.wmClient.SendMessage(ctx, parsed, makeTextMessage(text, reply))
+	if err != nil {
+		return "", err
+	}
+	return resp.ID, nil
 }
 
 func (c *Client) handleEvent(evt any) {

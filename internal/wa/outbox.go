@@ -53,18 +53,30 @@ func (c *Client) drainOnce(ctx context.Context) {
 		return
 	}
 	for _, item := range items {
-		if err := c.dispatchOutboxItem(ctx, item); err != nil {
+		sentID, err := c.dispatchOutboxItem(ctx, item)
+		if err != nil {
 			_ = c.repos.WaOutbox.MarkError(ctx, item.ID, err.Error())
 			c.log.Warn("wa outbox dispatch", "id", item.ID, "kind", item.Kind, "err", err)
 			continue
 		}
 		_ = c.repos.WaOutbox.MarkSent(ctx, item.ID)
+		// Persist the sent message in wa_messages so quoted replies can find it.
+		if sentID != "" && item.Kind == "text" && item.Body.Valid {
+			_, _ = c.repos.Messages.Insert(ctx, store.Message{
+				Channel:    "wa",
+				Direction:  "out",
+				JID:        sql.NullString{String: item.JID, Valid: true},
+				Body:       sql.NullString{String: item.Body.String, Valid: true},
+				ExternalID: sql.NullString{String: sentID, Valid: true},
+				TS:         time.Now().Unix(),
+			})
+		}
 	}
 }
 
-func (c *Client) dispatchOutboxItem(ctx context.Context, item store.WaOutboxItem) error {
+func (c *Client) dispatchOutboxItem(ctx context.Context, item store.WaOutboxItem) (string, error) {
 	if item.JID == "" {
-		return errors.New("missing jid")
+		return "", errors.New("missing jid")
 	}
 	var reply *ReplyContext
 	if item.ReplyTo.Valid && item.ReplyTo.String != "" {
@@ -79,40 +91,41 @@ func (c *Client) dispatchOutboxItem(ctx context.Context, item store.WaOutboxItem
 	switch item.Kind {
 	case "text":
 		if !item.Body.Valid || item.Body.String == "" {
-			return errors.New("text outbox item missing body")
+			return "", errors.New("text outbox item missing body")
 		}
-		return c.SendText(ctx, item.JID, item.Body.String, reply)
+		id, err := c.SendText(ctx, item.JID, item.Body.String, reply)
+		return id, err
 	case "image":
 		if !item.MediaPath.Valid {
-			return errors.New("image outbox item missing media_path")
+			return "", errors.New("image outbox item missing media_path")
 		}
-		return c.SendImage(ctx, item.JID, item.MediaPath.String, nsStr(item.Caption), reply)
+		return "", c.SendImage(ctx, item.JID, item.MediaPath.String, nsStr(item.Caption), reply)
 	case "voice":
 		if !item.MediaPath.Valid {
-			return errors.New("voice outbox item missing media_path")
+			return "", errors.New("voice outbox item missing media_path")
 		}
-		return c.SendVoice(ctx, item.JID, item.MediaPath.String, reply)
+		return "", c.SendVoice(ctx, item.JID, item.MediaPath.String, reply)
 	case "audio":
 		if !item.MediaPath.Valid {
-			return errors.New("audio outbox item missing media_path")
+			return "", errors.New("audio outbox item missing media_path")
 		}
-		return c.SendAudio(ctx, item.JID, item.MediaPath.String, reply)
+		return "", c.SendAudio(ctx, item.JID, item.MediaPath.String, reply)
 	case "document":
 		if !item.MediaPath.Valid {
-			return errors.New("document outbox item missing media_path")
+			return "", errors.New("document outbox item missing media_path")
 		}
-		return c.SendDocument(ctx, item.JID, item.MediaPath.String, nsStr(item.Caption), reply)
+		return "", c.SendDocument(ctx, item.JID, item.MediaPath.String, nsStr(item.Caption), reply)
 	case "video":
 		if !item.MediaPath.Valid {
-			return errors.New("video outbox item missing media_path")
+			return "", errors.New("video outbox item missing media_path")
 		}
-		return c.SendVideo(ctx, item.JID, item.MediaPath.String, nsStr(item.Caption), reply)
+		return "", c.SendVideo(ctx, item.JID, item.MediaPath.String, nsStr(item.Caption), reply)
 	case "location":
 		if !item.LocLat.Valid || !item.LocLng.Valid {
-			return errors.New("location outbox item missing coords")
+			return "", errors.New("location outbox item missing coords")
 		}
-		return c.SendLocation(ctx, item.JID, item.LocLat.Float64, item.LocLng.Float64, nsStr(item.LocName), reply)
+		return "", c.SendLocation(ctx, item.JID, item.LocLat.Float64, item.LocLng.Float64, nsStr(item.LocName), reply)
 	default:
-		return errors.New("unknown kind: " + item.Kind)
+		return "", errors.New("unknown kind: " + item.Kind)
 	}
 }
