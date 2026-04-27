@@ -323,7 +323,8 @@ func (s *Server) runProjectSessionTurn(project *store.Project, sess *store.Proje
 	effort := s.ensureProjectSessionReasoningEffort(sess)
 	prev := sess.SessionID
 	res, err := s.engines.Run(ctx, cliengine.RunOpts{
-		Prompt:          body,
+		Prompt:          projectChatPrompt(body),
+		UserBody:        body,
 		SessionID:       prev,
 		Channel:         "project",
 		Cwd:             project.Path,
@@ -375,6 +376,17 @@ func (s *Server) runProjectSessionTurn(project *store.Project, sess *store.Proje
 		Body:     truncate(res.Text, 280),
 		Context:  map[string]any{"project_id": project.ID, "session_id": sess.ID},
 	})
+}
+
+func projectChatPrompt(body string) string {
+	return strings.TrimSpace(`[AgentHub project chat rules]
+- Respondé en este chat de proyecto como canal principal.
+- No digas que enviaste, reenviate o compartiste algo por WhatsApp salvo que hayas ejecutado realmente una herramienta de envío WhatsApp y tengas su resultado real.
+- Si el usuario pide un diagrama, entregá el diagrama también por este chat: preferí un bloque Mermaid fenced o indicá la ruta exacta del archivo creado.
+- Si no podés entregar algo por WhatsApp desde esta sesión de proyecto, decilo explícitamente y pasalo por el chat.
+
+[Mensaje del usuario]
+` + body)
 }
 
 func (s *Server) broadcastLatestProjectMessage(ctx context.Context, projectID, sessID int64, topic string) {

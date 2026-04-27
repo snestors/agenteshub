@@ -19,6 +19,7 @@ import (
 // RunOpts captures everything needed to spawn a CLI for one turn.
 type RunOpts struct {
 	Prompt          string
+	UserBody        string // optional body to persist as the user's visible turn when Prompt is augmented
 	SessionID       string // resume id; empty = first run, engine assigns one
 	Channel         string // 'wa' | 'web' | 'topic' | 'project' | 'agent' | 'mini-agent'
 	Cwd             string // working dir (where .claude/skills/ is discovered)
@@ -119,7 +120,12 @@ func (m *Manager) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 		}
 	}
 
-	// 2. Persist user turn.
+	// 2. Persist user turn. Some callers augment Prompt with runtime-only
+	// instructions; UserBody keeps the visible chat history clean.
+	userBody := opts.Prompt
+	if opts.UserBody != "" {
+		userBody = opts.UserBody
+	}
 	_, _ = m.repos.Sessions.AppendMessage(ctx, store.SessionMessage{
 		Scope:         opts.Scope,
 		TopicID:       sqlInt(opts.TopicID),
@@ -127,7 +133,7 @@ func (m *Manager) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 		ProjectSessID: sqlInt(opts.ProjectSessID),
 		SessionID:     opts.SessionID,
 		Role:          "user",
-		Body:          sqlStr(opts.Prompt),
+		Body:          sqlStr(userBody),
 	})
 
 	// 3. Run the engine.

@@ -48,7 +48,7 @@ function ProjectList() {
   return (
     <div className="flex flex-col h-full min-h-0">
       <Topbar
-        breadcrumb={[{ label: "AgentHub" }, { label: "Projects" }]}
+        breadcrumb={[{ label: "AgentHub", href: "/" }, { label: "Projects" }]}
         status={error ? { label: "ERROR", tone: "danger" } : { label: "READY", tone: "ok" }}
         right={
           <button
@@ -200,7 +200,7 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
   return (
     <div className="flex flex-col h-full min-h-0">
       <Topbar
-        breadcrumb={[{ label: "AgentHub" }, { label: "Projects" }, { label: project?.name ?? String(projectId) }]}
+        breadcrumb={[{ label: "AgentHub", href: "/" }, { label: "Projects", href: "/projects" }, { label: project?.name ?? String(projectId) }]}
         status={error ? { label: "ERROR", tone: "danger" } : { label: current ? "LIVE" : "IDLE", tone: current ? "ok" : "warn" }}
         right={
           <button

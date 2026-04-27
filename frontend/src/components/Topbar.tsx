@@ -1,5 +1,6 @@
 import * as React from "react";
 import { ChevronRight } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface TopbarProps {
   breadcrumb: Array<{ label: string; href?: string }>;
@@ -26,20 +27,21 @@ export function Topbar({ breadcrumb, status, right }: TopbarProps) {
       <nav className="flex items-center gap-2 font-mono text-[11px] tracking-hud-tight">
         {breadcrumb.map((crumb, i) => {
           const isLast = i === breadcrumb.length - 1;
+          const className = isLast
+            ? "text-[var(--color-fg)] font-display uppercase tracking-hud font-semibold"
+            : "text-[var(--color-dim)] uppercase";
           return (
             <React.Fragment key={`${crumb.label}-${i}`}>
               {i > 0 && (
                 <ChevronRight size={11} className="text-[var(--color-dim)]" />
               )}
-              <span
-                className={
-                  isLast
-                    ? "text-[var(--color-fg)] font-display uppercase tracking-hud font-semibold"
-                    : "text-[var(--color-dim)] uppercase"
-                }
-              >
-                {crumb.label}
-              </span>
+              {!isLast && crumb.href ? (
+                <Link to={crumb.href} className={`${className} hover:text-[var(--color-cyan)] transition-colors`}>
+                  {crumb.label}
+                </Link>
+              ) : (
+                <span className={className}>{crumb.label}</span>
+              )}
             </React.Fragment>
           );
         })}

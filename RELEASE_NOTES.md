@@ -8,6 +8,14 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.13 — 2026-04-27
+
+### Fixed
+- **Breadcrumbs navegables**: `AgentHub` y `Projects` en la cabecera ahora navegan a sus rutas, evitando tener que salir y volver a entrar manualmente.
+- **Project chat no alucina envíos WA**: las sesiones de proyecto reciben una instrucción runtime para no afirmar envíos por WhatsApp sin herramienta real y para entregar diagramas también en el chat; el historial visible conserva el mensaje original del usuario.
+
+---
+
 ## v0.2.12 — 2026-04-27
 
 ### Changed
