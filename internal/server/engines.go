@@ -28,16 +28,21 @@ type engineDef struct {
 var staticEngines = []engineDef{
 	{
 		Engine: "claude",
-		// :cloud models are wrapped via `ollama launch claude --model X --` so the
-		// claude CLI keeps its tools/skills/system-prompt but the underlying
-		// reasoning runs on Ollama Cloud (e.g. DeepSeek-V4-Pro 158B / 1M ctx).
-		// Cost flows against the user's Ollama Cloud Pro plan, not Anthropic.
-		Models: []string{"sonnet", "opus", "haiku", "opus-1m", "deepseek-v4-pro:cloud"},
+		// Two non-Anthropic paths coexist under the claude engine:
+		//   - `:cloud` suffix → wrapped via `ollama launch claude --model X --`
+		//     (slow but free under the user's Ollama Cloud Pro plan).
+		//   - `deepseek-v4-*` (no suffix) → claude CLI is pointed directly at
+		//     DeepSeek's Anthropic-compatible endpoint via env vars
+		//     (ANTHROPIC_BASE_URL + ANTHROPIC_API_KEY). Faster, paid per token
+		//     against the user's DeepSeek balance.
+		Models: []string{"sonnet", "opus", "haiku", "opus-1m", "deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4-pro:cloud"},
 		CtxWindows: map[string]int{
 			"sonnet":                200_000,
 			"opus":                  200_000,
 			"haiku":                 200_000,
 			"opus-1m":               1_000_000,
+			"deepseek-v4-pro":       128_000,
+			"deepseek-v4-flash":     128_000,
 			"deepseek-v4-pro:cloud": 200_000,
 		},
 		ReasoningEfforts: reasoningEfforts(),

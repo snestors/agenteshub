@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.19 — 2026-04-28
+
+### Added
+- **DeepSeek-V4-Pro/Flash directos vía API (mucho más rápido que ollama)**: el engine `claude` acepta dos modelos nuevos `deepseek-v4-pro` y `deepseek-v4-flash` (sin sufijo `:cloud`). Cuando se eligen, el daemon invoca el binario `claude` directamente con env vars `ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic` + `ANTHROPIC_API_KEY=<vault>`. DeepSeek expone un endpoint Anthropic-compatible nativo, así que claude habla protocolo Anthropic igual — pero el cerebro corre en DeepSeek y la cuenta va contra el plan del user (sk-...). Costo y latencia mucho mejores que el path `:cloud` (que pasaba por Ollama). La API key vive cifrada en el vault bajo la clave `DEEPSEEK_API_KEY`. Helpers nuevos en `internal/cliengine/claude.go`: `isDeepSeekDirectModel()` + `deepseekAPIKey()`. Catalog actualizado en `internal/server/engines.go`.
+
+---
+
 ## v0.2.18 — 2026-04-28
 
 ### Added

@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snestors/agenteshub/internal/auth"
 	"github.com/snestors/agenteshub/internal/config"
 	"github.com/snestors/agenteshub/internal/store"
 )
@@ -75,9 +76,12 @@ func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 		args = append(args, "--append-system-prompt", sp)
 	}
 	cloudModel := isOllamaCloudModel(opts.Model)
+	deepseekDirect := isDeepSeekDirectModel(opts.Model)
 	if !cloudModel {
-		// claude --model only accepts Anthropic ids. For :cloud models, the
-		// `ollama launch claude --model X --` wrapper sets it instead.
+		// claude --model accepts Anthropic ids natively, AND non-Anthropic ids
+		// (deepseek-v4-pro, deepseek-v4-flash) when ANTHROPIC_BASE_URL points to
+		// a compatible provider. The `:cloud` ollama wrapper sets the model
+		// itself, so we skip --model only in that branch.
 		if model := chooseModel(opts.Model, e.cfg.DefaultModel); model != "" {
 			args = append(args, "--model", model)
 		}
@@ -96,7 +100,8 @@ func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 		claudeBin = "claude"
 	}
 	var cmd *exec.Cmd
-	if cloudModel {
+	switch {
+	case cloudModel:
 		// `ollama launch claude --model X --` wraps the claude CLI so the
 		// underlying reasoning runs on an Ollama Cloud model (e.g. DeepSeek-V4-Pro)
 		// while keeping the full claude UX: tools, skills, system prompt, MCP.
@@ -108,7 +113,23 @@ func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 		env := os.Environ()
 		env = append(env, "PATH="+claudeDir+":"+os.Getenv("PATH"))
 		cmd.Env = env
-	} else {
+	case deepseekDirect:
+		// claude CLI honours ANTHROPIC_BASE_URL + ANTHROPIC_API_KEY to point at
+		// any Anthropic-compatible provider. DeepSeek exposes one at
+		// `/anthropic`; the API key lives in the encrypted vault under
+		// DEEPSEEK_API_KEY.
+		key, err := e.deepseekAPIKey(ctx)
+		if err != nil {
+			return nil, err
+		}
+		cmd = exec.CommandContext(ctx, claudeBin, args...)
+		env := os.Environ()
+		env = append(env,
+			"ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic",
+			"ANTHROPIC_API_KEY="+key,
+		)
+		cmd.Env = env
+	default:
 		cmd = exec.CommandContext(ctx, claudeBin, args...)
 	}
 	cmd.Dir = opts.Cwd
@@ -341,6 +362,38 @@ func chooseModel(opt, fallback string) string {
 // its UX (tools, skills, system prompt) while reasoning runs on Ollama.
 func isOllamaCloudModel(m string) bool {
 	return strings.HasSuffix(strings.TrimSpace(m), ":cloud")
+}
+
+// isDeepSeekDirectModel returns true for DeepSeek models served via the
+// provider's Anthropic-compatible REST endpoint. The claude CLI is invoked
+// directly (no wrapper); env vars steer it to DeepSeek instead of Anthropic.
+func isDeepSeekDirectModel(m string) bool {
+	m = strings.TrimSpace(m)
+	if m == "" || strings.HasSuffix(m, ":cloud") {
+		return false
+	}
+	return strings.HasPrefix(m, "deepseek-")
+}
+
+// deepseekAPIKey loads and decrypts the DEEPSEEK_API_KEY secret from the vault.
+// Returns a clear error when the key is missing — surfaced to the user as the
+// engine error so they know to set it via /api/secrets.
+func (e *ClaudeEngine) deepseekAPIKey(ctx context.Context) (string, error) {
+	if e.repos == nil || e.repos.Secrets == nil {
+		return "", fmt.Errorf("deepseek: vault not wired in this build")
+	}
+	enc, err := e.repos.Secrets.GetValue(ctx, "DEEPSEEK_API_KEY")
+	if err != nil {
+		return "", fmt.Errorf("deepseek: vault lookup: %w", err)
+	}
+	if len(enc) == 0 {
+		return "", fmt.Errorf("deepseek: DEEPSEEK_API_KEY not in vault — set it via POST /api/secrets")
+	}
+	plain, err := auth.DecryptAESGCM(e.cfg.SecretKey, enc)
+	if err != nil {
+		return "", fmt.Errorf("deepseek: decrypt: %w", err)
+	}
+	return strings.TrimSpace(string(plain)), nil
 }
 
 // resolveClaudeAlias converts AgentHub-friendly model names into the exact
