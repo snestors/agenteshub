@@ -107,7 +107,7 @@ func (s *Server) routeConversationInput(ctx context.Context, in conversationInpu
 	}
 
 	prev := ""
-	if mainSess := s.mainAgentSession(ctx, engine); mainSess != nil {
+	if mainSess := s.mainAgentSession(ctx, engine, model); mainSess != nil {
 		prev = mainSess.SessionID
 	}
 	turn := conversationTurn{Prompt: enginePrompt, PreviousID: prev, Engine: engine, Model: model, Source: in.Channel}
@@ -162,7 +162,7 @@ func (s *Server) runConversationTurn(turn conversationTurn) {
 		return
 	}
 	if res.SessionID != "" && res.SessionID != turn.PreviousID {
-		_ = s.repos.Sessions.UpsertAgentSession(context.Background(), store.AgentSession{AgentName: mainAgentSessionName(turn.Engine), Engine: turn.Engine, SessionID: res.SessionID})
+		_ = s.repos.Sessions.UpsertAgentSession(context.Background(), store.AgentSession{AgentName: mainAgentSessionName(turn.Engine, turn.Model), Engine: turn.Engine, SessionID: res.SessionID})
 	}
 	s.emitConversationOutput(turn, res.Text, "ok", activity)
 	go s.broadcastAgentStatus(context.Background())

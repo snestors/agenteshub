@@ -67,7 +67,7 @@ func (s *Server) computeAgentStatus(ctx context.Context) agentStatus {
 	if v, _ := s.repos.Settings.Get(ctx, "model"); v != "" {
 		model = v
 	}
-	mainSess := s.mainAgentSession(ctx, engine)
+	mainSess := s.mainAgentSession(ctx, engine, model)
 	sid := ""
 	if mainSess != nil {
 		sid = mainSess.SessionID

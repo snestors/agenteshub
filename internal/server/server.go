@@ -654,9 +654,20 @@ func (s *Server) enqueueWAReply(target *waReplyTarget, body string) {
 	}
 }
 
-func (s *Server) mainAgentSession(ctx context.Context, engine string) *store.AgentSession {
+func (s *Server) mainAgentSession(ctx context.Context, engine, model string) *store.AgentSession {
 	if engine != "" {
-		if sess, _ := s.repos.Sessions.GetAgentSession(ctx, mainAgentSessionName(engine)); sess != nil && sess.Engine == engine {
+		if sess, _ := s.repos.Sessions.GetAgentSession(ctx, mainAgentSessionName(engine, model)); sess != nil && sess.Engine == engine {
+			return sess
+		}
+	}
+	// Legacy fallback: engine-scoped rows that predate model/provider-aware
+	// session partitioning. Never reuse the generic claude row for DeepSeek
+	// models because Anthropic-backed session_ids are incompatible there.
+	if engine == "claude" && isDeepSeekMainModel(model) {
+		return nil
+	}
+	if engine != "" {
+		if sess, _ := s.repos.Sessions.GetAgentSession(ctx, mainAgentSessionName(engine, "")); sess != nil && sess.Engine == engine {
 			return sess
 		}
 	}
@@ -668,11 +679,22 @@ func (s *Server) mainAgentSession(ctx context.Context, engine string) *store.Age
 	return nil
 }
 
-func mainAgentSessionName(engine string) string {
+func mainAgentSessionName(engine, model string) string {
 	if engine == "" {
 		return "main-agent"
 	}
+	if engine == "claude" && isDeepSeekMainModel(model) {
+		model = strings.ToLower(strings.TrimSpace(model))
+		if model == "" {
+			model = "deepseek"
+		}
+		return "main-agent:" + engine + ":" + model
+	}
 	return "main-agent:" + engine
+}
+
+func isDeepSeekMainModel(model string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(model)), "deepseek-")
 }
 
 // ---------- frontend / static ----------

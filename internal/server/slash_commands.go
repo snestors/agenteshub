@@ -59,15 +59,21 @@ func (s *Server) tryHandleSlashCommand(ctx context.Context, body string, scope s
 func (s *Server) slashReset(ctx context.Context, scope slashScope) slashResult {
 	switch scope.Kind {
 	case "main":
-		// Wipe the resume id for both engine-scoped names and the legacy
-		// shared row. Next message starts fresh.
-		for _, eng := range []string{scope.Engine, "claude", "codex"} {
-			if eng == "" {
+		// Wipe the resume id for current engine/model scoped names and the
+		// legacy shared rows. Next message starts fresh.
+		for _, pair := range [][2]string{
+			{scope.Engine, ""},
+			{"claude", ""},
+			{"claude", "deepseek-v4-pro"},
+			{"claude", "deepseek-v4-flash"},
+			{"codex", ""},
+		} {
+			if pair[0] == "" {
 				continue
 			}
 			_ = s.repos.Sessions.UpsertAgentSession(ctx, store.AgentSession{
-				AgentName: mainAgentSessionName(eng),
-				Engine:    eng,
+				AgentName: mainAgentSessionName(pair[0], pair[1]),
+				Engine:    pair[0],
 				SessionID: "",
 			})
 		}

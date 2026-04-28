@@ -8,6 +8,21 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.29 — 2026-04-28
+
+### Fixed
+- **Main chat separa sesiones Claude vs Claude+DeepSeek**: la sesión principal ya no reutiliza el mismo `session_id` genérico de `claude` cuando el modelo seleccionado es `deepseek-v4-*`. Ahora AgentHub guarda y busca una sesión main específica por modelo DeepSeek, evitando que el chat principal intente resumir una sesión Anthropic incompatible y dispare el error `content[].thinking must be passed back`.
+- **Status y `/reset` alineados al nuevo scope**: `agent_status` y el slash command `/reset` entienden las sesiones main de DeepSeek para que el estado visible y el reset manual sigan apuntando al scope correcto.
+
+---
+
+## v0.2.31 — 2026-04-28
+
+### Fixed
+- **Restaurados sonarr/radarr/qbittorrent a la whitelist**: se habían eliminado por error en v0.2.29. Solo los servicios legacy del bridge (`whatsapp-bridge.service`, `whatsapp-bridge-watchdog.timer`) debían salir.
+
+---
+
 ## v0.2.30 — 2026-04-28
 
 ### Changed
