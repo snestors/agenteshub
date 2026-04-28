@@ -8,6 +8,19 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.26 — 2026-04-28
+
+### Added
+- **Stats reales del sub-agent en SubAgentCard (B2-A)**: cada Task() que MAIN dispara ahora muestra info medida por claude — duración real, tokens consumidos, total de tool calls y breakdown por tipo (`Bash:8, Read:11, Grep:4`). Antes solo se veía el timer client-side y el preview del result. Ahora también:
+  - Backend (`internal/cliengine/claude.go`): `runStreaming` trackea cada `tool_use` con `name === "Agent"`, parsea el JSONL del session post-`cmd.Wait` para extraer el `toolUseResult` block (agentId, agentType, totalDurationMs, totalTokens, totalToolUseCount, usage, toolStats), y emite eventos nuevos `kind: "subagent_stats"` con el payload en `Meta`. Se emiten ANTES del `final` event para que la SubAgentCard se decore antes de cerrar el ghost bubble.
+  - `StreamEvent` ganó un campo genérico `Meta map[string]any`. Lo usa por ahora `subagent_stats`; queda flexible para otros kinds futuros.
+  - Frontend: `ToolCall` ahora guarda `claudeToolUseID` (el id "call_..." original del LLM) para correlacionar; un nuevo case `subagent_stats` en `applyChunk` (streamsStore.tsx) y `applyStreamChunk` (ProjectChat.tsx) hidrata `subagentStats` en el ToolCall que matchea. `SubAgentCard` renderiza una fila extra con `stats: 4m08s · 12,450 tok · 23 tool calls` y otra con `tools: Bash:8, Read:11, …`.
+
+### Limitación honesta (sigue valiendo)
+- Esto es post-Task, no live profundo. Mientras el sub-agent corre solo se ve la SubAgentCard con status running + duración client-side. El detalle interior (qué bash corrió, qué archivo leyó) sigue siendo opaco — claude CLI no lo expone. Para visibility live profunda haría falta cambiar el modelo (B2-B), descartado por innecesario.
+
+---
+
 ## v0.2.25 — 2026-04-28
 
 ### Added

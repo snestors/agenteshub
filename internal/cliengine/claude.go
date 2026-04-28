@@ -210,6 +210,12 @@ func (e *ClaudeEngine) runStreaming(ctx context.Context, cmd *exec.Cmd, opts Run
 	// the CLI's last line is dropped. The user already saw the text via the
 	// WebSocket, so persisting it from this buffer keeps the chat consistent.
 	var streamedText strings.Builder
+	// taskToolUseIDs collects every Agent (Task) tool_use the parent emits.
+	// After cmd.Wait we look up the rich `toolUseResult` for each one in the
+	// session's JSONL on disk and re-emit a `subagent_stats` event so the
+	// frontend can decorate the SubAgentCard (duration, tokens, tool count
+	// breakdown) with stats measured by claude itself.
+	var taskToolUseIDs []string
 	seq := 0
 	emit := func(ev StreamEvent) {
 		seq++
@@ -283,6 +289,9 @@ func (e *ClaudeEngine) runStreaming(ctx context.Context, cmd *exec.Cmd, opts Run
 						emit(StreamEvent{Kind: "thinking", Text: b.Thinking})
 					}
 				case "tool_use":
+					if b.Name == "Agent" && b.ID != "" {
+						taskToolUseIDs = append(taskToolUseIDs, b.ID)
+					}
 					emit(StreamEvent{Kind: "tool_use", ToolName: b.Name, ToolID: b.ID, ToolArgs: b.Input})
 				case "tool_result":
 					emit(StreamEvent{Kind: "tool_result", ToolID: b.ToolUseID, ToolResult: rawToText(b.Content)})
@@ -295,7 +304,10 @@ func (e *ClaudeEngine) runStreaming(ctx context.Context, cmd *exec.Cmd, opts Run
 			}
 			res.Text = ev.Result
 			res.CostTokens = int64(ev.Usage.InputTokens + ev.Usage.OutputTokens)
-			emit(StreamEvent{Kind: "final", Text: ev.Result, Final: true})
+			// `final` is deferred until after cmd.Wait so we can squeeze in
+			// subagent_stats events first (read from the JSONL on disk once
+			// claude has flushed it). Frontend then sees: stats → final, and
+			// can decorate SubAgentCards before the ghost bubble closes.
 		}
 	}
 	if err := scanner.Err(); err != nil && err != io.EOF {
@@ -309,6 +321,8 @@ func (e *ClaudeEngine) runStreaming(ctx context.Context, cmd *exec.Cmd, opts Run
 		// event never delivered usage figures.
 		if buf := strings.TrimSpace(streamedText.String()); buf != "" {
 			res.Text = buf
+			e.emitSubagentStats(opts, emit, res.SessionID, taskToolUseIDs)
+			emit(StreamEvent{Kind: "final", Text: res.Text, Final: true})
 			return res, nil
 		}
 		return nil, fmt.Errorf("claude wait: %w (stderr=%s)", err, strings.TrimSpace(stderr.String()))
@@ -319,11 +333,142 @@ func (e *ClaudeEngine) runStreaming(ctx context.Context, cmd *exec.Cmd, opts Run
 		// the CLI's last JSONL line is dropped.
 		if buf := strings.TrimSpace(streamedText.String()); buf != "" {
 			res.Text = buf
+			e.emitSubagentStats(opts, emit, res.SessionID, taskToolUseIDs)
+			emit(StreamEvent{Kind: "final", Text: res.Text, Final: true})
 			return res, nil
 		}
 		return nil, fmt.Errorf("claude stream produced no result")
 	}
+	e.emitSubagentStats(opts, emit, res.SessionID, taskToolUseIDs)
+	emit(StreamEvent{Kind: "final", Text: res.Text, Final: true})
 	return res, nil
+}
+
+// subagentStats holds the slice of toolUseResult fields the JSONL exposes
+// for each Task() invocation. Claude CLI doesn't stream sub-agent internals
+// to stdout, but it does write a rich block to the session JSONL when each
+// Task completes. We re-emit those blocks so the frontend can decorate.
+type subagentStats struct {
+	ToolUseID          string         `json:"tool_use_id"`
+	AgentID            string         `json:"agent_id"`
+	AgentType          string         `json:"agent_type"`
+	Status             string         `json:"status"`
+	TotalDurationMs    int64          `json:"total_duration_ms"`
+	TotalTokens        int64          `json:"total_tokens"`
+	TotalToolUseCount  int64          `json:"total_tool_use_count"`
+	Usage              map[string]any `json:"usage,omitempty"`
+	ToolStats          map[string]any `json:"tool_stats,omitempty"`
+}
+
+// emitSubagentStats parses the on-disk JSONL for the just-finished session
+// and emits one stream event per Task tool_use_id we tracked. Best-effort:
+// if the JSONL is missing or unreadable, we skip silently — these events
+// are decoration, not critical.
+func (e *ClaudeEngine) emitSubagentStats(opts RunOpts, emit func(StreamEvent), sessionID string, taskIDs []string) {
+	if len(taskIDs) == 0 || sessionID == "" || opts.OnEvent == nil {
+		return
+	}
+	jsonlPath := claudeJSONLPath(e.cfg.ClaudeProjectsDir, opts.Cwd, sessionID)
+	stats, err := parseSubagentStats(jsonlPath, taskIDs)
+	if err != nil || len(stats) == 0 {
+		return
+	}
+	for _, s := range stats {
+		emit(StreamEvent{
+			Kind:   "subagent_stats",
+			ToolID: s.ToolUseID,
+			Meta: map[string]any{
+				"agent_id":              s.AgentID,
+				"agent_type":            s.AgentType,
+				"status":                s.Status,
+				"total_duration_ms":     s.TotalDurationMs,
+				"total_tokens":          s.TotalTokens,
+				"total_tool_use_count":  s.TotalToolUseCount,
+				"usage":                 s.Usage,
+				"tool_stats":            s.ToolStats,
+			},
+		})
+	}
+}
+
+// parseSubagentStats walks a session JSONL once and returns one stats entry
+// per requested tool_use_id (in claude's format, e.g. "call_abcdef"). Order
+// in the return matches order of first occurrence in the JSONL.
+func parseSubagentStats(jsonlPath string, taskIDs []string) ([]subagentStats, error) {
+	if len(taskIDs) == 0 {
+		return nil, nil
+	}
+	wanted := make(map[string]bool, len(taskIDs))
+	for _, id := range taskIDs {
+		wanted[id] = true
+	}
+	f, err := os.Open(jsonlPath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	type rawTUR struct {
+		Status            string         `json:"status"`
+		AgentID           string         `json:"agentId"`
+		AgentType         string         `json:"agentType"`
+		TotalDurationMs   int64          `json:"totalDurationMs"`
+		TotalTokens       int64          `json:"totalTokens"`
+		TotalToolUseCount int64          `json:"totalToolUseCount"`
+		Usage             map[string]any `json:"usage"`
+		ToolStats         map[string]any `json:"toolStats"`
+	}
+	type rawEntry struct {
+		Type    string `json:"type"`
+		Message struct {
+			Content json.RawMessage `json:"content"`
+		} `json:"message"`
+		ToolUseResult *rawTUR `json:"toolUseResult"`
+	}
+
+	var out []subagentStats
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1024*1024), 8*1024*1024)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 || !bytes.Contains(line, []byte("toolUseResult")) {
+			continue
+		}
+		var e rawEntry
+		if err := json.Unmarshal(line, &e); err != nil {
+			continue
+		}
+		if e.Type != "user" || e.ToolUseResult == nil || len(e.Message.Content) == 0 {
+			continue
+		}
+		// Each user/tool_result entry references its tool_use_id inside
+		// message.content[*].tool_use_id. Find any that we're tracking.
+		var blocks []struct {
+			Type      string `json:"type"`
+			ToolUseID string `json:"tool_use_id"`
+		}
+		if err := json.Unmarshal(e.Message.Content, &blocks); err != nil {
+			continue
+		}
+		for _, b := range blocks {
+			if b.Type != "tool_result" || !wanted[b.ToolUseID] {
+				continue
+			}
+			out = append(out, subagentStats{
+				ToolUseID:          b.ToolUseID,
+				AgentID:            e.ToolUseResult.AgentID,
+				AgentType:          e.ToolUseResult.AgentType,
+				Status:             e.ToolUseResult.Status,
+				TotalDurationMs:    e.ToolUseResult.TotalDurationMs,
+				TotalTokens:        e.ToolUseResult.TotalTokens,
+				TotalToolUseCount:  e.ToolUseResult.TotalToolUseCount,
+				Usage:              e.ToolUseResult.Usage,
+				ToolStats:          e.ToolUseResult.ToolStats,
+			})
+			delete(wanted, b.ToolUseID)
+		}
+	}
+	return out, scanner.Err()
 }
 
 // rawToText flattens tool_result content (string or []block) into a single string.

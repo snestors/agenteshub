@@ -12,16 +12,38 @@
 
 import * as React from "react";
 import { useTopic, type WsEnvelope } from "@/lib/useTopic";
-import type { GhostBubbleData, ToolCall } from "@/components/GhostBubble";
+import type { GhostBubbleData, SubagentStats, ToolCall } from "@/components/GhostBubble";
 
-type StreamKind = "text" | "tool_use" | "tool_result" | "thinking";
+function extractStats(meta: Record<string, unknown> | undefined): SubagentStats {
+  if (!meta || typeof meta !== "object") return {};
+  const num = (v: unknown): number | undefined =>
+    typeof v === "number" && Number.isFinite(v) ? v : undefined;
+  const str = (v: unknown): string | undefined =>
+    typeof v === "string" && v.length > 0 ? v : undefined;
+  return {
+    agentId: str(meta.agent_id),
+    agentType: str(meta.agent_type),
+    status: str(meta.status),
+    totalDurationMs: num(meta.total_duration_ms),
+    totalTokens: num(meta.total_tokens),
+    totalToolUseCount: num(meta.total_tool_use_count),
+    toolStats:
+      meta.tool_stats && typeof meta.tool_stats === "object"
+        ? (meta.tool_stats as Record<string, unknown>)
+        : undefined,
+  };
+}
+
+type StreamKind = "text" | "tool_use" | "tool_result" | "thinking" | "subagent_stats";
 
 export interface WsStreamPayload {
   kind: StreamKind;
   text?: string;
   tool_name?: string;
+  tool_use_id?: string;
   tool_args?: unknown;
   tool_result?: string;
+  meta?: Record<string, unknown>;
   session_id: string;
   seq: number;
   final?: boolean;
@@ -119,6 +141,7 @@ function applyChunk(curr: GhostsByTopic, topic: string, chunk: WsStreamPayload):
         args: chunk.tool_args,
         status: "running",
         startedAt: Date.now(),
+        claudeToolUseID: chunk.tool_use_id,
       };
       const tools = existing.tools.some((t) => t.id === id)
         ? existing.tools
@@ -126,6 +149,20 @@ function applyChunk(curr: GhostsByTopic, topic: string, chunk: WsStreamPayload):
       return {
         ...curr,
         [topic]: { ...workingInner, [sid]: { ...existing, pending: false, tools } },
+      };
+    }
+    case "subagent_stats": {
+      // Match by the original LLM tool_use_id we tucked away on tool_use.
+      const targetID = chunk.tool_use_id;
+      if (!targetID) return curr;
+      const tools = existing.tools.map((t) =>
+        t.claudeToolUseID === targetID
+          ? { ...t, subagentStats: extractStats(chunk.meta) }
+          : t,
+      );
+      return {
+        ...curr,
+        [topic]: { ...workingInner, [sid]: { ...existing, tools } },
       };
     }
     case "tool_result": {

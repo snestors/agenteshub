@@ -19,6 +19,23 @@ export interface ToolCall {
   startedAt?: number;
   /** epoch ms when the tool returned (set on tool_result) */
   finishedAt?: number;
+  /** original tool_use_id from the LLM (claude calls them e.g. "call_abcdef") —
+   *  used to correlate subagent_stats events back to the matching SubAgentCard */
+  claudeToolUseID?: string;
+  /** decoded toolUseResult for Task() — only set when the LLM emits subagent_stats
+   *  after the corresponding tool_result lands. Drives the bottom row of stats
+   *  shown by SubAgentCard. */
+  subagentStats?: SubagentStats;
+}
+
+export interface SubagentStats {
+  agentId?: string;
+  agentType?: string;
+  status?: string;
+  totalDurationMs?: number;
+  totalTokens?: number;
+  totalToolUseCount?: number;
+  toolStats?: Record<string, unknown>;
 }
 
 function formatDuration(start?: number, end?: number): string {
@@ -233,6 +250,7 @@ function SubAgentCard({ call }: { call: ToolCall }) {
         <div className="text-[11px] text-[var(--color-fg)] break-words">
           {description}
         </div>
+        {call.subagentStats && <SubagentStatsRow stats={call.subagentStats} />}
         {call.resultPreview && (
           <div className="mt-1 text-[10.5px] text-[var(--color-dim)] whitespace-pre-wrap break-words">
             <span className="text-[var(--color-lime)]">result:</span>{" "}
@@ -242,6 +260,61 @@ function SubAgentCard({ call }: { call: ToolCall }) {
       </div>
     </div>
   );
+}
+
+// SubagentStatsRow renders the rich `toolUseResult` fields claude attaches to
+// each Task() — claude-measured duration, tokens spent, and a breakdown of
+// internal tool calls (Bash:8, Read:11, …). All optional; we hide silently
+// when the field is missing.
+function SubagentStatsRow({ stats }: { stats: SubagentStats }) {
+  const parts: string[] = [];
+  if (stats.totalDurationMs && stats.totalDurationMs > 0) {
+    parts.push(formatDuration(0, stats.totalDurationMs));
+  }
+  if (stats.totalTokens && stats.totalTokens > 0) {
+    parts.push(`${stats.totalTokens.toLocaleString()} tok`);
+  }
+  if (stats.totalToolUseCount && stats.totalToolUseCount > 0) {
+    parts.push(`${stats.totalToolUseCount} tool calls`);
+  }
+
+  const breakdown = formatToolStats(stats.toolStats);
+
+  if (parts.length === 0 && !breakdown) return null;
+
+  return (
+    <div className="mt-1 text-[10.5px] text-[var(--color-dim)]">
+      {parts.length > 0 && (
+        <div>
+          <span className="text-[var(--color-cyan)]">stats:</span>{" "}
+          <span className="text-[var(--color-fg)]">{parts.join(" · ")}</span>
+        </div>
+      )}
+      {breakdown && (
+        <div className="mt-0.5 break-words">
+          <span className="text-[var(--color-cyan)]">tools:</span>{" "}
+          <span className="text-[var(--color-fg)]">{breakdown}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatToolStats(s?: Record<string, unknown>): string {
+  if (!s || typeof s !== "object") return "";
+  const entries: Array<[string, number]> = [];
+  for (const [k, v] of Object.entries(s)) {
+    let n = 0;
+    if (typeof v === "number") n = v;
+    else if (typeof v === "object" && v !== null) {
+      const inner = (v as Record<string, unknown>).count ?? (v as Record<string, unknown>).total;
+      if (typeof inner === "number") n = inner;
+    }
+    if (n > 0) entries.push([k, n]);
+  }
+  if (entries.length === 0) return "";
+  entries.sort((a, b) => b[1] - a[1]);
+  return entries.slice(0, 6).map(([k, n]) => `${k}:${n}`).join(", ");
 }
 
 export function GhostBubble({ data }: { data: GhostBubbleData }) {

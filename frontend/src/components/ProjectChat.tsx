@@ -3,7 +3,27 @@ import { api, DEFAULT_REASONING_EFFORTS, FALLBACK_ENGINES, type AgentMessage, ty
 import { useTopic } from "@/lib/useTopic";
 import { Composer } from "@/components/Composer";
 import { MessageBubble } from "@/components/MessageBubble";
-import { GhostBubble, type GhostBubbleData, type ToolCall } from "@/components/GhostBubble";
+import { GhostBubble, type GhostBubbleData, type SubagentStats, type ToolCall } from "@/components/GhostBubble";
+
+function extractStatsFromMeta(meta: Record<string, unknown> | undefined): SubagentStats {
+  if (!meta || typeof meta !== "object") return {};
+  const num = (v: unknown): number | undefined =>
+    typeof v === "number" && Number.isFinite(v) ? v : undefined;
+  const str = (v: unknown): string | undefined =>
+    typeof v === "string" && v.length > 0 ? v : undefined;
+  return {
+    agentId: str(meta.agent_id),
+    agentType: str(meta.agent_type),
+    status: str(meta.status),
+    totalDurationMs: num(meta.total_duration_ms),
+    totalTokens: num(meta.total_tokens),
+    totalToolUseCount: num(meta.total_tool_use_count),
+    toolStats:
+      meta.tool_stats && typeof meta.tool_stats === "object"
+        ? (meta.tool_stats as Record<string, unknown>)
+        : undefined,
+  };
+}
 
 interface ProjectChatProps {
   projectId: number;
@@ -26,14 +46,23 @@ interface WsEnvelope {
   ts?: number;
 }
 
-type StreamKind = "text" | "tool_use" | "tool_result" | "thinking" | "final" | "system";
+type StreamKind =
+  | "text"
+  | "tool_use"
+  | "tool_result"
+  | "thinking"
+  | "final"
+  | "system"
+  | "subagent_stats";
 
 interface WsStreamPayload {
   kind: StreamKind;
   text?: string;
   tool_name?: string;
+  tool_use_id?: string;
   tool_args?: unknown;
   tool_result?: string;
+  meta?: Record<string, unknown>;
   session_id?: string;
   seq: number;
   final?: boolean;
@@ -150,10 +179,21 @@ export function ProjectChat({
             args: chunk.tool_args,
             status: "running",
             startedAt: Date.now(),
+            claudeToolUseID: chunk.tool_use_id,
           };
           const tools = existing.tools.some((t) => t.id === id)
             ? existing.tools
             : [...existing.tools, call];
+          return { ...curr, [sid]: { ...existing, tools } };
+        }
+        case "subagent_stats": {
+          const targetID = chunk.tool_use_id;
+          if (!targetID) return curr;
+          const tools = existing.tools.map((t) =>
+            t.claudeToolUseID === targetID
+              ? { ...t, subagentStats: extractStatsFromMeta(chunk.meta) }
+              : t,
+          );
           return { ...curr, [sid]: { ...existing, tools } };
         }
         case "tool_result": {

@@ -46,7 +46,7 @@ type RunOpts struct {
 
 // StreamEvent is a single observable event during a turn.
 type StreamEvent struct {
-	Kind       string         `json:"kind"` // 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'system' | 'final'
+	Kind       string         `json:"kind"` // 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'system' | 'final' | 'subagent_stats'
 	Text       string         `json:"text,omitempty"`
 	ToolName   string         `json:"tool_name,omitempty"`
 	ToolID     string         `json:"tool_use_id,omitempty"`
@@ -55,6 +55,11 @@ type StreamEvent struct {
 	SessionID  string         `json:"session_id,omitempty"`
 	Seq        int            `json:"seq"`
 	Final      bool           `json:"final,omitempty"`
+	// Meta carries kind-specific extras. Used today by `subagent_stats` events
+	// to ship the rich `toolUseResult` block claude CLI writes to the JSONL
+	// (agentId, agentType, totalDurationMs, totalTokens, totalToolUseCount,
+	// toolStats). Keep flexible — other kinds may borrow it later.
+	Meta map[string]any `json:"meta,omitempty"`
 }
 
 // Result holds the outcome of a single turn.
