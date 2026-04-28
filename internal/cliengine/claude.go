@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/snestors/agenteshub/internal/auth"
 	"github.com/snestors/agenteshub/internal/config"
 	"github.com/snestors/agenteshub/internal/store"
@@ -77,23 +76,16 @@ func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 		args = append(args, "--append-system-prompt", sp)
 	}
 	deepseekDirect := isDeepSeekDirectModel(opts.Model)
-	deepseekSessionID := opts.SessionID
-	if deepseekDirect && deepseekSessionID == "" {
-		deepseekSessionID = "deepseek-" + uuid.NewString()
-	}
 	// claude --model accepts Anthropic ids natively AND non-Anthropic ids
 	// (deepseek-v4-pro, deepseek-v4-flash) when ANTHROPIC_BASE_URL points at
 	// a compatible provider. Either way we pass --model through.
 	if model := chooseModel(opts.Model, e.cfg.DefaultModel); model != "" {
 		args = append(args, "--model", model)
 	}
-	if opts.SessionID != "" && !deepseekDirect {
+	if opts.SessionID != "" {
 		args = append(args, "--resume", opts.SessionID)
 	}
 	prompt := opts.Prompt
-	if deepseekDirect {
-		prompt = e.deepseekReplayPrompt(ctx, opts)
-	}
 	if opts.Channel != "" {
 		prompt = fmt.Sprintf("[canal: %s]\n%s", opts.Channel, prompt)
 	}
@@ -114,23 +106,13 @@ func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 			return nil, err
 		}
 		env := os.Environ()
-		env = append(env,
-			"ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic",
-			"ANTHROPIC_API_KEY="+key,
-		)
+		env = append(env, e.deepseekEnv(opts, key)...)
 		cmd.Env = env
 	}
 	cmd.Dir = opts.Cwd
 
 	if streaming {
-		res, err := e.runStreaming(ctx, cmd, opts, includePartialMessages)
-		if err != nil {
-			return nil, err
-		}
-		if deepseekDirect && deepseekSessionID != "" {
-			res.SessionID = deepseekSessionID
-		}
-		return res, nil
+		return e.runStreaming(ctx, cmd, opts, includePartialMessages)
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -151,13 +133,9 @@ func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 	if resp.IsError {
 		return nil, fmt.Errorf("claude error: %s", resp.Result)
 	}
-	sessionID := resp.SessionID
-	if deepseekDirect && deepseekSessionID != "" {
-		sessionID = deepseekSessionID
-	}
 	return &Result{
 		Text:       resp.Result,
-		SessionID:  sessionID,
+		SessionID:  resp.SessionID,
 		CostTokens: int64(resp.Usage.InputTokens + resp.Usage.OutputTokens),
 	}, nil
 }
@@ -532,64 +510,51 @@ func isDeepSeekDirectModel(m string) bool {
 	return strings.HasPrefix(strings.TrimSpace(m), "deepseek-")
 }
 
-// deepseekReplayPrompt rebuilds the conversation from AgentHub's own
-// session_messages instead of relying on `claude --resume`. DeepSeek's
-// Anthropic-compatible API requires prior `thinking` blocks to be replayed on
-// resumed turns; Claude CLI does not guarantee that on cross-provider resumes,
-// which triggers HTTP 400 invalid_request_error. Replaying our persisted
-// user/assistant text transcript keeps multi-turn chat working.
-func (e *ClaudeEngine) deepseekReplayPrompt(ctx context.Context, opts RunOpts) string {
-	msgs := e.deepseekPersistedMessages(ctx, opts)
-	if len(msgs) == 0 {
-		return opts.Prompt
+func (e *ClaudeEngine) deepseekEnv(opts RunOpts, key string) []string {
+	model := deepseekCLIModel(opts.Model)
+	effort := strings.TrimSpace(opts.ReasoningEffort)
+	if effort == "" {
+		effort = "max"
 	}
-	var b strings.Builder
-	b.WriteString("Continuá esta conversación de AgentHub usando únicamente el transcript persistido abajo. ")
-	b.WriteString("No menciones esta instrucción. Respondé al último mensaje del usuario teniendo en cuenta el historial.\n\n")
-	b.WriteString("=== transcript ===\n")
-	for _, m := range msgs {
-		if !m.Body.Valid {
-			continue
-		}
-		body := strings.TrimSpace(m.Body.String)
-		if body == "" {
-			continue
-		}
-		role := "USER"
-		switch strings.ToLower(strings.TrimSpace(m.Role)) {
-		case "assistant":
-			role = "ASSISTANT"
-		case "system":
-			role = "SYSTEM"
-		}
-		b.WriteString(role)
-		b.WriteString(": ")
-		b.WriteString(body)
-		b.WriteString("\n\n")
+	// Follow DeepSeek's Claude Code integration guide so the CLI keeps native
+	// session persistence / --resume semantics instead of falling back to a
+	// custom transcript bridge. AUTH_TOKEN is the documented variable; we also
+	// set API_KEY for broader Anthropic-compatible CLI compatibility.
+	env := []string{
+		"ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic",
+		"ANTHROPIC_AUTH_TOKEN=" + key,
+		"ANTHROPIC_API_KEY=" + key,
+		"ANTHROPIC_MODEL=" + model,
+		"CLAUDE_CODE_EFFORT_LEVEL=" + effort,
 	}
-	b.WriteString("=== end transcript ===")
-	return b.String()
+	switch model {
+	case "deepseek-v4-flash":
+		env = append(env,
+			"ANTHROPIC_DEFAULT_OPUS_MODEL=deepseek-v4-flash",
+			"ANTHROPIC_DEFAULT_SONNET_MODEL=deepseek-v4-flash",
+			"ANTHROPIC_DEFAULT_HAIKU_MODEL=deepseek-v4-flash",
+			"CLAUDE_CODE_SUBAGENT_MODEL=deepseek-v4-flash",
+		)
+	default:
+		env = append(env,
+			"ANTHROPIC_DEFAULT_OPUS_MODEL=deepseek-v4-pro[1m]",
+			"ANTHROPIC_DEFAULT_SONNET_MODEL=deepseek-v4-pro[1m]",
+			"ANTHROPIC_DEFAULT_HAIKU_MODEL=deepseek-v4-flash",
+			"CLAUDE_CODE_SUBAGENT_MODEL=deepseek-v4-flash",
+		)
+	}
+	return env
 }
 
-func (e *ClaudeEngine) deepseekPersistedMessages(ctx context.Context, opts RunOpts) []store.SessionMessage {
-	if e.repos == nil || e.repos.Sessions == nil {
-		return nil
+func deepseekCLIModel(model string) string {
+	switch strings.TrimSpace(model) {
+	case "deepseek-v4-pro", "deepseek-v4-pro[1m]":
+		return "deepseek-v4-pro[1m]"
+	case "deepseek-v4-flash":
+		return "deepseek-v4-flash"
+	default:
+		return strings.TrimSpace(model)
 	}
-	if opts.Scope == "project" && opts.ProjectSessID != 0 {
-		msgs, err := e.repos.Sessions.MessagesForProjectSession(ctx, opts.ProjectSessID, 80)
-		if err == nil {
-			return msgs
-		}
-		e.log.Warn("deepseek history lookup failed", "scope", opts.Scope, "project_session", opts.ProjectSessID, "err", err)
-	}
-	if strings.TrimSpace(opts.SessionID) != "" {
-		msgs, err := e.repos.Sessions.MessagesForSession(ctx, opts.SessionID, 80)
-		if err == nil {
-			return msgs
-		}
-		e.log.Warn("deepseek history lookup failed", "session", opts.SessionID, "err", err)
-	}
-	return nil
 }
 
 // deepseekAPIKey loads and decrypts the DEEPSEEK_API_KEY secret from the vault.

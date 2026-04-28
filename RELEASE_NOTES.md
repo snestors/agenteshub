@@ -8,6 +8,17 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.28 — 2026-04-28
+
+### Fixed
+- **DeepSeek en Claude vuelve a usar `--resume` real**: la integración de modelos `deepseek-v4-*` ahora sigue la guía oficial de DeepSeek para Claude Code: `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_MODEL`, defaults `ANTHROPIC_DEFAULT_*`, `CLAUDE_CODE_SUBAGENT_MODEL` y `CLAUDE_CODE_EFFORT_LEVEL`. Con esto AgentHub preserva la sesión nativa de Claude/CLI en lugar de puentear el historial manualmente.
+- **Mapeo doc-compliant de modelos DeepSeek**: `deepseek-v4-pro` se ejecuta como `deepseek-v4-pro[1m]` para alinearse con la recomendación oficial y dejar a `deepseek-v4-flash` para sub-agents/haiku-like.
+
+### Changed
+- Se retira el workaround de replay manual del historial introducido en v0.2.27 porque rompía el requisito de `claude --resume` real.
+
+---
+
 ## v0.2.27 — 2026-04-28
 
 ### Fixed
