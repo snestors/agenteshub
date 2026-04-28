@@ -551,6 +551,15 @@ export const api = {
     );
   },
 
+  // Cross-scope cancel — backend identifies the run by (scope, id) and fires
+  // its registered context.CancelFunc. Used by the long_running_turn toast.
+  async cancelRun(scope: string, id: string): Promise<void> {
+    await request<{ cancelled: boolean }>("/api/runs/cancel", {
+      method: "POST",
+      body: JSON.stringify({ scope, id }),
+    });
+  },
+
   // ─── uploads ────────────────────────────────
   async upload(file: File): Promise<UploadAttachment> {
     const fd = new FormData();

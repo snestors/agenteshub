@@ -2,6 +2,7 @@ import * as React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Bot, AlertTriangle, Info, X } from "lucide-react";
 import { wsClient } from "@/lib/wsClient";
+import { api } from "@/lib/api";
 
 // Web Audio API blip — synthesizes a short two-tone notification on demand.
 // We don't ship an audio file because (a) one less network request, (b) no
@@ -615,7 +616,27 @@ function Toast({
       ? "var(--color-orange)"
       : "var(--color-cyan)";
   const Icon = n.severity === "error" ? AlertTriangle : n.kind.startsWith("agent_run") ? Bot : Info;
-  const hasRoute = routeForNotification(n) !== null;
+  const isLongRunning = n.kind === "long_running_turn";
+  const hasRoute = !isLongRunning && routeForNotification(n) !== null;
+
+  const cancelScope = isLongRunning ? toStr(n.context?.scope) : "";
+  const cancelID = isLongRunning ? toStr(n.context?.id) : "";
+  const [cancelling, setCancelling] = React.useState(false);
+  const [cancelMsg, setCancelMsg] = React.useState<string | null>(null);
+
+  async function handleCancelRun() {
+    if (!cancelScope || !cancelID || cancelling) return;
+    setCancelling(true);
+    try {
+      await api.cancelRun(cancelScope, cancelID);
+      setCancelMsg("Cancelado.");
+      window.setTimeout(onClose, 800);
+    } catch (err) {
+      setCancelMsg(err instanceof Error ? err.message : "no se pudo cancelar");
+      setCancelling(false);
+    }
+  }
+
   return (
     <div
       role={hasRoute ? "button" : undefined}
@@ -650,6 +671,42 @@ function Toast({
             {n.body}
           </div>
         )}
+        {isLongRunning && cancelScope && cancelID && (
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                void handleCancelRun();
+              }}
+              disabled={cancelling}
+              className="px-2 py-1 clip-tag font-mono text-[10px] uppercase tracking-hud-tight border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              style={{
+                color: "var(--color-danger)",
+                borderColor: "var(--color-danger)",
+                background: "rgba(255, 71, 87, 0.06)",
+              }}
+            >
+              {cancelling ? "cancelando…" : "cancelar"}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
+              className="px-2 py-1 clip-tag font-mono text-[10px] uppercase tracking-hud-tight border text-[var(--color-dim)] hover:text-[var(--color-fg)] cursor-pointer transition-colors"
+              style={{ borderColor: "var(--color-line)", background: "rgba(255,255,255,0.02)" }}
+            >
+              continuar
+            </button>
+            {cancelMsg && (
+              <span className="font-mono text-[10px] text-[var(--color-dim)]">
+                {cancelMsg}
+              </span>
+            )}
+          </div>
+        )}
       </div>
       <button
         onClick={(e) => {
@@ -663,4 +720,10 @@ function Toast({
       </button>
     </div>
   );
+}
+
+function toStr(v: unknown): string {
+  if (typeof v === "string") return v;
+  if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  return "";
 }

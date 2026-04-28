@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.24 — 2026-04-28
+
+### Added
+- **Toast `long_running_turn` con botones reales (G frontend)**: el toast de "el turn lleva >1h" ahora trae dos botones inline — `cancelar` (POST `/api/runs/cancel` con `{scope, id}` del context, cierra el toast cuando responde 200) y `continuar` (cierra el toast, próxima alerta a la otra hora). Cierra el ciclo de v0.2.21 → v0.2.23 → v0.2.24. Archivos: `frontend/src/lib/notifications.tsx`, `frontend/src/lib/api.ts`.
+
+---
+
 ## v0.2.23 — 2026-04-28
 
 ### Added
