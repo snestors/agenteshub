@@ -8,6 +8,16 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.27 — 2026-04-28
+
+### Fixed
+- **Claude + DeepSeek multi-turn sin error 400 de thinking**: cuando el modelo `deepseek-v4-*` corre por el engine `claude`, AgentHub deja de usar `claude --resume` y reconstruye el historial desde `session_messages` antes de cada turno. Esto evita el `invalid_request_error` de DeepSeek (`The content[].thinking in the thinking mode must be passed back to the API`) que aparecía en el segundo mensaje o posteriores. La sesión visible en AgentHub se mantiene estable con un `session_id` local aunque el CLI no haga resume nativo contra DeepSeek.
+
+### Note
+- En modo DeepSeek vía Claude, la continuidad ahora depende del historial persistido por AgentHub (user/assistant) en vez del estado interno de resume del CLI. Es el trade-off explícito para priorizar estabilidad con el endpoint Anthropic-compatible de DeepSeek.
+
+---
+
 ## v0.2.26 — 2026-04-28
 
 ### Added

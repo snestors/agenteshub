@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/snestors/agenteshub/internal/auth"
 	"github.com/snestors/agenteshub/internal/config"
 	"github.com/snestors/agenteshub/internal/store"
@@ -76,16 +77,23 @@ func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 		args = append(args, "--append-system-prompt", sp)
 	}
 	deepseekDirect := isDeepSeekDirectModel(opts.Model)
+	deepseekSessionID := opts.SessionID
+	if deepseekDirect && deepseekSessionID == "" {
+		deepseekSessionID = "deepseek-" + uuid.NewString()
+	}
 	// claude --model accepts Anthropic ids natively AND non-Anthropic ids
 	// (deepseek-v4-pro, deepseek-v4-flash) when ANTHROPIC_BASE_URL points at
 	// a compatible provider. Either way we pass --model through.
 	if model := chooseModel(opts.Model, e.cfg.DefaultModel); model != "" {
 		args = append(args, "--model", model)
 	}
-	if opts.SessionID != "" {
+	if opts.SessionID != "" && !deepseekDirect {
 		args = append(args, "--resume", opts.SessionID)
 	}
 	prompt := opts.Prompt
+	if deepseekDirect {
+		prompt = e.deepseekReplayPrompt(ctx, opts)
+	}
 	if opts.Channel != "" {
 		prompt = fmt.Sprintf("[canal: %s]\n%s", opts.Channel, prompt)
 	}
@@ -115,7 +123,14 @@ func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 	cmd.Dir = opts.Cwd
 
 	if streaming {
-		return e.runStreaming(ctx, cmd, opts, includePartialMessages)
+		res, err := e.runStreaming(ctx, cmd, opts, includePartialMessages)
+		if err != nil {
+			return nil, err
+		}
+		if deepseekDirect && deepseekSessionID != "" {
+			res.SessionID = deepseekSessionID
+		}
+		return res, nil
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -136,9 +151,13 @@ func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 	if resp.IsError {
 		return nil, fmt.Errorf("claude error: %s", resp.Result)
 	}
+	sessionID := resp.SessionID
+	if deepseekDirect && deepseekSessionID != "" {
+		sessionID = deepseekSessionID
+	}
 	return &Result{
 		Text:       resp.Result,
-		SessionID:  resp.SessionID,
+		SessionID:  sessionID,
 		CostTokens: int64(resp.Usage.InputTokens + resp.Usage.OutputTokens),
 	}, nil
 }
@@ -349,15 +368,15 @@ func (e *ClaudeEngine) runStreaming(ctx context.Context, cmd *exec.Cmd, opts Run
 // to stdout, but it does write a rich block to the session JSONL when each
 // Task completes. We re-emit those blocks so the frontend can decorate.
 type subagentStats struct {
-	ToolUseID          string         `json:"tool_use_id"`
-	AgentID            string         `json:"agent_id"`
-	AgentType          string         `json:"agent_type"`
-	Status             string         `json:"status"`
-	TotalDurationMs    int64          `json:"total_duration_ms"`
-	TotalTokens        int64          `json:"total_tokens"`
-	TotalToolUseCount  int64          `json:"total_tool_use_count"`
-	Usage              map[string]any `json:"usage,omitempty"`
-	ToolStats          map[string]any `json:"tool_stats,omitempty"`
+	ToolUseID         string         `json:"tool_use_id"`
+	AgentID           string         `json:"agent_id"`
+	AgentType         string         `json:"agent_type"`
+	Status            string         `json:"status"`
+	TotalDurationMs   int64          `json:"total_duration_ms"`
+	TotalTokens       int64          `json:"total_tokens"`
+	TotalToolUseCount int64          `json:"total_tool_use_count"`
+	Usage             map[string]any `json:"usage,omitempty"`
+	ToolStats         map[string]any `json:"tool_stats,omitempty"`
 }
 
 // emitSubagentStats parses the on-disk JSONL for the just-finished session
@@ -378,14 +397,14 @@ func (e *ClaudeEngine) emitSubagentStats(opts RunOpts, emit func(StreamEvent), s
 			Kind:   "subagent_stats",
 			ToolID: s.ToolUseID,
 			Meta: map[string]any{
-				"agent_id":              s.AgentID,
-				"agent_type":            s.AgentType,
-				"status":                s.Status,
-				"total_duration_ms":     s.TotalDurationMs,
-				"total_tokens":          s.TotalTokens,
-				"total_tool_use_count":  s.TotalToolUseCount,
-				"usage":                 s.Usage,
-				"tool_stats":            s.ToolStats,
+				"agent_id":             s.AgentID,
+				"agent_type":           s.AgentType,
+				"status":               s.Status,
+				"total_duration_ms":    s.TotalDurationMs,
+				"total_tokens":         s.TotalTokens,
+				"total_tool_use_count": s.TotalToolUseCount,
+				"usage":                s.Usage,
+				"tool_stats":           s.ToolStats,
 			},
 		})
 	}
@@ -455,15 +474,15 @@ func parseSubagentStats(jsonlPath string, taskIDs []string) ([]subagentStats, er
 				continue
 			}
 			out = append(out, subagentStats{
-				ToolUseID:          b.ToolUseID,
-				AgentID:            e.ToolUseResult.AgentID,
-				AgentType:          e.ToolUseResult.AgentType,
-				Status:             e.ToolUseResult.Status,
-				TotalDurationMs:    e.ToolUseResult.TotalDurationMs,
-				TotalTokens:        e.ToolUseResult.TotalTokens,
-				TotalToolUseCount:  e.ToolUseResult.TotalToolUseCount,
-				Usage:              e.ToolUseResult.Usage,
-				ToolStats:          e.ToolUseResult.ToolStats,
+				ToolUseID:         b.ToolUseID,
+				AgentID:           e.ToolUseResult.AgentID,
+				AgentType:         e.ToolUseResult.AgentType,
+				Status:            e.ToolUseResult.Status,
+				TotalDurationMs:   e.ToolUseResult.TotalDurationMs,
+				TotalTokens:       e.ToolUseResult.TotalTokens,
+				TotalToolUseCount: e.ToolUseResult.TotalToolUseCount,
+				Usage:             e.ToolUseResult.Usage,
+				ToolStats:         e.ToolUseResult.ToolStats,
 			})
 			delete(wanted, b.ToolUseID)
 		}
@@ -511,6 +530,66 @@ func chooseModel(opt, fallback string) string {
 // directly (no wrapper); env vars steer it to DeepSeek instead of Anthropic.
 func isDeepSeekDirectModel(m string) bool {
 	return strings.HasPrefix(strings.TrimSpace(m), "deepseek-")
+}
+
+// deepseekReplayPrompt rebuilds the conversation from AgentHub's own
+// session_messages instead of relying on `claude --resume`. DeepSeek's
+// Anthropic-compatible API requires prior `thinking` blocks to be replayed on
+// resumed turns; Claude CLI does not guarantee that on cross-provider resumes,
+// which triggers HTTP 400 invalid_request_error. Replaying our persisted
+// user/assistant text transcript keeps multi-turn chat working.
+func (e *ClaudeEngine) deepseekReplayPrompt(ctx context.Context, opts RunOpts) string {
+	msgs := e.deepseekPersistedMessages(ctx, opts)
+	if len(msgs) == 0 {
+		return opts.Prompt
+	}
+	var b strings.Builder
+	b.WriteString("Continuá esta conversación de AgentHub usando únicamente el transcript persistido abajo. ")
+	b.WriteString("No menciones esta instrucción. Respondé al último mensaje del usuario teniendo en cuenta el historial.\n\n")
+	b.WriteString("=== transcript ===\n")
+	for _, m := range msgs {
+		if !m.Body.Valid {
+			continue
+		}
+		body := strings.TrimSpace(m.Body.String)
+		if body == "" {
+			continue
+		}
+		role := "USER"
+		switch strings.ToLower(strings.TrimSpace(m.Role)) {
+		case "assistant":
+			role = "ASSISTANT"
+		case "system":
+			role = "SYSTEM"
+		}
+		b.WriteString(role)
+		b.WriteString(": ")
+		b.WriteString(body)
+		b.WriteString("\n\n")
+	}
+	b.WriteString("=== end transcript ===")
+	return b.String()
+}
+
+func (e *ClaudeEngine) deepseekPersistedMessages(ctx context.Context, opts RunOpts) []store.SessionMessage {
+	if e.repos == nil || e.repos.Sessions == nil {
+		return nil
+	}
+	if opts.Scope == "project" && opts.ProjectSessID != 0 {
+		msgs, err := e.repos.Sessions.MessagesForProjectSession(ctx, opts.ProjectSessID, 80)
+		if err == nil {
+			return msgs
+		}
+		e.log.Warn("deepseek history lookup failed", "scope", opts.Scope, "project_session", opts.ProjectSessID, "err", err)
+	}
+	if strings.TrimSpace(opts.SessionID) != "" {
+		msgs, err := e.repos.Sessions.MessagesForSession(ctx, opts.SessionID, 80)
+		if err == nil {
+			return msgs
+		}
+		e.log.Warn("deepseek history lookup failed", "session", opts.SessionID, "err", err)
+	}
+	return nil
 }
 
 // deepseekAPIKey loads and decrypts the DEEPSEEK_API_KEY secret from the vault.
