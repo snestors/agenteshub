@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.18 — 2026-04-28
+
+### Added
+- **DeepSeek-V4-Pro vía Ollama Cloud como modelo del engine claude**: el selector de modelos del engine `claude` incluye `deepseek-v4-pro:cloud` (158B params, FP8, contexto 200k). Cuando se elige, AgentHub envuelve el spawn con `ollama launch claude --model deepseek-v4-pro:cloud -- ...` para que el CLI de claude conserve toda su UX (tools, skills, system prompt, MCP) pero el cerebro corra en Ollama Cloud. Costo va contra el plan Cloud Pro del user, no contra Anthropic. Helper `isOllamaCloudModel()` detecta cualquier modelo `:cloud` futuro. Daemon prepende `dirname(ClaudeBinPath)` al PATH para que ollama encuentre `claude` aún corriendo bajo systemd con PATH limitado. Archivos: `internal/cliengine/claude.go`, `internal/server/engines.go`.
+
+---
+
 ## v0.2.17 — 2026-04-28
 
 ### Fixed

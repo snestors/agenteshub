@@ -74,8 +74,13 @@ func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 	if sp := e.appendSystemPrompt(ctx, opts); sp != "" {
 		args = append(args, "--append-system-prompt", sp)
 	}
-	if model := chooseModel(opts.Model, e.cfg.DefaultModel); model != "" {
-		args = append(args, "--model", model)
+	cloudModel := isOllamaCloudModel(opts.Model)
+	if !cloudModel {
+		// claude --model only accepts Anthropic ids. For :cloud models, the
+		// `ollama launch claude --model X --` wrapper sets it instead.
+		if model := chooseModel(opts.Model, e.cfg.DefaultModel); model != "" {
+			args = append(args, "--model", model)
+		}
 	}
 	if opts.SessionID != "" {
 		args = append(args, "--resume", opts.SessionID)
@@ -86,11 +91,26 @@ func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 	}
 	args = append(args, prompt)
 
-	bin := e.cfg.ClaudeBinPath
-	if bin == "" {
-		bin = "claude"
+	claudeBin := e.cfg.ClaudeBinPath
+	if claudeBin == "" {
+		claudeBin = "claude"
 	}
-	cmd := exec.CommandContext(ctx, bin, args...)
+	var cmd *exec.Cmd
+	if cloudModel {
+		// `ollama launch claude --model X --` wraps the claude CLI so the
+		// underlying reasoning runs on an Ollama Cloud model (e.g. DeepSeek-V4-Pro)
+		// while keeping the full claude UX: tools, skills, system prompt, MCP.
+		// Ollama needs `claude` reachable on PATH — prepend its dir explicitly
+		// because the systemd unit runs with a minimal PATH.
+		ollamaArgs := append([]string{"launch", "claude", "--model", opts.Model, "--"}, args...)
+		cmd = exec.CommandContext(ctx, "ollama", ollamaArgs...)
+		claudeDir := filepath.Dir(claudeBin)
+		env := os.Environ()
+		env = append(env, "PATH="+claudeDir+":"+os.Getenv("PATH"))
+		cmd.Env = env
+	} else {
+		cmd = exec.CommandContext(ctx, claudeBin, args...)
+	}
 	cmd.Dir = opts.Cwd
 
 	if streaming {
@@ -313,6 +333,14 @@ func chooseModel(opt, fallback string) string {
 		picked = fallback
 	}
 	return resolveClaudeAlias(picked)
+}
+
+// isOllamaCloudModel returns true for models served by Ollama Cloud (suffix
+// `:cloud`). When the user picks one of these as the claude engine's model,
+// we wrap the spawn with `ollama launch claude --model X --` so claude keeps
+// its UX (tools, skills, system prompt) while reasoning runs on Ollama.
+func isOllamaCloudModel(m string) bool {
+	return strings.HasSuffix(strings.TrimSpace(m), ":cloud")
 }
 
 // resolveClaudeAlias converts AgentHub-friendly model names into the exact
