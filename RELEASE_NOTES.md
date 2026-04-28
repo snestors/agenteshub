@@ -8,6 +8,16 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.20 — 2026-04-28
+
+### Removed
+- **Path Ollama Cloud (`deepseek-v4-pro:cloud`)**: el wrapper `ollama launch claude --model X --` queda eliminado del catálogo de modelos del engine `claude`. Razón: latencia mucho peor que la API directa de DeepSeek vía Anthropic-compatible endpoint (v0.2.19). Helper `isOllamaCloudModel()` borrado, switch simplificado a un solo `if deepseekDirect`. Si en el futuro queremos otro modelo cloud-via-ollama, vuelve la rama. Limpieza, no funcional.
+
+### Cleanup
+- Mini-agente PoC `finanzas-monitor` (id=7) eliminado de la DB. Era validación del wrapper LLM sobre `bbva_monitor.py`. El cron del sistema sigue ejecutando el script normal.
+
+---
+
 ## v0.2.19 — 2026-04-28
 
 ### Added
