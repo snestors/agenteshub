@@ -151,6 +151,9 @@ func Load() (*Config, error) {
 			"agenthub.service",
 			"workspace-mcp.service",
 			"cloudflared.service",
+			"sonarr.service",
+			"radarr.service",
+			"qbittorrent-nox.service",
 			"emby-server.service",
 		}),
 
