@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.30 — 2026-04-28
+
+### Changed
+- **Servicios legacy del bridge removidos de la whitelist**: `whatsapp-bridge.service` y `whatsapp-bridge-watchdog.timer` ya no aparecen en `list_services`. WA está integrado directo en agenthub desde el converger.
+
+---
+
 ## v0.2.29 — 2026-04-28
 
 ### Changed

@@ -149,8 +149,6 @@ func Load() (*Config, error) {
 
 		ManagedServices: csvEnv("AGENTHUB_MANAGED_SERVICES", []string{
 			"agenthub.service",
-			"whatsapp-bridge.service",
-			"whatsapp-bridge-watchdog.timer",
 			"workspace-mcp.service",
 			"cloudflared.service",
 			"emby-server.service",
