@@ -299,6 +299,21 @@ func (s *Server) handleProjectSessionMessagesSend(w http.ResponseWriter, r *http
 		return
 	}
 	topic := projectSessionTopic(sess.ID)
+
+	// Slash commands run synchronously and bypass the engine. Side effects
+	// (resetting the resume id) hit the DB before this handler returns.
+	if sr := s.tryHandleSlashCommand(r.Context(), body, slashScope{Kind: "project", ProjectSessID: sess.ID}); sr.Handled {
+		s.deliverProjectSlashResponse(r.Context(), project, sess, topic, body, sr)
+		writeJSON(w, http.StatusAccepted, map[string]any{
+			"accepted":   true,
+			"project_id": project.ID,
+			"session_id": sess.ID,
+			"topic":      topic,
+			"slash":      true,
+		})
+		return
+	}
+
 	go s.runProjectSessionTurn(project, sess, body, topic)
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"accepted":   true,
@@ -381,6 +396,39 @@ func (s *Server) runProjectSessionTurn(project *store.Project, sess *store.Proje
 		Body:     truncate(res.Text, 280),
 		Context:  map[string]any{"project_id": project.ID, "session_id": sess.ID},
 	})
+}
+
+// deliverProjectSlashResponse persists both sides of a slash exchange (user +
+// synthetic assistant) into session_messages so the project chat reflects the
+// command result, and broadcasts to the topic so connected UIs update live.
+func (s *Server) deliverProjectSlashResponse(ctx context.Context, project *store.Project, sess *store.ProjectSession, topic, body string, sr slashResult) {
+	// Re-read sess after the slash command may have wiped its session_id.
+	if updated, err := s.repos.Projects.GetSession(ctx, project.ID, sess.ID); err == nil && updated != nil {
+		sess = updated
+	}
+	resumeID := sess.SessionID
+	_, _ = s.repos.Sessions.AppendMessage(context.Background(), store.SessionMessage{
+		Scope:         "project",
+		ProjectID:     sql.NullInt64{Int64: project.ID, Valid: true},
+		ProjectSessID: sql.NullInt64{Int64: sess.ID, Valid: true},
+		SessionID:     resumeID,
+		Role:          "user",
+		Body:          sqlStr(body),
+	})
+	asst := sr.Response
+	if sr.Error != "" {
+		asst = "⚠ " + sr.Error
+	}
+	_, _ = s.repos.Sessions.AppendMessage(context.Background(), store.SessionMessage{
+		Scope:         "project",
+		ProjectID:     sql.NullInt64{Int64: project.ID, Valid: true},
+		ProjectSessID: sql.NullInt64{Int64: sess.ID, Valid: true},
+		SessionID:     resumeID,
+		Role:          "assistant",
+		Body:          sqlStr(asst),
+	})
+	_ = s.repos.Projects.TouchSession(context.Background(), sess.ID)
+	s.broadcastLatestProjectMessage(context.Background(), project.ID, sess.ID, topic)
 }
 
 func (s *Server) broadcastLatestProjectMessage(ctx context.Context, projectID, sessID int64, topic string) {

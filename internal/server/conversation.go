@@ -97,6 +97,15 @@ func (s *Server) routeConversationInput(ctx context.Context, in conversationInpu
 	}
 
 	engine, model := s.currentEngineModel(ctx)
+
+	// Slash commands bypass the engine entirely. The handler runs synchronously
+	// (state changes hit the DB before we return) so the WA outbox / WS clients
+	// see a clean response without spawning a CLI.
+	if sr := s.tryHandleSlashCommand(ctx, body, slashScope{Kind: "main", Engine: engine}); sr.Handled {
+		s.deliverSlashResponse(ctx, in, id, engine, model, sr)
+		return sendMessageAccepted{ID: id, MessageID: id, Accepted: true, Engine: engine, Model: model}, nil
+	}
+
 	prev := ""
 	if mainSess := s.mainAgentSession(ctx, engine); mainSess != nil {
 		prev = mainSess.SessionID
@@ -156,6 +165,31 @@ func (s *Server) runConversationTurn(turn conversationTurn) {
 	s.emitConversationOutput(turn, res.Text, "ok", activity)
 	go s.broadcastAgentStatus(context.Background())
 	s.broadcastNotification(Notification{Kind: "main_turn_done", Severity: "info", Title: "Main · " + turn.Engine, Body: truncate(res.Text, 280), Context: map[string]any{"engine": turn.Engine, "model": turn.Model, "channel": turn.Source}})
+}
+
+// deliverSlashResponse surfaces the synthetic answer of a slash command on the
+// same channel the user wrote from, reusing the normal output path so the
+// message lands in DB + WS + WA outbox just like an engine reply would.
+func (s *Server) deliverSlashResponse(ctx context.Context, in conversationInput, _ int64, engine, model string, sr slashResult) {
+	body := sr.Response
+	status := "ok"
+	if sr.Error != "" {
+		body = "⚠ " + sr.Error
+		status = "error"
+	}
+	if strings.TrimSpace(body) == "" {
+		return
+	}
+	turn := conversationTurn{Engine: engine, Model: model, Source: in.Channel}
+	if in.WA != nil {
+		jid := in.WA.ReplyJID
+		if jid == "" {
+			jid = in.WA.JID
+		}
+		turn.WAReply = &waReplyTarget{JID: jid, StanzaID: in.WA.ExternalID}
+	}
+	s.emitConversationOutput(turn, body, status, nil)
+	_ = ctx
 }
 
 func (s *Server) emitConversationOutput(turn conversationTurn, body, status string, activity *turnActivity) {

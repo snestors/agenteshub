@@ -8,6 +8,16 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.22 — 2026-04-28
+
+### Added
+- **Slash commands paritaridad con bridge viejo (`/reset`, `/status`, `/engine`, `/help`)**: AgentHub heredó WhatsApp del bridge anterior pero perdió los slash commands en la migración. Ahora el daemon intercepta los comandos ANTES de mandar al engine — sin gastar tokens, respuesta inmediata. Disponibles tanto en chat web/WA (scope main) como en project chat. Comandos: `/reset` `/clear` `/forget` `/new` (limpia session_id activa, próximo mensaje arranca nuevo), `/status` (uptime, engine, RAM/CPU/temp/disk, runs activos, WA), `/engine` (muestra engine activo), `/engine claude` o `/engine codex` (cambia engine activo — sólo en main, project chat tiene engine inmutable), `/help` (lista). Implementación: `internal/server/slash_commands.go` con handler central; wireado en `conversation.go` y `projects.go`. `/claude <tarea>` y `/codex <tarea>` (one-shot) quedan para una próxima iteración.
+
+### Fixed
+- **Mensaje del assistant perdido cuando claude no emite `result` event**: `runStreaming` devolvía `claude stream produced no result` y descartaba el texto que el user ya había visto en pantalla por el WebSocket. Pasaba cuando la CLI salía con exit 0 pero sin la última línea JSONL del result (race con safe-restart, buffering interno, etc.). Fix defensivo: acumulamos los `text_delta` mientras streamean y los usamos como fallback si el result event no llega o llega vacío. Archivo: `internal/cliengine/claude.go`.
+
+---
+
 ## v0.2.21 — 2026-04-28
 
 ### Changed
