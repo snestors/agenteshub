@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.29 — 2026-04-28
+
+### Changed
+- **Servicios inactivos removidos de la whitelist**: `sonarr.service`, `radarr.service` y `qbittorrent-nox.service` ya no aparecen en `list_services` porque no se usan más en el host.
+
+---
+
 ## v0.2.28 — 2026-04-28
 
 ### Fixed
