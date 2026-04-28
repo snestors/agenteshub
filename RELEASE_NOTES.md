@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.17 — 2026-04-28
+
+### Fixed
+- **Turns largos morían por timeout**: cualquier turn que delegara a sub-agents (Task tool) en paralelo se cortaba con `exit 143` (SIGTERM) cuando pasaba del límite. Project chats con 10 min, main chat / mini-agents / OpenSpec phases con 5 min — todos cortos para fan-out real (15+ sub-agents a 3-5 min cada uno + síntesis del MAIN). Síntoma observado: sesión 9 academia 2026-04-27 13:38 muerta a media respuesta. Subimos: project chat 10→60 min, main chat 5→30 min, mini-agent manual+cron 5→30 min, OpenSpec phase 5→30 min. NVIDIA chat completion (5 min) y OpenSpec full pipeline (45 min) sin cambios. Archivos: `internal/server/conversation.go`, `internal/server/projects.go`, `internal/server/agents.go`, `internal/scheduler/scheduler.go`, `internal/server/openspec.go`.
+
+---
+
 ## v0.2.16 — 2026-04-28
 
 ### Fixed

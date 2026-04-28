@@ -314,7 +314,9 @@ func (s *Server) handleAgentScheduleDelete(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Server) runAgentManual(ctx context.Context, agent *store.Agent, runID int64, prompt, topic string) {
-	runCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	// 30 min: mini-agents that delegate (Task) or that wrap long shell scripts
+	// (e.g. data scrapers) can easily go past 5 min.
+	runCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
 	res, err := s.engines.Run(runCtx, cliengine.RunOpts{
 		Prompt:    prompt,

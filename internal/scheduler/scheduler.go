@@ -139,7 +139,9 @@ func (s *Scheduler) dispatch(ctx context.Context, sched store.AgentSchedule) {
 // Runs in its own goroutine — does not block the tick loop.
 func (s *Scheduler) runAgent(ctx context.Context, agent *store.Agent, sched store.AgentSchedule, runID int64, prompt string, startedAt int64) {
 	engineName := strings.TrimSpace(agent.Engine)
-	runCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	// 30 min: cron mini-agents wrapping shell scripts (e.g. bbva_monitor) or
+	// delegating to Task can outlive 5 min. Match runAgentManual.
+	runCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
 
 	res, err := s.engines.Run(runCtx, cliengine.RunOpts{

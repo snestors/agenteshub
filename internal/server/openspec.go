@@ -466,7 +466,9 @@ func (s *Server) generateOpenSpecArtifact(ctx context.Context, project *store.Pr
 	// apply runs in runOpenSpecApplyAndVerify and uses its own resolution.
 	defEngine, defModel := cliengine.RoleDefault(roleForOpenSpecPhase(phase))
 	engineName, model := resolvePhaseModel(project.Path, phase, defEngine, defModel)
-	runCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	// 30 min: a single OpenSpec phase (proposal, design, tasks) can grow long
+	// when the agent delegates to Task sub-agents to gather codebase context.
+	runCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
 	res, err := s.engines.Run(runCtx, cliengine.RunOpts{
 		Prompt:    prompt,

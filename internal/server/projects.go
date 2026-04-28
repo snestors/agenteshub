@@ -309,7 +309,11 @@ func (s *Server) handleProjectSessionMessagesSend(w http.ResponseWriter, r *http
 }
 
 func (s *Server) runProjectSessionTurn(project *store.Project, sess *store.ProjectSession, body, topic string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	// 60 min: project chats fan out to many sub-agents (Task tool) running in
+	// parallel; 15+ sub-agents at 3-5 min each + main synthesis easily exceeds
+	// 10 min. Anything shorter kills real workflows mid-flight (saw exit 143
+	// SIGTERM on academia session 9, 2026-04-27).
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Minute)
 	s.projectCancels.Store(sess.ID, cancel)
 	s.runs.Inc("project")
 	defer func() {

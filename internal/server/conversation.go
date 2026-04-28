@@ -120,7 +120,10 @@ func (s *Server) routeConversationInput(ctx context.Context, in conversationInpu
 func (s *Server) runConversationTurn(turn conversationTurn) {
 	s.runs.Inc("main")
 	defer s.runs.Dec("main")
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	// 30 min: the main agent can also delegate to Task sub-agents in long
+	// reasoning chains (orchestrator role). 5 min was enough for plain
+	// Q&A turns but killed any non-trivial multi-step work mid-flight.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
 	activity := &turnActivity{}
