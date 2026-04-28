@@ -8,6 +8,17 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.21 — 2026-04-28
+
+### Changed
+- **Sin timeout duro en runs del engine**: los `context.WithTimeout` de cada handler (main 30m, project 60m, mini-agent 30m, OpenSpec 30m+45m, scheduler 30m) eran SIGTERM mid-flight cuando el turn se pasaba. El user los pidió fuera; ahora todos usan `context.WithCancel` y los runs corren mientras hagan falta.
+- **Watcher 1h cada hora**: `internal/server/long_running.go` arranca una goroutine por turn (main/project/agent-manual/openspec) que emite `Notification{Kind: "long_running_turn", Severity: "warn"}` cada hora con `elapsed_secs` y `cancel_hint`. El frontend muestra el toast — el user decide si esperar o cancelar manualmente. El cron del scheduler queda sin watcher (fire-and-forget).
+
+### Removed
+- **Cron del sistema `sonarr_notify`**: eliminado del `crontab -l` por orden del user (no funcionaba). Backup en `/tmp/crontab-backup-20260428_200630.bak`.
+
+---
+
 ## v0.2.20 — 2026-04-28
 
 ### Removed

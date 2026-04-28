@@ -309,11 +309,12 @@ func (s *Server) handleProjectSessionMessagesSend(w http.ResponseWriter, r *http
 }
 
 func (s *Server) runProjectSessionTurn(project *store.Project, sess *store.ProjectSession, body, topic string) {
-	// 60 min: project chats fan out to many sub-agents (Task tool) running in
-	// parallel; 15+ sub-agents at 3-5 min each + main synthesis easily exceeds
-	// 10 min. Anything shorter kills real workflows mid-flight (saw exit 143
-	// SIGTERM on academia session 9, 2026-04-27).
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Minute)
+	// No deadline: project chats fan out to 15+ Task sub-agents and easily
+	// pass an hour. The user explicitly asked for a heads-up at 1h instead of
+	// a hard kill — see watchLongRunning. Cancellation stays available
+	// through the existing /api/projects/{id}/sessions/{sid}/cancel endpoint.
+	ctx, cancel := context.WithCancel(context.Background())
+	go s.watchLongRunning(ctx, "project", "Project · "+project.Name, "Cancelá desde el chat si no querés esperar.")
 	s.projectCancels.Store(sess.ID, cancel)
 	s.runs.Inc("project")
 	defer func() {

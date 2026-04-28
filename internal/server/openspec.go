@@ -466,10 +466,11 @@ func (s *Server) generateOpenSpecArtifact(ctx context.Context, project *store.Pr
 	// apply runs in runOpenSpecApplyAndVerify and uses its own resolution.
 	defEngine, defModel := cliengine.RoleDefault(roleForOpenSpecPhase(phase))
 	engineName, model := resolvePhaseModel(project.Path, phase, defEngine, defModel)
-	// 30 min: a single OpenSpec phase (proposal, design, tasks) can grow long
-	// when the agent delegates to Task sub-agents to gather codebase context.
-	runCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+	// No deadline: an OpenSpec phase can fan out to many Task sub-agents.
+	// watchLongRunning nags every hour while the phase is alive.
+	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	go s.watchLongRunning(runCtx, "openspec", "OpenSpec · "+phase, "Cancelá la fase desde la UI si querés cortar.")
 	res, err := s.engines.Run(runCtx, cliengine.RunOpts{
 		Prompt:    prompt,
 		Channel:   "project",
@@ -494,8 +495,11 @@ func (s *Server) generateOpenSpecArtifact(ctx context.Context, project *store.Pr
 }
 
 func (s *Server) runOpenSpecApplyAndVerify(projectID, changeID int64, dryRun bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Minute)
+	// No deadline: apply+verify is the heaviest phase (full implementation +
+	// validation). watchLongRunning provides hourly reminders.
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	go s.watchLongRunning(ctx, "openspec", "OpenSpec · apply+verify", "Cancelá desde la UI si querés cortar.")
 	project, err := s.repos.Projects.GetByID(ctx, projectID)
 	if err != nil {
 		return

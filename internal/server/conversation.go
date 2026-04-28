@@ -120,11 +120,12 @@ func (s *Server) routeConversationInput(ctx context.Context, in conversationInpu
 func (s *Server) runConversationTurn(turn conversationTurn) {
 	s.runs.Inc("main")
 	defer s.runs.Dec("main")
-	// 30 min: the main agent can also delegate to Task sub-agents in long
-	// reasoning chains (orchestrator role). 5 min was enough for plain
-	// Q&A turns but killed any non-trivial multi-step work mid-flight.
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	// No deadline: long orchestrator chains were getting SIGTERMed mid-flight.
+	// Instead a watcher (watchLongRunning) nags every hour while the turn is
+	// alive; the user decides when to give up.
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	go s.watchLongRunning(ctx, "main", "Main · "+turn.Engine, "Esperá o usá /reset cuando esté.")
 
 	activity := &turnActivity{}
 	res, err := s.engines.Run(ctx, cliengine.RunOpts{

@@ -139,9 +139,11 @@ func (s *Scheduler) dispatch(ctx context.Context, sched store.AgentSchedule) {
 // Runs in its own goroutine — does not block the tick loop.
 func (s *Scheduler) runAgent(ctx context.Context, agent *store.Agent, sched store.AgentSchedule, runID int64, prompt string, startedAt int64) {
 	engineName := strings.TrimSpace(agent.Engine)
-	// 30 min: cron mini-agents wrapping shell scripts (e.g. bbva_monitor) or
-	// delegating to Task can outlive 5 min. Match runAgentManual.
-	runCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+	// No deadline: cron mini-agents are fire-and-forget; if one wedges, the
+	// next tick will spawn another and the user can pause from the UI. The
+	// 1h notification watcher only fires for interactive scopes (main/project/
+	// agent-manual/openspec) where there's a user actively waiting.
+	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	res, err := s.engines.Run(runCtx, cliengine.RunOpts{
