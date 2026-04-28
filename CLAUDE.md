@@ -24,6 +24,7 @@ Sos el agente de **AgentHub**. Path: `/home/nestor/agenthub`.
 - No mezclar cambios no relacionados ni archivos modificados por el usuario en el commit.
 - Backend: validar con `go test ./...` y build con tags `sqlite_fts5 sqlite_json` cuando corresponda.
 - Frontend: validar con `pnpm run build` desde `frontend/`.
+- Para cambios backend/deploy usar la skill `.claude/skills/deploy-safe-restart/SKILL.md`.
 
 ## Deploy workflow — blue/green smoke (OBLIGATORIO)
 

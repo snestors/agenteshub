@@ -16,6 +16,7 @@ Path: `/home/nestor/agenthub`
 ## Skills del proyecto
 
 - `go-testing`: usar cuando se escriban o modifiquen tests Go.
+- `deploy-safe-restart`: flujo obligatorio para backend Go — build con ldflags, smoke aislado, promote a `bin/agenthub` y `bin/safe-restart.sh`.
 - `branch-pr` / `issue-creation`: usar para flujos GitHub cuando aplique.
 - `sdd-workflow`: reglas OpenSpec/SDD con gates obligatorios para proposal/design/tasks/apply/verify/archive.
 - TODO: listar más skills custom en `.claude/skills/`.

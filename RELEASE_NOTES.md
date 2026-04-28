@@ -8,6 +8,16 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.31 — 2026-04-28
+
+### Added
+- **Skill `deploy-safe-restart`**: nuevo skill de proyecto en `.claude/skills/deploy-safe-restart/SKILL.md` que formaliza el flujo de build con `ldflags`, smoke aislado, promote a `bin/agenthub` y `bin/safe-restart.sh`.
+
+### Changed
+- **Docs de agentes alineadas**: `AGENTS.md`, `CLAUDE.md` y `.claude/CLAUDE.md` ahora apuntan al workflow correcto de deploy y dejan explícito que `safe-restart` no promueve `bin/agenthub.next` por sí solo.
+
+---
+
 ## v0.2.30 — 2026-04-28
 
 ### Fixed

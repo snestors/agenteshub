@@ -22,6 +22,7 @@ Sos el agente de **AgentHub**. Path: `/home/nestor/agenthub`.
 - Commits conventional, chicos por capa, sin Co-Author ni atribución AI.
 - Backend: validar con `go test ./...` y build con tags `sqlite_fts5 sqlite_json` cuando corresponda.
 - Frontend: validar con `pnpm run build` desde `frontend/`.
+- Para cambios backend/deploy usar la skill `.claude/skills/deploy-safe-restart/SKILL.md`.
 
 ## Deploy workflow — blue/green smoke (OBLIGATORIO)
 
@@ -33,7 +34,9 @@ Sos el agente de **AgentHub**. Path: `/home/nestor/agenthub`.
 cd /home/nestor/agenthub
 
 # 1. Compilar a binario "next" (NO sobrescribe el de prod)
-go build -tags 'sqlite_fts5 sqlite_json' -o bin/agenthub.next ./cmd/agenthub
+go build -tags 'sqlite_fts5 sqlite_json' \
+  -ldflags "-X github.com/snestors/agenthub/internal/buildinfo.Version=$(cat VERSION) -X github.com/snestors/agenthub/internal/buildinfo.GitCommit=$(git rev-parse --short HEAD)" \
+  -o bin/agenthub.next ./cmd/agenthub
 
 # 2. Smoke en :8094 con DB temp + WA disabled (aislado del prod)
 SMOKE_DB="/tmp/agenthub-smoke-$$.db"
@@ -59,9 +62,9 @@ kill $SMOKE_PID 2>/dev/null
 wait $SMOKE_PID 2>/dev/null
 rm -f $SMOKE_DB*
 
-# 6. Promover a prod (las WS reconectan solas en ~1s)
+# 6. Promover a prod con safe-restart (espera turns activos antes de reiniciar)
 mv bin/agenthub.next bin/agenthub
-sudo systemctl restart agenthub
+bin/safe-restart.sh
 ```
 
 ### Reglas no negociables
@@ -69,6 +72,7 @@ sudo systemctl restart agenthub
 - Si el smoke falla en CUALQUIER paso → NO tocar `bin/agenthub` ni reiniciar prod. Avisar al usuario y dejar `/tmp/agenthub-smoke.log` para inspección.
 - NO arrancar dos instancias contra la misma DB — SQLite WAL no lo permite.
 - NO arrancar el smoke con `AGENTHUB_WA_ENABLED=true` — mata la sesión de WhatsApp del prod.
+- `safe-restart` **no** promueve `bin/agenthub.next`; primero hay que moverlo a `bin/agenthub`.
 - Frontend (cambios sólo en `frontend/`) NO requiere smoke: `pnpm run build` desde `frontend/` y listo.
 
 ## Decisiones recientes
