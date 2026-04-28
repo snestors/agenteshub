@@ -89,8 +89,9 @@ func New(cfg *config.Config, repos *store.Repos, log *slog.Logger) *Manager {
 		engines:   map[string]Engine{},
 		defaultEn: cfg.DefaultEngine,
 	}
-	m.engines["claude"] = &ClaudeEngine{cfg: cfg, repos: repos, log: log.With("engine", "claude")}
-	m.engines["codex"] = &CodexEngine{cfg: cfg, repos: repos, log: log.With("engine", "codex")}
+	resolver := newSystemPromptResolver(cfg, repos, log.With("engine", "system_prompt"))
+	m.engines["claude"] = &ClaudeEngine{cfg: cfg, repos: repos, log: log.With("engine", "claude"), prompt: resolver}
+	m.engines["codex"] = &CodexEngine{cfg: cfg, repos: repos, log: log.With("engine", "codex"), prompt: resolver}
 	m.engines["ollama"] = &OllamaEngine{cfg: cfg, log: log.With("engine", "ollama")}
 	return m
 }

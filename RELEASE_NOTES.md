@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.16 — 2026-04-28
+
+### Fixed
+- **Codex main agent sin contexto**: el engine Codex ahora prepende el system prompt global (`data/system-prompt.md`) + `.claude/CLAUDE.md` del proyecto al primer turno de cada sesión CLI, e inyecta un mensaje `system` al inicio del path NVIDIA. Antes Claude lo hacía vía `--append-system-prompt` pero Codex pasaba el prompt crudo, así que el agente no sabía quién era ni qué tools tenía. Resolver compartido entre engines en `internal/cliengine/system_prompt.go`.
+
+---
+
 ## v0.2.15 — 2026-04-27
 
 ### Added

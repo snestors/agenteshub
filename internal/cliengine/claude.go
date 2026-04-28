@@ -4,9 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,7 +12,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/snestors/agenteshub/internal/config"
 	"github.com/snestors/agenteshub/internal/store"
@@ -22,11 +19,10 @@ import (
 
 // ClaudeEngine spawns the `claude` CLI with --resume, --output-format json.
 type ClaudeEngine struct {
-	cfg      *config.Config
-	repos    *store.Repos
-	log      *slog.Logger
-	spOnce   sync.Once
-	spCached string
+	cfg    *config.Config
+	repos  *store.Repos
+	log    *slog.Logger
+	prompt *systemPromptResolver
 }
 
 // Name implements Engine.
@@ -129,57 +125,10 @@ func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 // appendSystemPrompt returns the global AgentHub prompt plus, when opts.Cwd is
 // a registered project path, the project-local .claude/CLAUDE.md prompt.
 func (e *ClaudeEngine) appendSystemPrompt(ctx context.Context, opts RunOpts) string {
-	parts := []string{}
-	if global := e.globalSystemPrompt(); global != "" {
-		parts = append(parts, global)
-	}
-	if project := e.projectSystemPrompt(ctx, opts.Cwd); project != "" {
-		parts = append(parts, project)
-	}
-	return strings.Join(parts, "\n\n---\n\n")
-}
-
-// globalSystemPrompt reads cfg.SystemPromptPath and returns its contents.
-// Cached after the first read; the file rarely changes during a daemon's
-// lifetime and re-reading on every turn would only burn syscalls.
-func (e *ClaudeEngine) globalSystemPrompt() string {
-	e.spOnce.Do(func() {
-		path := e.cfg.SystemPromptPath
-		if path == "" {
-			return
-		}
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return
-		}
-		e.spCached = strings.TrimSpace(string(raw))
-	})
-	return e.spCached
-}
-
-func (e *ClaudeEngine) projectSystemPrompt(ctx context.Context, cwd string) string {
-	if e.repos == nil || e.repos.Projects == nil || strings.TrimSpace(cwd) == "" {
+	if e.prompt == nil {
 		return ""
 	}
-	project, err := e.repos.Projects.GetByPath(ctx, cwd)
-	if errors.Is(err, sql.ErrNoRows) {
-		clean := filepath.Clean(cwd)
-		if clean != cwd {
-			project, err = e.repos.Projects.GetByPath(ctx, clean)
-		}
-	}
-	if err != nil || project == nil {
-		return ""
-	}
-	for _, rel := range []string{filepath.Join(".claude", "CLAUDE.md"), "CLAUDE.md"} {
-		raw, err := os.ReadFile(filepath.Join(project.Path, rel))
-		if err == nil {
-			if prompt := strings.TrimSpace(string(raw)); prompt != "" {
-				return prompt
-			}
-		}
-	}
-	return ""
+	return e.prompt.Resolve(ctx, opts.Cwd)
 }
 
 // streamEvent is a line in `claude --output-format stream-json --verbose`.

@@ -21,9 +21,10 @@ import (
 
 // CodexEngine spawns OpenAI Codex CLI with --json + resume.
 type CodexEngine struct {
-	cfg   *config.Config
-	repos *store.Repos
-	log   *slog.Logger
+	cfg    *config.Config
+	repos  *store.Repos
+	log    *slog.Logger
+	prompt *systemPromptResolver
 }
 
 func (e *CodexEngine) Name() string { return "codex" }
@@ -73,7 +74,7 @@ func (e *CodexEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 	if opts.Cwd != "" && opts.SessionID == "" {
 		args = append(args, "-C", opts.Cwd)
 	}
-	args = append(args, opts.Prompt)
+	args = append(args, e.augmentedPrompt(ctx, opts))
 
 	bin := e.cfg.CodexBinPath
 	if bin == "" {
@@ -287,10 +288,20 @@ func (e *CodexEngine) runNVIDIAChat(ctx context.Context, opts RunOpts) (*Result,
 
 func (e *CodexEngine) nvidiaMessages(ctx context.Context, opts RunOpts) []nvidiaChatMessage {
 	persisted := e.persistedMessages(ctx, opts)
+	system := e.systemPrompt(ctx, opts)
+
 	if len(persisted) == 0 {
-		return []nvidiaChatMessage{{Role: "user", Content: opts.Prompt}}
+		msgs := make([]nvidiaChatMessage, 0, 2)
+		if system != "" {
+			msgs = append(msgs, nvidiaChatMessage{Role: "system", Content: system})
+		}
+		msgs = append(msgs, nvidiaChatMessage{Role: "user", Content: opts.Prompt})
+		return msgs
 	}
-	out := make([]nvidiaChatMessage, 0, len(persisted))
+	out := make([]nvidiaChatMessage, 0, len(persisted)+1)
+	if system != "" {
+		out = append(out, nvidiaChatMessage{Role: "system", Content: system})
+	}
 	for _, m := range persisted {
 		if !m.Body.Valid || strings.TrimSpace(m.Body.String) == "" {
 			continue
@@ -303,10 +314,42 @@ func (e *CodexEngine) nvidiaMessages(ctx context.Context, opts RunOpts) []nvidia
 		}
 		out = append(out, nvidiaChatMessage{Role: role, Content: m.Body.String})
 	}
-	if len(out) == 0 {
-		return []nvidiaChatMessage{{Role: "user", Content: opts.Prompt}}
+	if len(out) == 0 || (len(out) == 1 && out[0].Role == "system") {
+		out = append(out, nvidiaChatMessage{Role: "user", Content: opts.Prompt})
 	}
 	return out
+}
+
+// augmentedPrompt prepends the global+project system prompt to the user's
+// prompt for the codex CLI path. Codex CLI has no --system flag, so we wrap
+// the system context as an explicit block at the top of the first turn.
+// Resumed sessions skip the prefix because codex retains prior instructions
+// in its session state.
+func (e *CodexEngine) augmentedPrompt(ctx context.Context, opts RunOpts) string {
+	if opts.SessionID != "" {
+		return opts.Prompt
+	}
+	system := e.systemPrompt(ctx, opts)
+	if system == "" {
+		return opts.Prompt
+	}
+	var b strings.Builder
+	b.WriteString("<system_instructions>\n")
+	b.WriteString(system)
+	b.WriteString("\n</system_instructions>\n\n")
+	b.WriteString(opts.Prompt)
+	return b.String()
+}
+
+// systemPrompt resolves the global+project prompt. Matches ClaudeEngine: the
+// global prompt is added for every scope. Mini-agents already embed their own
+// system_prompt in opts.Prompt; the global one stacks on top of it, same as
+// claude's --append-system-prompt behavior.
+func (e *CodexEngine) systemPrompt(ctx context.Context, opts RunOpts) string {
+	if e.prompt == nil {
+		return ""
+	}
+	return e.prompt.Resolve(ctx, opts.Cwd)
 }
 
 func (e *CodexEngine) persistedMessages(ctx context.Context, opts RunOpts) []store.SessionMessage {
