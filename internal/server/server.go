@@ -141,6 +141,9 @@ func (s *Server) routes() http.Handler {
 		pr.Get("/api/agent/engines", s.handleListEngines)
 		pr.Post("/api/agent/engine", s.handleSetEngine)
 
+		// Generic cross-scope cancel (used by the long_running_turn toast).
+		pr.Post("/api/runs/cancel", s.handleRunsCancel)
+
 		// Uploads — adjuntar archivos al prompt
 		pr.Post("/api/upload", s.handleUpload)
 		pr.Get("/api/uploads/{id}", s.handleGetUpload)
@@ -794,6 +797,38 @@ func (s *Server) handleRunsStatus(w http.ResponseWriter, r *http.Request) {
 		"total":           total,
 		"pending_restart": s.runs.PendingRestart(),
 	})
+}
+
+// handleRunsCancel cancels an in-flight run identified by (scope, id). Used by
+// the long_running_turn toast (and any other UI affordance that wants to kill
+// a hanging turn) without needing a scope-specific endpoint.
+//
+// Scopes:
+//   - "main"     id = engine ("claude" / "codex")
+//   - "project"  id = project_session_id (int64 as string)
+//   - "agent"    id = agent_run_id (int64 as string)
+//   - "openspec" id = "<change_id>:<phase>" or "<change_id>:apply-verify"
+func (s *Server) handleRunsCancel(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Scope string `json:"scope"`
+		ID    string `json:"id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad json", http.StatusBadRequest)
+		return
+	}
+	scope := strings.TrimSpace(req.Scope)
+	id := strings.TrimSpace(req.ID)
+	if scope == "" || id == "" {
+		http.Error(w, "scope and id required", http.StatusBadRequest)
+		return
+	}
+	cancelled := s.runs.Cancel(scope, id)
+	if !cancelled {
+		http.Error(w, "no run registered under that scope+id", http.StatusConflict)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"cancelled": true, "scope": scope, "id": id})
 }
 
 // handleScheduleRestart schedules a daemon restart to occur once all in-flight

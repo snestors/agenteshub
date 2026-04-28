@@ -327,9 +327,13 @@ func (s *Server) runProjectSessionTurn(project *store.Project, sess *store.Proje
 	// No deadline: project chats fan out to 15+ Task sub-agents and easily
 	// pass an hour. The user explicitly asked for a heads-up at 1h instead of
 	// a hard kill — see watchLongRunning. Cancellation stays available
-	// through the existing /api/projects/{id}/sessions/{sid}/cancel endpoint.
+	// through both the legacy /api/projects/{id}/sessions/{sid}/cancel
+	// endpoint and the generic /api/runs/cancel.
 	ctx, cancel := context.WithCancel(context.Background())
-	go s.watchLongRunning(ctx, "project", "Project · "+project.Name, "Cancelá desde el chat si no querés esperar.")
+	projectIDStr := strconv.FormatInt(sess.ID, 10)
+	s.runs.RegisterCancel("project", projectIDStr, cancel)
+	defer s.runs.UnregisterCancel("project", projectIDStr)
+	go s.watchLongRunning(ctx, "project", projectIDStr, "Project · "+project.Name, "Cancelá el turn desde el toast.")
 	s.projectCancels.Store(sess.ID, cancel)
 	s.runs.Inc("project")
 	defer func() {

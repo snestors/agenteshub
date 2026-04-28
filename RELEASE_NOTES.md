@@ -8,6 +8,17 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.23 — 2026-04-28
+
+### Added
+- **Generic cross-scope cancel** (G backend): `RunTracker` ahora también guarda un `cancels` map keyed por `<scope>:<id>` y expone `RegisterCancel`/`UnregisterCancel`/`Cancel`. Cada handler que arranca un turn (main, project, agent-manual, openspec, openspec apply+verify) registra su `context.CancelFunc`; al terminar, deregister via `defer`. Nuevo endpoint protegido `POST /api/runs/cancel` con body `{scope, id}` que invoca el cancel sin importar de dónde se disparó el turn.
+- **Toast `long_running_turn` con `actions`**: el watcher de 1h ahora incluye `id` y `actions: [{label:"Cancelar",kind:"cancel"}, {label:"Continuar",kind:"dismiss"}]` en el `Context` de la notification. El frontend tiene todo lo que necesita para mostrar dos botones y POST a `/api/runs/cancel` cuando el user clickea Cancelar. (UI con botones queda pendiente para el próximo turn.)
+
+### Changed
+- `watchLongRunning` toma un parámetro extra `id` para que el toast lleve el mismo `(scope, id)` que el handler usó al `RegisterCancel` — no hay traducción del lado del frontend.
+
+---
+
 ## v0.2.22 — 2026-04-28
 
 ### Added

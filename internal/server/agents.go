@@ -316,10 +316,13 @@ func (s *Server) handleAgentScheduleDelete(w http.ResponseWriter, r *http.Reques
 func (s *Server) runAgentManual(ctx context.Context, agent *store.Agent, runID int64, prompt, topic string) {
 	// No deadline: mini-agents that wrap long shell scripts or delegate to Task
 	// can run past any sensible cutoff. watchLongRunning nags the user every
-	// hour; manual cancellation still goes through /api/agents/{id}/runs/{rid}/cancel.
+	// hour; the generic /api/runs/cancel endpoint cancels by run id.
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	go s.watchLongRunning(runCtx, "agent", "Mini-agent · "+agent.Name, "Pausá el agente desde la UI si no querés que siga.")
+	runIDStr := strconv.FormatInt(runID, 10)
+	s.runs.RegisterCancel("agent", runIDStr, cancel)
+	defer s.runs.UnregisterCancel("agent", runIDStr)
+	go s.watchLongRunning(runCtx, "agent", runIDStr, "Mini-agent · "+agent.Name, "Cancelá el turn desde el toast.")
 	res, err := s.engines.Run(runCtx, cliengine.RunOpts{
 		Prompt:    prompt,
 		Channel:   "agent",

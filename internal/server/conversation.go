@@ -134,7 +134,9 @@ func (s *Server) runConversationTurn(turn conversationTurn) {
 	// alive; the user decides when to give up.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go s.watchLongRunning(ctx, "main", "Main · "+turn.Engine, "Esperá o usá /reset cuando esté.")
+	s.runs.RegisterCancel("main", turn.Engine, cancel)
+	defer s.runs.UnregisterCancel("main", turn.Engine)
+	go s.watchLongRunning(ctx, "main", turn.Engine, "Main · "+turn.Engine, "Cancelá el turn desde el toast.")
 
 	activity := &turnActivity{}
 	res, err := s.engines.Run(ctx, cliengine.RunOpts{

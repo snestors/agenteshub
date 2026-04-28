@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -470,7 +471,10 @@ func (s *Server) generateOpenSpecArtifact(ctx context.Context, project *store.Pr
 	// watchLongRunning nags every hour while the phase is alive.
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	go s.watchLongRunning(runCtx, "openspec", "OpenSpec · "+phase, "Cancelá la fase desde la UI si querés cortar.")
+	openspecKey := strconv.FormatInt(change.ID, 10) + ":" + phase
+	s.runs.RegisterCancel("openspec", openspecKey, cancel)
+	defer s.runs.UnregisterCancel("openspec", openspecKey)
+	go s.watchLongRunning(runCtx, "openspec", openspecKey, "OpenSpec · "+phase, "Cancelá la fase desde el toast.")
 	res, err := s.engines.Run(runCtx, cliengine.RunOpts{
 		Prompt:    prompt,
 		Channel:   "project",
@@ -499,7 +503,10 @@ func (s *Server) runOpenSpecApplyAndVerify(projectID, changeID int64, dryRun boo
 	// validation). watchLongRunning provides hourly reminders.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go s.watchLongRunning(ctx, "openspec", "OpenSpec · apply+verify", "Cancelá desde la UI si querés cortar.")
+	applyKey := strconv.FormatInt(changeID, 10) + ":apply-verify"
+	s.runs.RegisterCancel("openspec", applyKey, cancel)
+	defer s.runs.UnregisterCancel("openspec", applyKey)
+	go s.watchLongRunning(ctx, "openspec", applyKey, "OpenSpec · apply+verify", "Cancelá desde el toast.")
 	project, err := s.repos.Projects.GetByID(ctx, projectID)
 	if err != nil {
 		return

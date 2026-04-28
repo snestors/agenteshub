@@ -17,12 +17,14 @@ const longRunningThreshold = time.Hour
 // turn starts; it returns when the context is cancelled (turn finished or
 // user-cancelled). Lightweight — one timer per concurrent turn.
 //
-// `scope` is one of "main" / "project" / "agent" / "topic" — used as both the
-// notification kind suffix and the human label. `displayLabel` is shown to the
-// user (e.g. "Project · agenthub" or "Mini-agent · finanzas-monitor").
-// `cancelHint` is a short string telling the user how to cancel from the UI;
-// the daemon does not enforce cancellation here.
-func (s *Server) watchLongRunning(ctx context.Context, scope, displayLabel, cancelHint string) {
+// `scope` is one of "main" / "project" / "agent" / "openspec" — used as the
+// scope key in the notification context AND in the cancel registry, so the
+// frontend toast can POST {scope, id} to /api/runs/cancel without translating.
+// `id` is the same id the handler used in RegisterCancel (engine name for
+// main, project_session_id stringified for project, run_id for agent, etc).
+// `displayLabel` is shown to the user (e.g. "Project · agenthub").
+// `cancelHint` is a short string explaining how to cancel from the UI.
+func (s *Server) watchLongRunning(ctx context.Context, scope, id, displayLabel, cancelHint string) {
 	startedAt := time.Now()
 	ticker := time.NewTicker(longRunningThreshold)
 	defer ticker.Stop()
@@ -38,11 +40,16 @@ func (s *Server) watchLongRunning(ctx context.Context, scope, displayLabel, canc
 				Title:    displayLabel + " · turn lleva " + formatElapsed(elapsed),
 				Body:     "El agente sigue trabajando. " + cancelHint,
 				Context: map[string]any{
-					"scope":         scope,
-					"label":         displayLabel,
-					"elapsed_secs":  int64(elapsed.Seconds()),
+					"scope":        scope,
+					"id":           id,
+					"label":        displayLabel,
+					"elapsed_secs": int64(elapsed.Seconds()),
 					"started_at":   startedAt.Unix(),
 					"cancel_hint":  cancelHint,
+					"actions": []map[string]string{
+						{"label": "Cancelar", "kind": "cancel"},
+						{"label": "Continuar", "kind": "dismiss"},
+					},
 				},
 			})
 		}
