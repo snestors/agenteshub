@@ -203,12 +203,22 @@ func (e *ClaudeEngine) runStreaming(ctx context.Context, cmd *exec.Cmd, opts Run
 	}
 
 	res := &Result{SessionID: opts.SessionID}
+	// streamedText accumulates text emitted via stream events (text_delta or
+	// assistant text blocks). It's our fallback when the final `result` JSONL
+	// line never arrives — has happened when claude exits cleanly without
+	// flushing the result event, or when the daemon is racing a restart and
+	// the CLI's last line is dropped. The user already saw the text via the
+	// WebSocket, so persisting it from this buffer keeps the chat consistent.
+	var streamedText strings.Builder
 	seq := 0
 	emit := func(ev StreamEvent) {
 		seq++
 		ev.Seq = seq
 		if ev.SessionID == "" {
 			ev.SessionID = res.SessionID
+		}
+		if ev.Kind == "text" && ev.Text != "" {
+			streamedText.WriteString(ev.Text)
 		}
 		opts.OnEvent(ev)
 	}
@@ -293,9 +303,24 @@ func (e *ClaudeEngine) runStreaming(ctx context.Context, cmd *exec.Cmd, opts Run
 		return nil, fmt.Errorf("stream scan: %w", err)
 	}
 	if err := cmd.Wait(); err != nil {
+		// If the CLI exited with a non-zero status but we still captured
+		// streamed text (the user already saw it), keep that as the answer
+		// instead of throwing it away. Cost stays at 0 since the result
+		// event never delivered usage figures.
+		if buf := strings.TrimSpace(streamedText.String()); buf != "" {
+			res.Text = buf
+			return res, nil
+		}
 		return nil, fmt.Errorf("claude wait: %w (stderr=%s)", err, strings.TrimSpace(stderr.String()))
 	}
 	if res.Text == "" {
+		// Clean exit with no result event — fall back to the streamed text.
+		// Empirically this happens when the daemon is racing a restart and
+		// the CLI's last JSONL line is dropped.
+		if buf := strings.TrimSpace(streamedText.String()); buf != "" {
+			res.Text = buf
+			return res, nil
+		}
 		return nil, fmt.Errorf("claude stream produced no result")
 	}
 	return res, nil
