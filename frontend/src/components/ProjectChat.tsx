@@ -149,6 +149,7 @@ export function ProjectChat({
             name: chunk.tool_name ?? "tool",
             args: chunk.tool_args,
             status: "running",
+            startedAt: Date.now(),
           };
           const tools = existing.tools.some((t) => t.id === id)
             ? existing.tools
@@ -170,6 +171,7 @@ export function ProjectChat({
               ...tools[idx],
               status: "ok",
               resultPreview: (chunk.tool_result ?? "").slice(0, 200),
+              finishedAt: Date.now(),
             };
           }
           return { ...curr, [sid]: { ...existing, tools } };

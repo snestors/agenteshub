@@ -118,6 +118,7 @@ function applyChunk(curr: GhostsByTopic, topic: string, chunk: WsStreamPayload):
         name: chunk.tool_name ?? "tool",
         args: chunk.tool_args,
         status: "running",
+        startedAt: Date.now(),
       };
       const tools = existing.tools.some((t) => t.id === id)
         ? existing.tools
@@ -142,7 +143,12 @@ function applyChunk(curr: GhostsByTopic, topic: string, chunk: WsStreamPayload):
       if (idx === -1 && tools.length > 0) idx = tools.length - 1;
       if (idx >= 0) {
         const preview = (chunk.tool_result ?? "").slice(0, 200);
-        tools[idx] = { ...tools[idx], status: "ok", resultPreview: preview };
+        tools[idx] = {
+          ...tools[idx],
+          status: "ok",
+          resultPreview: preview,
+          finishedAt: Date.now(),
+        };
       }
       return {
         ...curr,

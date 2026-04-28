@@ -299,12 +299,23 @@ function RunNowTab({ agent, onDone }: { agent: MiniAgent; onDone: () => Promise<
         if (ev.kind === "thinking" && ev.text) return { ...current, thinking: current.thinking + ev.text };
         if (ev.kind === "tool_use") {
           const id = `${topic}-${ev.seq ?? Date.now()}`;
-          const call: ToolCall = { id, name: ev.tool_name ?? "tool", args: ev.tool_args, status: "running" };
+          const call: ToolCall = {
+            id,
+            name: ev.tool_name ?? "tool",
+            args: ev.tool_args,
+            status: "running",
+            startedAt: Date.now(),
+          };
           return { ...current, tools: [...current.tools, call] };
         }
         if (ev.kind === "tool_result" && current.tools.length > 0) {
           const tools = current.tools.slice();
-          tools[tools.length - 1] = { ...tools[tools.length - 1], status: "ok", resultPreview: (ev.tool_result ?? "").slice(0, 200) };
+          tools[tools.length - 1] = {
+            ...tools[tools.length - 1],
+            status: "ok",
+            resultPreview: (ev.tool_result ?? "").slice(0, 200),
+            finishedAt: Date.now(),
+          };
           return { ...current, tools };
         }
         return current;

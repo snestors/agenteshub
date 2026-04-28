@@ -8,6 +8,17 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.25 — 2026-04-28
+
+### Added
+- **Sub-agents visibles con tarjeta dedicada (B fase 1)**: cuando el MAIN delega vía `Task`, el evento `tool_use` con `name === "Agent"` ahora se renderiza como `SubAgentCard` con borde cian, ícono `GitBranch` y header `delegating · <subagent_type>`. Antes se mostraba como un tool_use crudo con args enormes (description + subagent_type + prompt) que era ilegible. Ahora muestra solo `description` + duración live + result preview cuando termina. Cierra el bug que reportaste con academia (no veías la actividad de los sub-agents en project chat).
+- **Duración live en toda ToolCard**: `ToolCall` lleva `startedAt`/`finishedAt` (epoch ms). Mientras `status === "running"` un timer interno de 1s actualiza el elapsed; cuando llega el `tool_result` se congela. Se ve igual en main chat, project chat y mini-agent run-now. Archivos: `frontend/src/components/GhostBubble.tsx`, `frontend/src/lib/streamsStore.tsx`, `frontend/src/components/ProjectChat.tsx`, `frontend/src/pages/Agents.tsx`.
+
+### Limitación honesta
+- **No es timeline jerárquico todavía**: solo muestra cada Task() como tarjeta individual. NO ves qué hace el sub-agent por dentro (qué bash corre, qué archivos lee) — claude CLI no expone eventos de sub-agents al stream del padre. Para eso hace falta interceptar el JSONL del sub-agent en disco mientras corre, parsearlo y reemitir al WebSocket. Es un cambio mayor que queda en el roadmap.
+
+---
+
 ## v0.2.24 — 2026-04-28
 
 ### Added
