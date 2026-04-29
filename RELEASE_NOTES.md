@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.38 — 2026-04-29
+
+### Fixed
+- **Mobile nav ya no tapa el composer**: se reemplazó la bottom bar mobile por un sidebar ocultable con handle lateral. El drawer entra desde la izquierda, cierra con overlay/Escape/navegación, mantiene badges de notificaciones y libera todo el borde inferior del chat.
+
+---
+
 ## v0.2.37 — 2026-04-29
 
 ### Changed

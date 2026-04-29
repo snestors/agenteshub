@@ -78,7 +78,7 @@ export function AppShell() {
           <div className="hud-grid" />
           <div className="hud-scan" />
           <Sidebar username={auth.me?.username} />
-          <main className="flex-1 flex flex-col min-w-0 relative z-10 pb-[72px] md:pb-0">
+          <main className="flex-1 flex flex-col min-w-0 relative z-10">
             <Outlet />
           </main>
           <MobileNav username={auth.me?.username} />
