@@ -67,7 +67,7 @@ cd frontend && pnpm run build && cd ..
 
 # ─── 2) Build backend a binario "next" ──────────────────────────────────────
 go build -tags 'sqlite_fts5 sqlite_json' \
-  -ldflags "-X github.com/snestors/agenthub/internal/buildinfo.Version=$NEW_VERSION -X github.com/snestors/agenthub/internal/buildinfo.GitCommit=$(git rev-parse --short HEAD)" \
+  -ldflags "-X github.com/snestors/agenteshub/internal/buildinfo.Version=$NEW_VERSION -X github.com/snestors/agenteshub/internal/buildinfo.GitCommit=$(git rev-parse --short HEAD)" \
   -o bin/agenthub.next ./cmd/agenthub
 
 ./bin/agenthub.next version   # debe imprimir $NEW_VERSION

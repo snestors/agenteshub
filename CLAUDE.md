@@ -37,7 +37,7 @@ cd /home/nestor/agenthub
 
 # 1. Compilar a binario "next" (NO sobrescribe el de prod)
 go build -tags 'sqlite_fts5 sqlite_json' \
-  -ldflags "-X github.com/snestors/agenthub/internal/buildinfo.Version=$(cat VERSION) -X github.com/snestors/agenthub/internal/buildinfo.GitCommit=$(git rev-parse --short HEAD)" \
+  -ldflags "-X github.com/snestors/agenteshub/internal/buildinfo.Version=$(cat VERSION) -X github.com/snestors/agenteshub/internal/buildinfo.GitCommit=$(git rev-parse --short HEAD)" \
   -o bin/agenthub.next ./cmd/agenthub
 
 # 2. Smoke en :8094 con DB temp + WA disabled (aislado del prod)
