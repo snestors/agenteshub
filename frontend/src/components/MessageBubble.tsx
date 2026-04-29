@@ -174,7 +174,7 @@ export function MessageBubble({ message, topic }: MessageBubbleProps) {
   const arrow = isUser ? "▸" : "◂";
 
   return (
-    <div className="flex gap-3 items-start py-2 px-1">
+    <div className="flex gap-2 items-start py-2 px-0 sm:gap-3 sm:px-1">
       {/* avatar — square 24px */}
       <div
         className="w-6 h-6 shrink-0 flex items-center justify-center font-display font-bold text-[10px]"
@@ -223,7 +223,7 @@ export function MessageBubble({ message, topic }: MessageBubbleProps) {
         <div
           className={cn(
             "font-mono text-[12.5px] leading-[1.55] text-[var(--color-fg)] break-words",
-            "px-3 py-2 clip-hud-sm border",
+            "px-2.5 py-2 clip-hud-sm border sm:px-3",
             isUser
               ? "bg-[rgba(163,255,78,0.04)] border-[rgba(163,255,78,0.20)]"
               : "bg-[rgba(255,78,214,0.04)] border-[rgba(255,78,214,0.20)]",

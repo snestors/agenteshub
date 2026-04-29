@@ -416,17 +416,17 @@ export function ProjectChat({
         </div>
       )}
 
-      <div className="mt-2 -mx-4 -mb-3">
+      <div className="mt-2 -mx-3 -mb-2 sm:-mx-4 sm:-mb-3">
         <Composer onSend={handleSend} disabled={sessionId <= 0 || isRunning} />
         {/* Session status bar — reemplaza StatusBar del main agent */}
         <div
-          className="flex items-center gap-3 px-4 py-1.5 font-mono text-[10px] tracking-hud-tight border-t border-[var(--color-line)] select-none"
+          className="flex items-center gap-2 overflow-x-auto whitespace-nowrap px-2 py-2 font-mono text-[10px] tracking-hud-tight border-t border-[var(--color-line)] select-none sm:gap-3 sm:px-4 sm:py-1.5"
           style={{ background: "rgba(0,0,0,0.55)", minHeight: 26 }}
         >
           <select
             value={sessionId}
             onChange={(e) => onSessionSelect?.(Number(e.target.value))}
-            className="clip-tag bg-transparent outline-none cursor-pointer max-w-[180px]"
+            className="clip-tag bg-transparent outline-none cursor-pointer max-w-[140px] sm:max-w-[180px]"
             style={{
               color: "var(--color-magenta)",
               border: "1px solid rgba(255,78,214,0.45)",
@@ -537,7 +537,7 @@ export function ProjectChat({
             </>
           )}
 
-          <span className="ml-auto text-[var(--color-dim)]">{transportLabel}</span>
+          <span className="shrink-0 text-[var(--color-dim)] sm:ml-auto">{transportLabel}</span>
         </div>
       </div>
     </div>

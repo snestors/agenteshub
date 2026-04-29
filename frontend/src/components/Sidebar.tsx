@@ -76,7 +76,7 @@ export function Sidebar({ username }: { username?: string }) {
   }
 
   return (
-    <aside className="w-[220px] shrink-0 h-full flex flex-col border-r border-[var(--color-line)] bg-[rgba(10,15,36,0.55)] backdrop-blur-sm relative z-10">
+    <aside className="hidden md:flex w-[220px] shrink-0 h-full flex-col border-r border-[var(--color-line)] bg-[rgba(10,15,36,0.55)] backdrop-blur-sm relative z-10">
       {/* brand */}
       <div className="px-4 py-4 border-b border-[var(--color-line)]">
         <div className="flex items-center gap-3">
@@ -232,5 +232,119 @@ export function Sidebar({ username }: { username?: string }) {
         </div>
       </div>
     </aside>
+  );
+}
+
+export function MobileNav({ username }: { username?: string }) {
+  const { unreadByKindPrefix, unreadCount, openDrawer } = useNotifications();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  async function handleLogout() {
+    try {
+      await api.logout();
+    } catch {
+      // ignore — cookie may already be invalid
+    }
+    window.location.href = "/login";
+  }
+
+  function handleNavClick(item: NavItem) {
+    if (item.notifPrefix && unreadByKindPrefix(item.notifPrefix) > 0) {
+      openDrawer();
+      return;
+    }
+    navigate(item.to);
+  }
+
+  return (
+    <nav
+      className="fixed inset-x-0 bottom-0 z-40 md:hidden border-t border-[var(--color-line)] bg-[rgba(6,8,20,0.94)] backdrop-blur-md"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      aria-label="Navegación mobile"
+    >
+      <div className="flex items-stretch gap-1 overflow-x-auto px-2 py-2">
+        {ITEMS.map((item) => {
+          const Icon = item.icon;
+          const accentColor = ACCENT_VAR[item.accent];
+          const badge = item.notifPrefix
+            ? unreadByKindPrefix(item.notifPrefix)
+            : 0;
+          const isActive =
+            item.to === "/"
+              ? location.pathname === "/"
+              : location.pathname.startsWith(item.to);
+          return (
+            <button
+              key={item.to}
+              type="button"
+              onClick={() => handleNavClick(item)}
+              className={cn(
+                "relative flex min-w-[58px] flex-col items-center justify-center gap-1 px-2 py-1.5 clip-tag font-mono text-[9px] uppercase tracking-hud-tight transition-colors",
+                isActive
+                  ? "text-[var(--color-fg)]"
+                  : "text-[var(--color-dim)]",
+              )}
+              style={{
+                border: `1px solid ${isActive ? accentColor : "var(--color-line)"}`,
+                background: isActive ? `${accentColor}14` : "rgba(255,255,255,0.03)",
+              }}
+              aria-label={item.label}
+            >
+              <span style={{ color: isActive ? accentColor : undefined }}>
+                <Icon size={15} strokeWidth={1.7} />
+              </span>
+              <span className="max-w-[52px] truncate">{item.label}</span>
+              {badge > 0 && (
+                <span
+                  className="absolute -right-0.5 -top-0.5 px-1 font-display text-[9px] font-bold"
+                  style={{
+                    color: accentColor,
+                    background: "var(--color-bg)",
+                    border: `1px solid ${accentColor}`,
+                  }}
+                >
+                  {badge > 99 ? "99+" : badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+
+        <button
+          type="button"
+          onClick={openDrawer}
+          className="relative flex min-w-[58px] flex-col items-center justify-center gap-1 px-2 py-1.5 clip-tag font-mono text-[9px] uppercase tracking-hud-tight text-[var(--color-dim)]"
+          style={{ border: "1px solid var(--color-line)", background: "rgba(255,255,255,0.03)" }}
+          aria-label="Notificaciones"
+        >
+          <Bell size={15} strokeWidth={1.7} />
+          <span>Alertas</span>
+          {unreadCount > 0 && (
+            <span
+              className="absolute -right-0.5 -top-0.5 px-1 font-display text-[9px] font-bold"
+              style={{
+                color: "var(--color-orange)",
+                background: "var(--color-bg)",
+                border: "1px solid var(--color-orange)",
+              }}
+            >
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex min-w-[58px] flex-col items-center justify-center gap-1 px-2 py-1.5 clip-tag font-mono text-[9px] uppercase tracking-hud-tight text-[var(--color-dim)]"
+          style={{ border: "1px solid var(--color-line)", background: "rgba(255,255,255,0.03)" }}
+          aria-label={`Cerrar sesión${username ? ` (${username})` : ""}`}
+        >
+          <LogOut size={15} strokeWidth={1.7} />
+          <span>Salir</span>
+        </button>
+      </div>
+    </nav>
   );
 }

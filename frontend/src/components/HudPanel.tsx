@@ -40,13 +40,13 @@ export function HudPanel({
     >
       <div
         className={cn(
-          "relative clip-hud bg-[var(--color-bg-2)] h-full w-full px-4 py-3 flex flex-col min-h-0",
+          "relative clip-hud bg-[var(--color-bg-2)] h-full w-full px-3 py-2 flex flex-col min-h-0 sm:px-4 sm:py-3",
           bodyClassName
         )}
       >
         {title && (
-          <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-[var(--color-line)]">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col items-start gap-1 mb-2 pb-1.5 border-b border-[var(--color-line)] sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-2">
               <span
                 className="w-1.5 h-1.5 rounded-full"
                 style={{
@@ -55,14 +55,14 @@ export function HudPanel({
                 }}
               />
               <span
-                className="font-display text-[12px] font-semibold uppercase tracking-hud"
+                className="font-display text-[11px] font-semibold uppercase tracking-hud sm:text-[12px]"
                 style={{ color: "var(--color-fg)" }}
               >
                 {title}
               </span>
             </div>
             {sub && (
-              <span className="font-mono text-[10px] text-[var(--color-dim)] tracking-hud-tight">
+              <span className="max-w-full truncate font-mono text-[9px] text-[var(--color-dim)] tracking-hud-tight sm:text-[10px]">
                 {sub}
               </span>
             )}

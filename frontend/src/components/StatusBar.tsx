@@ -72,7 +72,7 @@ export function StatusBar({ transportLabel }: StatusBarProps) {
 
   return (
     <div
-      className="relative flex items-center gap-3 px-4 py-1.5 font-mono text-[10px] tracking-hud-tight border-t border-[var(--color-line)] select-none"
+      className="relative flex items-center gap-2 overflow-x-auto whitespace-nowrap px-2 py-2 font-mono text-[10px] tracking-hud-tight border-t border-[var(--color-line)] select-none sm:gap-3 sm:px-4 sm:py-1.5"
       style={{
         background: "rgba(0, 0, 0, 0.55)",
         minHeight: 26,
@@ -157,7 +157,7 @@ export function StatusBar({ transportLabel }: StatusBarProps) {
         </>
       ) : null}
 
-      <span className="ml-auto text-[var(--color-dim)]">
+      <span className="shrink-0 text-[var(--color-dim)] sm:ml-auto">
         {transportLabel ?? ""}
       </span>
 

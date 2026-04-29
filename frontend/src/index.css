@@ -44,6 +44,14 @@ body,
   font-feature-settings: "ss01", "cv11";
 }
 
+@supports (height: 100dvh) {
+  html,
+  body,
+  #root {
+    height: 100dvh;
+  }
+}
+
 body {
   background:
     radial-gradient(ellipse at 30% 0%, #0f1540 0%, var(--color-bg) 55%, #02030a 100%);
@@ -141,6 +149,14 @@ textarea,
 select {
   font: inherit;
   color: inherit;
+}
+
+@media (max-width: 640px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
 input:focus,
 textarea:focus,

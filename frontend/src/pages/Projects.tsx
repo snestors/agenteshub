@@ -65,9 +65,9 @@ function ProjectList() {
         }
       />
 
-      <div className="flex-1 min-h-0 p-4 overflow-y-auto">
+      <div className="flex-1 min-h-0 p-2 overflow-y-auto sm:p-4">
         {error && <ErrorBox msg={error} />}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 xl:gap-4">
           {projects.map((p) => (
             <button
               key={p.id}
@@ -211,14 +211,14 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
           </button>
         }
       />
-      <div className="flex-1 min-h-0 p-4">
+      <div className="flex-1 min-h-0 p-2 sm:p-4">
         <HudPanel
           title={tab === "changes" ? "openspec changes" : tab === "services" ? "project services" : current ? `project chat · ${current.name}` : "project chat"}
           sub={tab === "changes" ? "openspec/changes · gates obligatorios" : tab === "services" ? ".agenthub/services.yaml" : current ? `topic project_session:${current.id}` : "sin sesión"}
           accent={tab === "changes" ? "lime" : tab === "services" ? "cyan" : "magenta"}
           className="min-h-0"
         >
-          <div className="mb-3 flex gap-2">
+          <div className="mb-3 flex flex-wrap gap-2">
             <TabButton active={tab === "chat"} onClick={() => setTab("chat")}>Chat</TabButton>
             <TabButton active={tab === "services"} onClick={() => setTab("services")}>Services</TabButton>
             <TabButton active={tab === "changes"} onClick={() => setTab("changes")}>Changes</TabButton>
@@ -405,7 +405,7 @@ function ProjectChanges({ projectId, visible }: { projectId: number; visible: bo
   const active = detail?.change ?? changes.find((c) => c.name === selected) ?? null;
 
   return (
-    <div className="min-h-0 flex-1 grid grid-cols-[280px_1fr] gap-3">
+    <div className="min-h-0 flex-1 grid grid-cols-1 gap-3 overflow-y-auto xl:grid-cols-[280px_1fr] xl:overflow-hidden">
       <div className="min-h-0 flex flex-col">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="font-mono text-[10px] text-[var(--color-dim)]">{changes.length} changes</div>
@@ -429,7 +429,7 @@ function ProjectChanges({ projectId, visible }: { projectId: number; visible: bo
         </div>
       </div>
 
-      <div className="min-h-0 flex flex-col overflow-hidden">
+      <div className="min-h-[360px] flex flex-col overflow-hidden xl:min-h-0">
         {!detail ? (
           <div className="h-full flex items-center justify-center font-mono text-[11px] text-[var(--color-dim)] tracking-hud-tight">▸ seleccioná un change</div>
         ) : (
@@ -479,8 +479,8 @@ function OpenSpecCreateModal({ projectId, onClose, onCreated }: { projectId: num
     }
   }
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <form onSubmit={submit} className="w-[620px]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 py-4">
+      <form onSubmit={submit} className="mx-4 w-full max-w-[620px]">
         <HudPanel title="nueva propuesta" sub="openspec change" accent="lime">
           <Field label="change_name" value={name} onChange={setName} placeholder="add-google-login" />
           <label className="mt-3 font-mono text-[10px] text-[var(--color-dim)] tracking-hud uppercase">descripción</label>
@@ -753,7 +753,7 @@ function DeleteSessionModal({
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 py-4" onClick={onClose}>
       <div
         className="clip-hud font-mono"
         style={{
@@ -837,8 +837,8 @@ function ProjectSessionModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <form onSubmit={submit} className="w-[520px]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 py-4">
+      <form onSubmit={submit} className="mx-4 w-full max-w-[520px]">
         <HudPanel title="nueva sesión" sub="nombre automático · contexto aislado por engine" accent="lime">
           <label className="mt-3 font-mono text-[10px] text-[var(--color-dim)] tracking-hud uppercase">
             engine
@@ -929,8 +929,8 @@ function ProjectModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <form onSubmit={submit} className="w-[560px]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 py-4">
+      <form onSubmit={submit} className="mx-4 w-full max-w-[560px]">
         <HudPanel title="nuevo proyecto" sub="path validado en backend" accent="lime">
           <Field label="name" value={name} onChange={setName} placeholder="agenthub" />
           <Field label="path" value={path} onChange={setPath} placeholder="/home/nestor/agenthub" />

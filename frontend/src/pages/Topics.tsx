@@ -46,7 +46,7 @@ export function Topics() {
         }
       />
 
-      <div className="px-4 py-3 border-b flex items-center gap-3" style={{ borderColor: "var(--color-line)" }}>
+      <div className="px-3 py-3 border-b flex flex-wrap items-center gap-3 sm:px-4" style={{ borderColor: "var(--color-line)" }}>
         <Hash size={14} strokeWidth={1.6} style={{ color: "var(--color-magenta)" }} />
         <span className="font-mono text-[10px] uppercase tracking-hud-tight text-[var(--color-dim)]">
           contextos del main agent
@@ -54,7 +54,7 @@ export function Topics() {
         <button
           type="button"
           onClick={() => setCreating(true)}
-          className="ml-auto px-2 py-1 clip-tag font-mono text-[10px] uppercase tracking-hud-tight border cursor-pointer transition-colors"
+          className="sm:ml-auto px-2 py-1 clip-tag font-mono text-[10px] uppercase tracking-hud-tight border cursor-pointer transition-colors"
           style={{
             color: "var(--color-magenta)",
             borderColor: "var(--color-magenta)",
@@ -66,7 +66,7 @@ export function Topics() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-3">
+      <div className="flex-1 overflow-y-auto px-3 py-3 sm:px-4">
         {loading ? (
           <div className="text-center font-mono text-[11px] text-[var(--color-dim)] italic py-8">
             ▸ cargando…
@@ -182,7 +182,7 @@ function TopicDetail({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center"
+      className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto py-4"
       style={{ background: "rgba(2, 4, 14, 0.65)", backdropFilter: "blur(2px)" }}
       onClick={editing ? undefined : onClose}
     >
@@ -228,7 +228,7 @@ function TopicDetail({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 font-mono text-[11px]">
+        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3 font-mono text-[11px] sm:px-4">
           {loading ? (
             <div className="text-[var(--color-dim)] italic">▸ cargando state…</div>
           ) : editing && state ? (
@@ -431,7 +431,7 @@ function CreateTopicModal({ onClose, onCreated }: { onClose: () => void; onCreat
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center"
+      className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto py-4"
       style={{ background: "rgba(2, 4, 14, 0.65)", backdropFilter: "blur(2px)" }}
       onClick={onClose}
     >

@@ -192,9 +192,9 @@ export function Diagrams() {
         }
       />
 
-      <div className="flex-1 min-h-0 grid grid-cols-[260px_1fr] gap-3 p-3">
+      <div className="flex-1 min-h-0 grid grid-cols-1 gap-3 overflow-y-auto p-2 sm:p-3 xl:grid-cols-[260px_1fr] xl:overflow-hidden">
         {/* Left: list */}
-        <div className="flex flex-col min-h-0 gap-2">
+        <div className="min-h-[180px] flex flex-col gap-2 xl:min-h-0">
           <button
             type="button"
             onClick={newDiagram}
@@ -256,7 +256,7 @@ export function Diagrams() {
         </div>
 
         {/* Right: canvas + prompt + editor */}
-        <div className="flex flex-col min-h-0 gap-3">
+        <div className="min-h-[520px] flex flex-col gap-3 xl:min-h-0">
           <HudPanel title="diagrama" accent="cyan" className="flex-1 min-h-0">
             <div className="flex-1 min-h-0 px-2 pb-2">
               {kind === "html" ? (

@@ -68,7 +68,7 @@ export function Vault() {
       />
 
       <div
-        className="px-4 py-3 border-b flex items-center gap-3"
+        className="px-3 py-3 border-b flex flex-wrap items-center gap-3 sm:px-4"
         style={{ borderColor: "var(--color-line)" }}
       >
         <Lock size={14} strokeWidth={1.6} style={{ color: "var(--color-orange)" }} />
@@ -78,7 +78,7 @@ export function Vault() {
         <button
           type="button"
           onClick={() => setCreating(true)}
-          className="ml-auto px-2 py-1 clip-tag font-mono text-[10px] uppercase tracking-hud-tight border cursor-pointer transition-colors"
+          className="sm:ml-auto px-2 py-1 clip-tag font-mono text-[10px] uppercase tracking-hud-tight border cursor-pointer transition-colors"
           style={{
             color: "var(--color-orange)",
             borderColor: "var(--color-orange)",
@@ -90,7 +90,7 @@ export function Vault() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-3">
+      <div className="flex-1 overflow-y-auto px-3 py-3 sm:px-4">
         {loading ? (
           <div className="text-center font-mono text-[11px] text-[var(--color-dim)] italic py-8">
             ▸ cargando…
@@ -100,7 +100,7 @@ export function Vault() {
             sin tokens guardados. agregá uno con "+ nuevo"
           </div>
         ) : (
-          <table className="w-full font-mono text-[11px]">
+          <div className="overflow-x-auto"><table className="min-w-[680px] w-full font-mono text-[11px]">
             <thead>
               <tr
                 className="text-left text-[9px] uppercase tracking-hud-tight text-[var(--color-dim)] border-b"
@@ -153,7 +153,7 @@ export function Vault() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 

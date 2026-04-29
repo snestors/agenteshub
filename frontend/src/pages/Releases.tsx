@@ -34,7 +34,7 @@ export function Releases() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto px-6 py-6">
+      <div className="flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-6">
         {error && (
           <p className="font-mono text-sm text-[var(--color-danger)]">{error}</p>
         )}
@@ -66,7 +66,7 @@ function ReleaseNotes({ content, currentVersion }: { content: string; currentVer
   const sections = content.split(/^(?=## )/m).filter(Boolean);
 
   return (
-    <div className="flex flex-col gap-6 max-w-2xl">
+    <div className="flex max-w-2xl flex-col gap-4 sm:gap-6">
       {sections.map((section, i) => {
         const lines = section.trimEnd().split("\n");
         const heading = lines[0].replace(/^#+\s*/, "").trim();
@@ -92,7 +92,7 @@ function ReleaseNotes({ content, currentVersion }: { content: string; currentVer
           >
             {/* Section header */}
             <div
-              className="flex items-center justify-between px-4 py-2 border-b border-[var(--color-line)]"
+              className="flex flex-col items-start gap-2 px-3 py-2 border-b border-[var(--color-line)] sm:flex-row sm:items-center sm:justify-between sm:px-4"
               style={isCurrent ? {
                 borderColor: "var(--color-lime)",
                 background: "rgba(163,255,78,0.04)",
@@ -119,7 +119,7 @@ function ReleaseNotes({ content, currentVersion }: { content: string; currentVer
             </div>
 
             {/* Body */}
-            <div className="px-4 py-3 font-mono text-xs text-[var(--color-dim)] leading-relaxed">
+            <div className="px-3 py-3 font-mono text-xs text-[var(--color-dim)] leading-relaxed sm:px-4">
               <MarkdownBody content={body} />
             </div>
           </div>

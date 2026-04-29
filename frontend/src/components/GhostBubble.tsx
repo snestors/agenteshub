@@ -319,7 +319,7 @@ function formatToolStats(s?: Record<string, unknown>): string {
 
 export function GhostBubble({ data }: { data: GhostBubbleData }) {
   return (
-    <div className="flex gap-3 items-start py-2 px-1">
+    <div className="flex gap-2 items-start py-2 px-0 sm:gap-3 sm:px-1">
       {/* avatar */}
       <div
         className="w-6 h-6 shrink-0 flex items-center justify-center font-display font-bold text-[10px]"
@@ -353,7 +353,7 @@ export function GhostBubble({ data }: { data: GhostBubbleData }) {
         </div>
 
         <div
-          className="font-mono text-[12.5px] leading-[1.55] text-[var(--color-fg)] break-words px-3 py-2 clip-hud-sm border"
+          className="font-mono text-[12.5px] leading-[1.55] text-[var(--color-fg)] break-words px-2.5 py-2 clip-hud-sm border sm:px-3"
           style={{
             background: "rgba(255,78,214,0.04)",
             borderColor: "rgba(255,78,214,0.20)",

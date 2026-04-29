@@ -190,7 +190,7 @@ export function Subagents() {
 
       {/* tab + filter bar */}
       <div
-        className="px-4 py-3 border-b flex items-center gap-3 flex-wrap"
+        className="px-3 py-3 border-b flex items-center gap-3 flex-wrap sm:px-4"
         style={{ borderColor: "var(--color-line)" }}
       >
         <GitBranch size={14} strokeWidth={1.6} style={{ color: "var(--color-cyan)" }} />
@@ -227,12 +227,12 @@ export function Subagents() {
             ))}
           </>
         )}
-        <span className="ml-auto font-mono text-[10px] text-[var(--color-dim)] tracking-hud-tight">
+        <span className="sm:ml-auto font-mono text-[10px] text-[var(--color-dim)] tracking-hud-tight">
           {tab === "tree" ? `${groups.length} parents · ${items.length} subagents` : `${items.length} registros`}
         </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-3">
+      <div className="flex-1 overflow-y-auto px-3 py-3 sm:px-4">
         {loading ? (
           <Empty msg="▸ cargando…" />
         ) : items.length === 0 ? (
@@ -329,7 +329,7 @@ function ParentCard({
             session · {group.sessionID.slice(0, 8)}…
           </div>
         </div>
-        <div className="flex items-center gap-3 font-mono text-[10px] tabular-nums shrink-0">
+        <div className="flex flex-wrap items-center justify-end gap-2 font-mono text-[10px] tabular-nums shrink-0 sm:gap-3">
           {group.running > 0 && (
             <span className="flex items-center gap-1" style={{ color: "var(--color-orange)" }}>
               <Loader2 size={10} strokeWidth={2} className="animate-spin" />
@@ -434,7 +434,7 @@ function HistoryTable({
   onSelect: (s: Subagent) => void;
 }) {
   return (
-    <table className="w-full font-mono text-[11px]">
+    <div className="overflow-x-auto"><table className="min-w-[760px] w-full font-mono text-[11px]">
       <thead>
         <tr
           className="text-left text-[9px] uppercase tracking-hud-tight text-[var(--color-dim)] border-b"
@@ -484,7 +484,7 @@ function HistoryTable({
           );
         })}
       </tbody>
-    </table>
+    </table></div>
   );
 }
 
@@ -500,7 +500,7 @@ function SubagentDetail({ subagent, onClose }: { subagent: Subagent; onClose: ()
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center"
+      className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto py-4"
       style={{ background: "rgba(2, 4, 14, 0.65)", backdropFilter: "blur(2px)" }}
       onClick={onClose}
     >
@@ -535,7 +535,7 @@ function SubagentDetail({ subagent, onClose }: { subagent: Subagent; onClose: ()
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 font-mono text-[11px]">
+        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3 font-mono text-[11px] sm:px-4">
           <DetailRow label="status" value={subagent.status} accent={tone.color} />
           <DetailRow label="started" value={fmtTime(subagent.started_at)} />
           <DetailRow label="duration" value={fmtDuration(subagent.started_at, subagent.finished_at)} />

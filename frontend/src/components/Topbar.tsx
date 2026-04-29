@@ -18,13 +18,13 @@ export function Topbar({ breadcrumb, status, right }: TopbarProps) {
   const tone = status?.tone ? TONE[status.tone] : "var(--color-lime)";
   return (
     <header
-      className="flex items-center justify-between px-6 py-3 border-b border-[var(--color-line)] relative z-10"
+      className="flex flex-col gap-2 px-3 py-2 border-b border-[var(--color-line)] relative z-10 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-3"
       style={{
         background:
           "linear-gradient(180deg, rgba(12,18,40,0.9), rgba(6,8,20,0.4))",
       }}
     >
-      <nav className="flex items-center gap-2 font-mono text-[11px] tracking-hud-tight">
+      <nav className="flex max-w-full min-w-0 items-center gap-2 overflow-x-auto whitespace-nowrap font-mono text-[10px] tracking-hud-tight sm:text-[11px]">
         {breadcrumb.map((crumb, i) => {
           const isLast = i === breadcrumb.length - 1;
           const className = isLast
@@ -47,11 +47,11 @@ export function Topbar({ breadcrumb, status, right }: TopbarProps) {
         })}
       </nav>
 
-      <div className="flex items-center gap-4">
+      <div className="flex w-full min-w-0 items-center justify-between gap-2 sm:w-auto sm:justify-end sm:gap-4">
         {right}
         {status && (
           <div
-            className="px-3 py-1 clip-tag font-mono text-[10px] tracking-hud font-semibold flex items-center gap-2"
+            className="shrink-0 px-2 py-1 clip-tag font-mono text-[9px] tracking-hud font-semibold flex items-center gap-2 sm:px-3 sm:text-[10px]"
             style={{
               border: `1px solid ${tone}`,
               background: `linear-gradient(90deg, ${tone}25, transparent)`,

@@ -208,7 +208,7 @@ export function Composer({ onSend, disabled }: ComposerProps) {
 
   return (
     <div
-      className="flex items-end gap-3 px-4 py-3 border-t border-[var(--color-line)]"
+      className="flex items-end gap-2 px-2 py-2 border-t border-[var(--color-line)] sm:gap-3 sm:px-4 sm:py-3"
       style={{ background: "rgba(0,0,0,0.35)" }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -223,7 +223,7 @@ export function Composer({ onSend, disabled }: ComposerProps) {
       />
 
       <div
-        className="flex-1 flex flex-col px-3 py-2 clip-hud-sm border transition-colors"
+        className="min-w-0 flex-1 flex flex-col px-2 py-2 clip-hud-sm border transition-colors sm:px-3"
         style={{
           background: dragOver ? "rgba(163, 255, 78, 0.08)" : "rgba(0,0,0,0.45)",
           borderColor: dragOver
@@ -232,11 +232,11 @@ export function Composer({ onSend, disabled }: ComposerProps) {
         }}
       >
         {(pastes.length > 0 || attachments.length > 0 || uploading > 0) && (
-          <div className="flex flex-wrap gap-1 mb-1.5">
+          <div className="flex flex-wrap gap-1 mb-1.5 overflow-hidden">
             {pastes.map((p) => (
               <span
                 key={`paste-${p.id}`}
-                className="inline-flex items-center gap-1 px-2 py-0.5 clip-tag font-mono text-[10px] tracking-hud-tight"
+                className="inline-flex max-w-full items-center gap-1 px-2 py-0.5 clip-tag font-mono text-[10px] tracking-hud-tight"
                 style={{
                   background: "rgba(94, 240, 255, 0.10)",
                   border: "1px solid rgba(94, 240, 255, 0.45)",
@@ -244,7 +244,7 @@ export function Composer({ onSend, disabled }: ComposerProps) {
                 }}
                 title={`${p.chars} chars · ${p.lines} lines`}
               >
-                <span>[Pasted #{p.id} +{p.lines} lines]</span>
+                <span className="truncate">[Pasted #{p.id} +{p.lines} lines]</span>
                 <button
                   type="button"
                   onClick={() => removePaste(p.id)}
@@ -259,7 +259,7 @@ export function Composer({ onSend, disabled }: ComposerProps) {
             {attachments.map((a) => (
               <span
                 key={`att-${a.id}`}
-                className="inline-flex items-center gap-1 px-2 py-0.5 clip-tag font-mono text-[10px] tracking-hud-tight"
+                className="inline-flex max-w-full items-center gap-1 px-2 py-0.5 clip-tag font-mono text-[10px] tracking-hud-tight"
                 style={{
                   background: a.pending
                     ? "rgba(255, 159, 67, 0.10)"
@@ -278,7 +278,7 @@ export function Composer({ onSend, disabled }: ComposerProps) {
                 }
               >
                 <Paperclip size={10} strokeWidth={2.2} />
-                <span>
+                <span className="max-w-[180px] truncate sm:max-w-[260px]">
                   {a.name} · {fmtSize(a.size)}
                   {a.pending ? " · pending" : ""}
                 </span>
@@ -308,7 +308,7 @@ export function Composer({ onSend, disabled }: ComposerProps) {
           </div>
         )}
 
-        <div className="flex items-start gap-2">
+        <div className="flex min-w-0 items-start gap-1.5 sm:gap-2">
           <button
             type="button"
             onClick={openFilePicker}
@@ -345,10 +345,10 @@ export function Composer({ onSend, disabled }: ComposerProps) {
                 ? "soltá los archivos para adjuntar"
                 : "habla con el agente…"
             }
-            className="flex-1 bg-transparent border-none outline-none resize-none font-mono text-[13px] text-[var(--color-fg)] placeholder:text-[var(--color-dim)] py-1"
+            className="min-w-0 flex-1 bg-transparent border-none outline-none resize-none font-mono text-[13px] text-[var(--color-fg)] placeholder:text-[var(--color-dim)] py-1"
             style={{ minHeight: 22 }}
           />
-          <span className="font-mono text-[9px] text-[var(--color-dim)] tracking-hud-tight pt-1.5 shrink-0">
+          <span className="hidden font-mono text-[9px] text-[var(--color-dim)] tracking-hud-tight pt-1.5 shrink-0 sm:inline">
             ⏎ ENVIAR
           </span>
         </div>
@@ -357,7 +357,7 @@ export function Composer({ onSend, disabled }: ComposerProps) {
       <button
         onClick={() => void submit()}
         disabled={!canSend}
-        className="h-10 px-4 clip-tag font-mono text-[11px] uppercase tracking-hud font-semibold flex items-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+        className="h-10 w-10 shrink-0 justify-center px-0 clip-tag font-mono text-[11px] uppercase tracking-hud font-semibold flex items-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer sm:w-auto sm:px-4"
         style={{
           background: "rgba(255, 78, 214, 0.12)",
           border: "1px solid var(--color-magenta)",
@@ -366,7 +366,7 @@ export function Composer({ onSend, disabled }: ComposerProps) {
         }}
       >
         <Send size={13} strokeWidth={1.8} />
-        {pending ? "..." : "Enviar"}
+        <span className="hidden sm:inline">{pending ? "..." : "Enviar"}</span>
       </button>
     </div>
   );

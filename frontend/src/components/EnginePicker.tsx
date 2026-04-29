@@ -116,7 +116,7 @@ export function EnginePicker({
 
       {/* dropdown panel — anchored above the badge by parent */}
       <div
-        className="absolute bottom-full left-0 mb-2 z-50 clip-hud-sm font-mono text-[11px] tracking-hud-tight"
+        className="fixed left-3 right-3 bottom-24 z-50 clip-hud-sm font-mono text-[11px] tracking-hud-tight sm:absolute sm:bottom-full sm:left-0 sm:right-auto sm:mb-2 sm:w-[300px]"
         style={{
           background: "rgba(10, 15, 36, 0.95)",
           border: "1px solid rgba(94, 240, 255, 0.55)",

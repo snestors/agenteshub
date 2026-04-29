@@ -58,9 +58,9 @@ function AgentList() {
         status={error ? { label: "ERROR", tone: "danger" } : { label: "READY", tone: "ok" }}
         right={<HudButton onClick={() => setOpen(true)} label="+ nuevo agente" accent="var(--color-orange)" />}
       />
-      <div className="flex-1 min-h-0 p-4 overflow-y-auto">
+      <div className="flex-1 min-h-0 p-2 overflow-y-auto sm:p-4">
         {error && <ErrorBox msg={error} />}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 xl:gap-4">
           {agents.map((a) => {
             const tone = a.enabled ? "var(--color-lime)" : "var(--color-danger)";
             return (
@@ -137,10 +137,10 @@ function AgentDetail({ id }: { id: number }) {
           </div>
         }
       />
-      <div className="flex-1 min-h-0 p-4">
+      <div className="flex-1 min-h-0 p-2 sm:p-4">
         <HudPanel title={agent?.name ?? "mini-agente"} sub={agent ? `${agent.engine} · ${schedules.length} schedules` : "loading"} accent="orange">
           {error && <ErrorBox msg={error} />}
-          <div className="flex gap-2 mb-3">
+          <div className="flex flex-wrap gap-2 mb-3">
             {(["schedules", "runs", "run"] as Tab[]).map((t) => (
               <button
                 key={t}
@@ -184,7 +184,7 @@ function SchedulesTab({ agent, schedules, onChanged }: { agent: MiniAgent; sched
   }
 
   return (
-    <div className="flex-1 min-h-0 grid grid-cols-[1fr_360px] gap-4">
+    <div className="flex-1 min-h-0 grid grid-cols-1 gap-4 overflow-y-auto xl:grid-cols-[1fr_360px] xl:overflow-hidden">
       <div className="overflow-y-auto pr-1">
         {schedules.map((s) => (
           <div key={s.id} className="mb-2 px-3 py-2 clip-hud-sm font-mono text-[10px]" style={{ border: "1px solid var(--color-line)", background: "rgba(255,255,255,0.03)" }}>
@@ -231,7 +231,7 @@ function RunsTab({ runs, onRefresh }: { runs: AgentRun[]; onRefresh: () => Promi
       </div>
       {runs.map((r) => (
         <div key={r.id} className="mb-2 px-3 py-2 clip-hud-sm font-mono text-[10px]" style={{ border: "1px solid var(--color-line)", background: "rgba(255,255,255,0.03)" }}>
-          <button onClick={() => setOpen(open === r.id ? null : r.id)} className="w-full grid grid-cols-[120px_80px_80px_1fr_80px] gap-2 text-left cursor-pointer">
+          <button onClick={() => setOpen(open === r.id ? null : r.id)} className="w-full grid grid-cols-2 gap-2 text-left cursor-pointer sm:grid-cols-[120px_80px_80px_1fr_80px]">
             <span className="text-[var(--color-dim)]">{new Date(r.started_at * 1000).toLocaleString()}</span>
             <span className="text-[var(--color-cyan)]">{r.trigger}</span>
             <StatusText status={r.status} />
@@ -346,7 +346,7 @@ function RunNowTab({ agent, onDone }: { agent: MiniAgent; onDone: () => Promise<
   }
 
   return (
-    <div className="flex-1 min-h-0 grid grid-cols-[360px_1fr] gap-4">
+    <div className="flex-1 min-h-0 grid grid-cols-1 gap-4 overflow-y-auto xl:grid-cols-[360px_1fr] xl:overflow-hidden">
       <div className="flex flex-col">
         <label className="font-mono text-[10px] text-[var(--color-dim)] tracking-hud uppercase">prompt opcional</label>
         <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} className="mt-1 min-h-[220px] bg-transparent outline-none px-3 py-2 clip-hud-sm font-mono text-[12px] text-[var(--color-fg)]" style={{ border: "1px solid var(--color-line)" }} />
@@ -381,8 +381,8 @@ function AgentModal({ engines, onClose, onCreated }: { engines: EngineDef[]; onC
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <form onSubmit={submit} className="w-[620px]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 py-4">
+      <form onSubmit={submit} className="mx-4 w-full max-w-[620px]">
         <HudPanel title="nuevo mini-agente" sub="persistente · manual/cron" accent="orange">
           <Field label="name" value={name} onChange={setName} />
           <Field label="description" value={description} onChange={setDescription} />

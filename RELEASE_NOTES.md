@@ -8,6 +8,15 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.37 — 2026-04-29
+
+### Changed
+- **UI web-mobile organizada**: el shell ahora oculta el sidebar desktop en pantallas chicas y agrega navegación mobile inferior con badges de notificaciones, padding seguro y soporte `viewport-fit=cover`.
+- **Layouts responsivos en pantallas clave**: chat, project chat, proyectos, mini-agentes, topics, vault, skills, sub-agentes, system, diagramas y releases reducen padding, apilan grids y habilitan scroll horizontal donde hay tablas/status bars anchas.
+- **Composer y barras de estado ajustados para móvil**: botones compactos, chips truncados, controles con `overflow-x-auto`, `100dvh` y inputs a 16px para evitar zoom automático en Safari/iOS.
+
+---
+
 ## v0.2.36 — 2026-04-29
 
 ### Changed

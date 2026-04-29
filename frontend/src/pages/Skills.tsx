@@ -72,7 +72,7 @@ export function Skills() {
       />
 
       <div
-        className="px-4 py-3 border-b flex items-center gap-3 flex-wrap"
+        className="px-3 py-3 border-b flex items-center gap-3 flex-wrap sm:px-4"
         style={{ borderColor: "var(--color-line)" }}
       >
         <Sparkles size={14} strokeWidth={1.6} style={{ color: "var(--color-cyan)" }} />
@@ -100,7 +100,7 @@ export function Skills() {
           type="button"
           onClick={() => void handleSync()}
           disabled={syncing}
-          className="ml-auto px-2 py-1 clip-tag font-mono text-[10px] uppercase tracking-hud-tight border cursor-pointer transition-colors disabled:opacity-60"
+          className="sm:ml-auto px-2 py-1 clip-tag font-mono text-[10px] uppercase tracking-hud-tight border cursor-pointer transition-colors disabled:opacity-60"
           style={{
             color: "var(--color-cyan)",
             borderColor: "var(--color-cyan)",
@@ -122,7 +122,7 @@ export function Skills() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-4 py-3">
+      <div className="flex-1 overflow-y-auto px-3 py-3 sm:px-4">
         {loading ? (
           <div className="text-center font-mono text-[11px] text-[var(--color-dim)] italic py-8">
             ▸ cargando…
@@ -132,7 +132,7 @@ export function Skills() {
             sin skills aún. correlas con "sync now"
           </div>
         ) : (
-          <table className="w-full font-mono text-[11px]">
+          <div className="overflow-x-auto"><table className="min-w-[720px] w-full font-mono text-[11px]">
             <thead>
               <tr
                 className="text-left text-[9px] uppercase tracking-hud-tight text-[var(--color-dim)] border-b"
@@ -167,7 +167,7 @@ export function Skills() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 

@@ -21,7 +21,7 @@ export function Placeholder({
         status={{ label: "EN CONSTRUCCIÓN", tone: "warn" }}
       />
 
-      <div className="flex-1 min-h-0 p-4 overflow-hidden">
+      <div className="flex-1 min-h-0 p-2 overflow-hidden sm:p-4">
         <HudPanel title={title} sub={subtitle} accent={accent} className="h-full">
           <div className="flex-1 grid place-items-center">
             <div className="max-w-md text-center px-6 py-10">

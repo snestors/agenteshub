@@ -410,7 +410,7 @@ export function ChatMain() {
         }
       />
 
-      <div className="flex-1 min-h-0 p-4 overflow-hidden">
+      <div className="flex-1 min-h-0 p-2 overflow-hidden sm:p-4">
         <HudPanel
           title="agente principal"
           sub={
@@ -489,7 +489,7 @@ export function ChatMain() {
             </div>
           )}
 
-          <div className="mt-2 -mx-4 -mb-3">
+          <div className="mt-2 -mx-3 -mb-2 sm:-mx-4 sm:-mb-3">
             <Composer onSend={handleSend} />
             <StatusBar transportLabel={transportLabel} />
           </div>
@@ -511,7 +511,7 @@ function SearchBar({
   resultsCount?: number;
 }) {
   return (
-    <div className="mb-2 flex items-center gap-2">
+    <div className="mb-2 flex flex-wrap items-center gap-2">
       <span
         className="font-mono text-[10px] uppercase tracking-hud-tight text-[var(--color-dim)] flex items-center gap-1"
         style={{ minWidth: 60 }}
@@ -523,7 +523,7 @@ function SearchBar({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="palabra clave (FTS5)…"
-        className="flex-1 font-mono text-[11.5px] px-2 py-1 clip-tag border bg-[rgba(255,255,255,0.02)] text-[var(--color-fg)] focus:outline-none"
+        className="min-w-[180px] flex-1 font-mono text-[11.5px] px-2 py-1 clip-tag border bg-[rgba(255,255,255,0.02)] text-[var(--color-fg)] focus:outline-none"
         style={{ borderColor: "var(--color-line)" }}
       />
       {value && (

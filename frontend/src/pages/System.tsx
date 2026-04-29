@@ -188,9 +188,9 @@ export function System() {
         }
       />
 
-      <div className="flex-1 min-h-0 p-4 overflow-y-auto">
+      <div className="flex-1 min-h-0 p-2 overflow-y-auto sm:p-4">
         {/* ─── top stats row: 5 cards with gauges ─── */}
-        <div className="grid grid-cols-5 gap-3 mb-4">
+        <div className="grid grid-cols-2 gap-3 mb-4 sm:grid-cols-3 xl:grid-cols-5">
           <StatCard accent="cyan">
             <Gauge
               value={stats?.cpu_pct ?? 0}
@@ -267,9 +267,9 @@ export function System() {
         </div>
 
         {/* ─── main grid: services (big left) + connections + processes (right) ─── */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           {/* services panel — spans 2 cols */}
-          <div className="col-span-2 min-h-[420px]">
+          <div className="min-h-[420px] xl:col-span-2">
             <HudPanel
               title="servicios systemd"
               sub={`${services.filter((s) => s.state === "active").length}/${services.length} activos`}
@@ -281,7 +281,7 @@ export function System() {
                   ▸ sin datos · esperando backend…
                 </div>
               ) : (
-                <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto pr-1">
                   {services.map((s) => (
                     <ServiceRow
                       key={s.name}
@@ -307,7 +307,7 @@ export function System() {
           </div>
 
           {/* right column: connections + processes */}
-          <div className="grid grid-rows-[auto_1fr] gap-4 min-h-[420px]">
+          <div className="grid gap-4 min-h-[420px] xl:grid-rows-[auto_1fr]">
             <HudPanel title="conexiones" sub="wa · ws · tunnels" accent="magenta">
               <ConnectionsPanel conn={connections} />
             </HudPanel>
@@ -337,7 +337,7 @@ export function System() {
         {stats && stats.disks && stats.disks.length > 1 && (
           <div className="mt-4">
             <HudPanel title="almacenamiento" sub={`${stats.disks.length} volúmenes`} accent="orange">
-              <div className="grid grid-cols-2 gap-3 py-2">
+              <div className="grid grid-cols-1 gap-3 py-2 sm:grid-cols-2">
                 {stats.disks.map((d) => (
                   <DiskRow key={d.mount} mount={d.mount} used={d.used_gb} total={d.total_gb} pct={d.used_pct} />
                 ))}
@@ -405,7 +405,7 @@ function ServiceRow({
 
   return (
     <div
-      className="grid items-center gap-3 py-2 border-b border-[var(--color-line)] font-mono text-[11px]"
+      className="grid min-w-[520px] items-center gap-3 py-2 border-b border-[var(--color-line)] font-mono text-[11px]"
       style={{ gridTemplateColumns: "12px 1fr auto auto auto" }}
     >
       <span
