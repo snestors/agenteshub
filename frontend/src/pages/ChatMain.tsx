@@ -96,6 +96,11 @@ export function ChatMain() {
 
   const runtimeToGhost = React.useCallback((run: ConversationRuntime) => {
     if (!run.session_id) return null;
+    // Finished runs with no captured trace would render an empty ghost stuck
+    // on "pensando…" forever — skip them and let the persisted message speak.
+    const hasContent =
+      !!run.text || !!run.thinking || (run.tools?.length ?? 0) > 0;
+    if (run.status !== "running" && !hasContent) return null;
     return {
       id: `stream-${run.session_id}`,
       thinking: run.thinking ?? "",

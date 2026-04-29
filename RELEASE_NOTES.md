@@ -8,6 +8,14 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.33 — 2026-04-29
+
+### Fixed
+- **Project/main chat ya no se queda en "MAIN está pensando…" para siempre**: cuando un `conversation_runs` quedaba en estado `done` con texto/thinking/tools vacíos (p. ej. un turn que terminó sin emitir eventos), `runtimeToGhost` igual hidrataba un ghost vacío que bloqueaba el composer y mostraba "pensando…" eternamente. Ahora se ignora ese caso y el chat queda usable.
+- **Botón cancelar ahora siempre desbloquea la UI**: si el backend responde 409 ("no turn running") porque el run ya terminó pero la UI tenía un ghost stale, el cancel local resetea pending/ghosts/refresh igual en lugar de dejar al usuario trabado.
+
+---
+
 ## v0.2.32 — 2026-04-29
 
 ### Added

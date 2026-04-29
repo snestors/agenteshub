@@ -96,6 +96,12 @@ function projectMessageToAgent(m: ProjectMessage): AgentMessage {
 
 function runtimeToGhost(run: ConversationRuntime): GhostBubbleData | null {
   if (!run.session_id) return null;
+  // A finished run with no captured trace (text/thinking/tools) leaves nothing
+  // worth showing — hydrating it produces a stuck "pensando…" bubble that
+  // blocks the composer even though no turn is running.
+  const hasContent =
+    !!run.text || !!run.thinking || (run.tools?.length ?? 0) > 0;
+  if (run.status !== "running" && !hasContent) return null;
   const tools: ToolCall[] = (run.tools ?? []).map((t: RuntimeToolState, idx) => ({
     id: t.id || `${run.session_id}-${idx}`,
     name: t.name,
@@ -332,12 +338,14 @@ export function ProjectChat({
   async function handleCancel() {
     try {
       await api.cancelProjectRun(projectId, sessionId);
-      setPending(false);
-      setGhosts({});
-      await refresh();
     } catch {
-      // best-effort
+      // 409 "no turn running" is common when the backend already finished
+      // but the UI still has a stale ghost. Fall through and reset state
+      // anyway — leaving the user trapped is worse than an idempotent reset.
     }
+    setPending(false);
+    setGhosts({});
+    await refresh();
   }
 
   const transportLabel =
