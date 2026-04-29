@@ -414,6 +414,37 @@ func (s *Server) handleOpenSpecSpecsList(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]any{"specs": specs})
 }
 
+func (s *Server) handleOpenSpecSpecGet(w http.ResponseWriter, r *http.Request) {
+	project, ok := s.projectFromRequest(w, r)
+	if !ok {
+		return
+	}
+	capability := strings.TrimSpace(chi.URLParam(r, "capability"))
+	if !openspecSlugRE.MatchString(capability) {
+		http.Error(w, "capability must be a slug", http.StatusBadRequest)
+		return
+	}
+	if err := projectfs.EnsureOpenSpecLayout(project.Path); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	specPath := filepath.Join(project.Path, "openspec", "specs", capability, "spec.md")
+	raw, err := os.ReadFile(specPath)
+	if os.IsNotExist(err) {
+		http.Error(w, "capability not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, openspecSpecWire{
+		Capability: capability,
+		Path:       filepath.ToSlash(filepath.Join("openspec", "specs", capability, "spec.md")),
+		Content:    string(raw),
+	})
+}
+
 func (s *Server) regenerateOpenSpecPhase(ctx context.Context, project *store.Project, change *store.OpenSpecChange) error {
 	phase := change.CurrentPhase
 	fileName := phase + ".md"

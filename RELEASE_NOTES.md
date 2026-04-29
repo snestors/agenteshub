@@ -8,6 +8,20 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.36 — 2026-04-29
+
+### Changed
+- **Archive de OpenSpec ahora mergea deltas en vez de pisar** (camino A fase 2): `applySpecDeltas` recibe `changeName` + `archivedAt` y, cuando una capability ya existe en `openspec/specs/`, appendea el delta con un separador `---` y un header `## Delta from change: <name> (archived YYYY-MM-DD)`. Si la capability es nueva, copia el delta tal cual. Esto permite que cada change archivado sume contenido a las specs vivas sin perder lo previo, dejando trazabilidad inline. Archivo: `internal/projects/openspec.go`.
+
+### Added
+- **`GET /api/projects/{id}/openspec/specs/{capability}`**: handler nuevo para leer la spec viva de una capability específica. Devuelve `{capability, path, content}` o 404 si no existe. Cabe junto al `GET /api/projects/{id}/openspec/specs` que ya listaba todas.
+- **Tests Go para el flujo de archive y merge** (`internal/projects/openspec_test.go`): cubre los casos sin deltas (no-op), primer apply (copia verbatim), apply subsiguiente (append con header verificable), capability nueva conviviendo con existente, y archive completo (rename + merge atómico). Sin estos tests el merge era una caja negra.
+
+### Why
+- Fase 2 del Camino A según `ROADMAP.md`. Sin merge, las specs vivas del proyecto quedaban congeladas o se perdían cada vez que un change archivado tocaba la misma capability. Ahora cada delta queda registrado con su origen y fecha.
+
+---
+
 ## v0.2.35 — 2026-04-29
 
 ### Added (docs)

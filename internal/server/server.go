@@ -169,6 +169,7 @@ func (s *Server) routes() http.Handler {
 		pr.Post("/api/projects/{id}/openspec/changes/{name}/reject", s.handleOpenSpecReject)
 		pr.Post("/api/projects/{id}/openspec/changes/{name}/feedback", s.handleOpenSpecFeedback)
 		pr.Get("/api/projects/{id}/openspec/specs", s.handleOpenSpecSpecsList)
+		pr.Get("/api/projects/{id}/openspec/specs/{capability}", s.handleOpenSpecSpecGet)
 		pr.Get("/api/projects/{id}/sessions", s.handleProjectSessionsList)
 		pr.Post("/api/projects/{id}/sessions", s.handleProjectSessionsCreate)
 		pr.Delete("/api/projects/{id}/sessions/{sid}", s.handleProjectSessionDelete)

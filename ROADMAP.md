@@ -9,8 +9,8 @@ Path: `/home/nestor/agenthub`
 
 ## Estado actual
 
-**Versión**: 0.2.35
-**Última release**: 2026-04-29 — `bootstrap-living-specs`
+**Versión**: 0.2.36
+**Última release**: 2026-04-29 — `archive-merges-deltas`
 
 Lo que está consolidado y estable:
 - Chat unificado web+WA, project sessions, mini-agents, topics, vault, records, slash commands.
@@ -43,17 +43,18 @@ Estrategia: **incremental**. Cada fase entrega valor solo, se archiva, se valida
 
 Es 100% docs. Cero código backend o frontend tocado.
 
-### Fase 2 — `archive-merges-deltas`
+### Fase 2 — `archive-merges-deltas` (✅ completada 2026-04-29, v0.2.36)
 
 **Objetivo**: que cuando un change OpenSpec se archive, sus deltas se mergeen a `openspec/specs/<capability>/spec.md` para que la spec del proyecto evolucione automáticamente.
 
-Tareas:
-- Cambiar `projectfs.ArchiveChange` para copiar/mergear `changes/<name>/specs/<capability>/spec.md` a `openspec/specs/<capability>/spec.md`.
-- Agregar handler `GET /api/projects/{id}/openspec/specs/{capability}` para leer la spec viva.
-- UI: botón "ver spec viva" desde cada capability detectada.
-- Test de integración: archivar un change con delta y verificar el merge.
+Hecho:
+- ✅ `applySpecDeltas` ahora mergea con append + header `## Delta from change: <name> (archived YYYY-MM-DD)`. Primera apply copia verbatim; subsiguientes appendean.
+- ✅ Handler `GET /api/projects/{id}/openspec/specs/{capability}` para leer una spec viva específica (junto al list que ya existía).
+- ✅ Tests en `internal/projects/openspec_test.go` cubriendo: no-op sin deltas, primer apply, append posterior con header verificable, capability nueva junto a existente, archive completo con rename + merge.
 
-Riesgo: conflictos de merge entre changes que tocan la misma capability. Estrategia inicial: **append** secciones del delta al final con header del change name. La sofisticación viene después si hace falta.
+Pendiente / out-of-scope de esta fase:
+- UI: botón "ver spec viva" desde cada capability — queda para más adelante cuando haya más volumen de specs.
+- Resolución sofisticada de conflictos cuando dos changes pisan la misma sección — la estrategia append actual deja todo trazable, suficiente por ahora.
 
 ### Fase 3 — `explore-phase`
 

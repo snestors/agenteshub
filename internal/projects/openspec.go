@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 var changeFiles = map[string]bool{
@@ -97,7 +98,7 @@ func ArchiveChange(projectPath, changeName string) error {
 	} else if !os.IsNotExist(err) {
 		return fmt.Errorf("stat archive dir: %w", err)
 	}
-	if err := applySpecDeltas(filepath.Join(changeDir, "specs"), filepath.Join(root, "specs")); err != nil {
+	if err := applySpecDeltas(filepath.Join(changeDir, "specs"), filepath.Join(root, "specs"), name, time.Now()); err != nil {
 		return err
 	}
 	if err := os.Rename(changeDir, archiveDir); err != nil {
@@ -125,7 +126,14 @@ func openSpecRoot(projectPath string) (string, error) {
 	return filepath.Join(abs, "openspec"), nil
 }
 
-func applySpecDeltas(deltaRoot, specsRoot string) error {
+// applySpecDeltas mergea los deltas de un change archivado en las specs vivas del proyecto.
+//
+// Para cada `<capability>/spec.md` dentro de deltaRoot:
+//   - Si el destino NO existe: copia el delta tal cual (primera vez que se ve la capability).
+//   - Si el destino EXISTE: appendea una sección con header
+//     "## Delta from change: <changeName> (archived YYYY-MM-DD)" seguida del contenido del delta.
+//     Esto preserva la spec viva original y deja trazabilidad de qué change agregó qué.
+func applySpecDeltas(deltaRoot, specsRoot, changeName string, archivedAt time.Time) error {
 	info, err := os.Stat(deltaRoot)
 	if os.IsNotExist(err) {
 		return nil
@@ -158,11 +166,39 @@ func applySpecDeltas(deltaRoot, specsRoot string) error {
 		if err != nil {
 			return err
 		}
-		if err := os.WriteFile(dst, raw, 0o644); err != nil {
-			return err
-		}
-		return nil
+		return mergeSpecDelta(dst, raw, changeName, archivedAt)
 	})
+}
+
+// mergeSpecDelta escribe el delta en dst: si el destino existe, appendea con header;
+// si no, lo crea con el contenido del delta tal cual.
+func mergeSpecDelta(dst string, delta []byte, changeName string, archivedAt time.Time) error {
+	_, err := os.Stat(dst)
+	if os.IsNotExist(err) {
+		return os.WriteFile(dst, delta, 0o644)
+	}
+	if err != nil {
+		return fmt.Errorf("stat spec dst: %w", err)
+	}
+	header := fmt.Sprintf("\n\n---\n\n## Delta from change: `%s` (archived %s)\n\n",
+		changeName, archivedAt.Format("2006-01-02"))
+	f, err := os.OpenFile(dst, os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return fmt.Errorf("open spec dst for append: %w", err)
+	}
+	defer f.Close()
+	if _, err := f.WriteString(header); err != nil {
+		return fmt.Errorf("append delta header: %w", err)
+	}
+	if _, err := f.Write(delta); err != nil {
+		return fmt.Errorf("append delta body: %w", err)
+	}
+	if len(delta) > 0 && delta[len(delta)-1] != '\n' {
+		if _, err := f.WriteString("\n"); err != nil {
+			return fmt.Errorf("append delta newline: %w", err)
+		}
+	}
+	return nil
 }
 
 func validChangeFile(fileName string) bool {
