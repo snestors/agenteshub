@@ -8,6 +8,15 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.44 — 2026-04-29
+
+### Added
+- **FCM Web Push con Firebase RelogTemperatura**: el frontend usa la Web app `1:100530365913:web:096380327c9c7151e265c8`, registra tokens FCM desde el drawer de notificaciones y los guarda en `/api/push/register`.
+- **Envío server-side vía Firebase CLI login**: el backend persiste tokens en `push_tokens`, lee/renueva el access token del login de Firebase CLI y envía notificaciones por FCM HTTP v1 al proyecto `relogtemperatura`.
+- **Service worker preparado para push**: `sw.js` ahora maneja `push` y `notificationclick`, abre la ruta enviada por la notificación y conserva el comportamiento PWA.
+
+---
+
 ## v0.2.43 — 2026-04-29
 
 ### Fixed

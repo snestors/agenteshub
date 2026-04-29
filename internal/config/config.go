@@ -69,6 +69,15 @@ type Config struct {
 	// System manager
 	ManagedServices []string
 
+	// Firebase Cloud Messaging (web push). The personal deployment uses the
+	// Firebase CLI login cache for OAuth; service-account envs can replace this
+	// later without changing the DB/UI contract.
+	FCMEnabled             bool
+	FCMProjectID           string
+	FCMPublicURL           string
+	FCMFirebaseCLI         string
+	FCMFirebaseToolsConfig string
+
 	// Modes
 	Mode string // serve | send | mcp | setup-user | session
 }
@@ -156,6 +165,12 @@ func Load() (*Config, error) {
 			"qbittorrent-nox.service",
 			"emby-server.service",
 		}),
+
+		FCMEnabled:             boolEnv("AGENTHUB_FCM_ENABLED", true),
+		FCMProjectID:           env("AGENTHUB_FCM_PROJECT_ID", "relogtemperatura"),
+		FCMPublicURL:           env("AGENTHUB_PUBLIC_URL", "https://agenthub.kyn3d.com"),
+		FCMFirebaseCLI:         env("AGENTHUB_FIREBASE_CLI", filepath.Join(home, ".npm-global/bin/firebase")),
+		FCMFirebaseToolsConfig: env("AGENTHUB_FIREBASE_TOOLS_CONFIG", filepath.Join(home, ".config/configstore/firebase-tools.json")),
 
 		Mode: env("AGENTHUB_MODE", "serve"),
 	}

@@ -521,6 +521,13 @@ export const api = {
     return request<{ token: string }>("/api/auth/refresh", { method: "POST" });
   },
 
+  async registerPushToken(token: string): Promise<void> {
+    await request<{ ok: boolean }>("/api/push/register", {
+      method: "POST",
+      body: JSON.stringify({ provider: "fcm", token }),
+    });
+  },
+
   // ─── messages ───────────────────────────────
   async listMessages(opts?: {
     before?: number;

@@ -133,6 +133,8 @@ func (s *Server) routes() http.Handler {
 		pr.Post("/api/auth/logout", s.handleLogout)
 		pr.Post("/api/auth/refresh", s.handleRefresh)
 		pr.Get("/api/auth/me", s.handleMe)
+		pr.Post("/api/push/register", s.handlePushRegister)
+		pr.Post("/api/push/test", s.handlePushTest)
 
 		// stubs (próximas tools)
 		pr.Get("/api/messages", s.handleMessagesList)

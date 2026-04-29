@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Bot, AlertTriangle, Info, X } from "lucide-react";
 import { wsClient } from "@/lib/wsClient";
 import { api } from "@/lib/api";
+import { registerFirebasePush, registerFirebasePushIfGranted } from "@/lib/firebasePush";
 
 // Web Audio API blip — synthesizes a short two-tone notification on demand.
 // We don't ship an audio file because (a) one less network request, (b) no
@@ -112,6 +113,7 @@ function parsePayload(payload: unknown): Notification | null {
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = React.useState<Notification[]>([]);
   const [isDrawerOpen, setDrawerOpen] = React.useState(false);
+  const [pushStatus, setPushStatus] = React.useState<"idle" | "registered" | "unsupported" | "denied" | "error">("idle");
 
   const push = React.useCallback((n: Notification) => {
     setItems((curr) => {
@@ -149,6 +151,21 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       items.reduce((acc, i) => (!i.read && i.kind.startsWith(prefix) ? acc + 1 : acc), 0),
     [items]
   );
+
+  React.useEffect(() => {
+    void registerFirebasePushIfGranted().then((ok) => {
+      if (ok) setPushStatus("registered");
+    });
+  }, []);
+
+  async function enablePush() {
+    try {
+      const res = await registerFirebasePush();
+      setPushStatus(res === "registered" ? "registered" : res === "denied" ? "denied" : res === "unsupported" ? "unsupported" : "error");
+    } catch {
+      setPushStatus("error");
+    }
+  }
 
   // Subscribe globally to the 'notifications' topic.
   React.useEffect(() => {
@@ -198,6 +215,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       {isDrawerOpen && (
         <NotificationDrawer
           items={items}
+          pushStatus={pushStatus}
+          onEnablePush={() => void enablePush()}
           onClose={closeDrawer}
           onDismiss={dismiss}
           onMarkRead={markRead}
@@ -227,6 +246,8 @@ interface DrawerProps {
   onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
   onClearRead: () => void;
+  pushStatus: "idle" | "registered" | "unsupported" | "denied" | "error";
+  onEnablePush: () => void;
 }
 
 function NotificationDrawer({
@@ -236,6 +257,8 @@ function NotificationDrawer({
   onMarkRead,
   onMarkAllRead,
   onClearRead,
+  pushStatus,
+  onEnablePush,
 }: DrawerProps) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -300,7 +323,7 @@ function NotificationDrawer({
           </div>
 
           {/* actions */}
-          <div className="px-4 py-2 flex gap-2 border-b" style={{ borderColor: "var(--color-line)" }}>
+          <div className="px-4 py-2 flex flex-wrap gap-2 border-b" style={{ borderColor: "var(--color-line)" }}>
             <button
               type="button"
               onClick={onMarkAllRead}
@@ -318,6 +341,16 @@ function NotificationDrawer({
               style={{ borderColor: "var(--color-line)" }}
             >
               limpiar leídas
+            </button>
+            <button
+              type="button"
+              onClick={onEnablePush}
+              disabled={pushStatus === "registered" || pushStatus === "unsupported"}
+              className="px-2 py-1 clip-tag font-mono text-[10px] uppercase tracking-hud-tight border text-[var(--color-dim)] hover:text-[var(--color-fg)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              style={{ borderColor: pushStatus === "registered" ? "var(--color-lime)" : "var(--color-line)", color: pushStatus === "registered" ? "var(--color-lime)" : undefined }}
+              title={pushStatus === "denied" ? "Permiso bloqueado en el navegador" : "Activar push FCM"}
+            >
+              {pushStatus === "registered" ? "push activo" : pushStatus === "denied" ? "push bloqueado" : "activar push"}
             </button>
           </div>
 

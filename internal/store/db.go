@@ -95,6 +95,7 @@ type Repos struct {
 	WaOutbox          *WaOutboxRepo
 	Skills            *SkillsRepo
 	SkillImprovements *SkillImprovementsRepo
+	Push              *PushRepo
 }
 
 // DB returns the underlying *sql.DB. Use only for health checks or
@@ -122,6 +123,7 @@ func NewRepos(db *sql.DB) *Repos {
 		WaOutbox:          NewWaOutboxRepo(db),
 		Skills:            NewSkillsRepo(db),
 		SkillImprovements: NewSkillImprovementsRepo(db),
+		Push:              NewPushRepo(db),
 	}
 }
 

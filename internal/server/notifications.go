@@ -45,6 +45,7 @@ func (s *Server) broadcastNotification(n Notification) {
 		return
 	}
 	s.hub.Broadcast(ws.Envelope{Type: "notification", Topic: "notifications", Payload: raw})
+	go s.sendPushNotification(context.Background(), n)
 }
 
 // NotifyAgentRunFinished is the callback shape consumed by the scheduler.
