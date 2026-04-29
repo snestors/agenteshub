@@ -384,27 +384,10 @@ export function ProjectChat({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setConfigOpen((v) => !v)}
-          className="inline-flex min-w-0 max-w-full items-center gap-2 px-2.5 py-1.5 clip-tag font-mono text-[10px] uppercase tracking-hud-tight cursor-pointer transition-opacity hover:opacity-85"
-          style={{
-            color: "var(--color-cyan)",
-            border: "1px solid rgba(94,240,255,0.55)",
-            background: "rgba(94,240,255,0.10)",
-          }}
-          aria-expanded={configOpen}
-          aria-haspopup="dialog"
-          title="Configurar sesión y modelo"
-        >
-          <Settings2 size={13} strokeWidth={1.8} className="shrink-0" />
-          <span className="shrink-0">configurar</span>
-          <span className="hidden text-[var(--color-dim)] sm:inline">·</span>
-          <span className="min-w-0 truncate normal-case text-[var(--color-fg)] sm:max-w-[360px]">
-            {sessionName ?? `sesión ${sessionId}`} · {engine ?? "engine"} · {selectedModel || "modelo"} · {selectedEffort || "effort"}
-          </span>
-        </button>
+      <div className="mb-2 flex items-center justify-end gap-2">
+        <span className="mr-auto hidden shrink-0 font-mono text-[10px] tracking-hud-tight text-[var(--color-dim)] sm:block">
+          {transportLabel}
+        </span>
 
         {isRunning && (
           <button
@@ -421,9 +404,22 @@ export function ProjectChat({
           </button>
         )}
 
-        <span className="ml-auto hidden shrink-0 font-mono text-[10px] tracking-hud-tight text-[var(--color-dim)] sm:block">
-          {transportLabel}
-        </span>
+        <button
+          type="button"
+          onClick={() => setConfigOpen((v) => !v)}
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center clip-tag cursor-pointer transition-opacity hover:opacity-85"
+          style={{
+            color: "var(--color-cyan)",
+            border: "1px solid rgba(94,240,255,0.55)",
+            background: "rgba(94,240,255,0.10)",
+          }}
+          aria-expanded={configOpen}
+          aria-haspopup="dialog"
+          aria-label="Configurar sesión y modelo"
+          title="Configurar sesión y modelo"
+        >
+          <Settings2 size={15} strokeWidth={1.9} />
+        </button>
       </div>
 
       {configOpen && (

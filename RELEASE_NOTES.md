@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.40 — 2026-04-29
+
+### Fixed
+- **Config de Project Chat compacta**: el control visible de sesión/modelo quedó reducido a un botón chico con icono de engranaje. Todos los selects y acciones siguen agrupados dentro del panel desplegable.
+
+---
+
 ## v0.2.39 — 2026-04-29
 
 ### Fixed
