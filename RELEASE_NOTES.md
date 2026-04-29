@@ -8,6 +8,16 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.34 — 2026-04-29
+
+### Fixed
+- **Chat ya no se queda en "MAIN finalizando…" tras un restart del daemon**: `runtimeToGhost` (en `ChatMain.tsx` y `ProjectChat.tsx`) ahora retorna `null` para cualquier run cuyo `status` no sea `"running"`, sin mirar si hay contenido capturado. El caso típico era hacer `safe-restart` mientras un turn estaba activo: el chunk `final` del WebSocket que limpia el ghost se perdía con la conexión, el cliente al reentrar hidrataba el ghost desde el runtime persistido (`status=done` con text streamed) y el bubble quedaba mostrando "finalizando…" para siempre, con el composer bloqueado. El mensaje persistido en `session_messages` ya cubre todo el contenido visible — el ghost solo tiene sentido mientras el run está vivo.
+
+### Changed
+- **Skill `deploy-safe-restart` v2.0**: el flujo ahora cubre el release completo (bump `VERSION` + `frontend/package.json` + entrada en `RELEASE_NOTES.md`, `pnpm run build`, build backend, smoke, promote, restart) y termina con verificación cruzada de las 4 fuentes de verdad. Bug del `-X` con módulo Go equivocado (`agenthub` en vez de `agenteshub`) corregido — venía dropeando los ldflags en silencio.
+
+---
+
 ## v0.2.33 — 2026-04-29
 
 ### Fixed

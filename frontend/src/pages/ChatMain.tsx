@@ -96,11 +96,11 @@ export function ChatMain() {
 
   const runtimeToGhost = React.useCallback((run: ConversationRuntime) => {
     if (!run.session_id) return null;
-    // Finished runs with no captured trace would render an empty ghost stuck
-    // on "pensando…" forever — skip them and let the persisted message speak.
-    const hasContent =
-      !!run.text || !!run.thinking || (run.tools?.length ?? 0) > 0;
-    if (run.status !== "running" && !hasContent) return null;
+    // Only hydrate ghosts for runs that are actually live. Finished runs are
+    // already covered by the persisted message in the conversation list;
+    // re-hydrating them locks the composer and shows "finalizando…" forever
+    // when the final WS chunk never arrives (e.g. daemon restart mid-turn).
+    if (run.status !== "running") return null;
     return {
       id: `stream-${run.session_id}`,
       thinking: run.thinking ?? "",

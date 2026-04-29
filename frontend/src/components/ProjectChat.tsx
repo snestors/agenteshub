@@ -96,12 +96,12 @@ function projectMessageToAgent(m: ProjectMessage): AgentMessage {
 
 function runtimeToGhost(run: ConversationRuntime): GhostBubbleData | null {
   if (!run.session_id) return null;
-  // A finished run with no captured trace (text/thinking/tools) leaves nothing
-  // worth showing — hydrating it produces a stuck "pensando…" bubble that
-  // blocks the composer even though no turn is running.
-  const hasContent =
-    !!run.text || !!run.thinking || (run.tools?.length ?? 0) > 0;
-  if (run.status !== "running" && !hasContent) return null;
+  // Only hydrate ghosts for runs that are actually live. A finished run is
+  // already covered by the persisted session_message; hydrating it keeps the
+  // composer disabled and surfaces a stuck "finalizando…"/"pensando…" label
+  // forever (e.g. when the daemon was restarted mid-turn so the final WS
+  // chunk that would clear the ghost never arrives).
+  if (run.status !== "running") return null;
   const tools: ToolCall[] = (run.tools ?? []).map((t: RuntimeToolState, idx) => ({
     id: t.id || `${run.session_id}-${idx}`,
     name: t.name,
