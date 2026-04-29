@@ -297,6 +297,11 @@ func setFrontendCacheHeaders(w http.ResponseWriter, urlPath string) {
 	switch {
 	case urlPath == "/" || urlPath == "/index.html":
 		setFrontendNoStore(w)
+	case urlPath == "/sw.js":
+		setFrontendNoStore(w)
+		w.Header().Set("Service-Worker-Allowed", "/")
+	case urlPath == "/manifest.webmanifest":
+		setFrontendNoStore(w)
 	case strings.HasPrefix(urlPath, "/assets/"):
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	default:

@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.46 — 2026-04-29
+
+### Fixed
+- **Service worker sin caché de Cloudflare**: `/sw.js` y el manifest ahora salen con `no-store`, y el registro usa query de versión para evitar que Chrome reciba un service worker viejo desde el edge.
+
+---
+
 ## v0.2.45 — 2026-04-29
 
 ### Fixed
