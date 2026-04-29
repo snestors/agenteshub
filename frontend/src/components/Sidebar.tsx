@@ -12,13 +12,13 @@ import {
   Network,
   Sparkles,
   Tag,
-  Menu,
   X,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useNotifications } from "@/lib/notifications";
+import { MOBILE_NAV_OPEN_EVENT } from "@/lib/mobileNav";
 import { SidebarStats } from "@/components/SidebarStats";
 
 interface NavItem {
@@ -245,6 +245,14 @@ export function MobileNav({ username }: { username?: string }) {
   const [open, setOpen] = React.useState(false);
 
   React.useEffect(() => {
+    function onOpen() {
+      setOpen(true);
+    }
+    window.addEventListener(MOBILE_NAV_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(MOBILE_NAV_OPEN_EVENT, onOpen);
+  }, []);
+
+  React.useEffect(() => {
     setOpen(false);
   }, [location.pathname]);
 
@@ -278,34 +286,6 @@ export function MobileNav({ username }: { username?: string }) {
 
   return (
     <>
-        <button
-          type="button"
-        onClick={() => setOpen(true)}
-        className="fixed left-0 top-1/2 z-40 flex -translate-y-1/2 flex-col items-center gap-1 px-2 py-3 clip-tag font-mono text-[9px] uppercase tracking-hud-tight text-[var(--color-cyan)] md:hidden"
-        style={{
-          border: "1px solid rgba(94,240,255,0.55)",
-          background: "rgba(6,8,20,0.86)",
-          boxShadow: "0 0 12px rgba(94,240,255,0.22)",
-        }}
-        aria-label="Abrir navegación"
-        aria-expanded={open}
-      >
-        <Menu size={16} strokeWidth={1.8} />
-        <span className="[writing-mode:vertical-rl] rotate-180">menu</span>
-        {unreadCount > 0 && (
-          <span
-            className="absolute -right-1 -top-1 px-1 font-display text-[9px] font-bold"
-            style={{
-              color: "var(--color-orange)",
-              background: "var(--color-bg)",
-              border: "1px solid var(--color-orange)",
-            }}
-          >
-            {unreadCount > 99 ? "99+" : unreadCount}
-          </span>
-        )}
-      </button>
-
       {open && (
         <div
           className="fixed inset-0 z-50 md:hidden"

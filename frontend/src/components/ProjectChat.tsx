@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Plus, Settings2, Trash2, X } from "lucide-react";
 import { api, DEFAULT_REASONING_EFFORTS, FALLBACK_ENGINES, type AgentMessage, type ConversationRuntime, type EngineDef, type MessageAttachmentRef, type ProjectMessage, type ProjectSession, type RuntimeToolState } from "@/lib/api";
 import { useTopic } from "@/lib/useTopic";
 import { Composer } from "@/components/Composer";
@@ -141,6 +142,7 @@ export function ProjectChat({
   const [ghosts, setGhosts] = React.useState<Record<string, GhostBubbleData>>({});
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [configOpen, setConfigOpen] = React.useState(false);
   const [engines, setEngines] = React.useState<EngineDef[]>(FALLBACK_ENGINES);
   const [modelChanging, setModelChanging] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
@@ -164,6 +166,7 @@ export function ProjectChat({
     setMessages([]);
     setGhosts({});
     setPending(false);
+    setConfigOpen(false);
     void refresh();
     // Check if a turn is already in flight (e.g. user navigated away and back).
     if (sessionId > 0) {
@@ -381,6 +384,190 @@ export function ProjectChat({
 
   return (
     <div className="flex flex-col h-full min-h-0">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setConfigOpen((v) => !v)}
+          className="inline-flex min-w-0 max-w-full items-center gap-2 px-2.5 py-1.5 clip-tag font-mono text-[10px] uppercase tracking-hud-tight cursor-pointer transition-opacity hover:opacity-85"
+          style={{
+            color: "var(--color-cyan)",
+            border: "1px solid rgba(94,240,255,0.55)",
+            background: "rgba(94,240,255,0.10)",
+          }}
+          aria-expanded={configOpen}
+          aria-haspopup="dialog"
+          title="Configurar sesión y modelo"
+        >
+          <Settings2 size={13} strokeWidth={1.8} className="shrink-0" />
+          <span className="shrink-0">configurar</span>
+          <span className="hidden text-[var(--color-dim)] sm:inline">·</span>
+          <span className="min-w-0 truncate normal-case text-[var(--color-fg)] sm:max-w-[360px]">
+            {sessionName ?? `sesión ${sessionId}`} · {engine ?? "engine"} · {selectedModel || "modelo"} · {selectedEffort || "effort"}
+          </span>
+        </button>
+
+        {isRunning && (
+          <button
+            type="button"
+            onClick={() => void handleCancel()}
+            className="px-2.5 py-1.5 clip-tag font-mono text-[10px] uppercase tracking-hud-tight cursor-pointer hover:opacity-80"
+            style={{
+              background: "rgba(255,92,122,0.08)",
+              border: "1px solid rgba(255,92,122,0.4)",
+              color: "var(--color-danger)",
+            }}
+          >
+            ✕ cancelar
+          </button>
+        )}
+
+        <span className="ml-auto hidden shrink-0 font-mono text-[10px] tracking-hud-tight text-[var(--color-dim)] sm:block">
+          {transportLabel}
+        </span>
+      </div>
+
+      {configOpen && (
+        <div
+          className="mb-2 clip-hud-sm p-3 font-mono text-[10px] tracking-hud-tight"
+          style={{
+            background: "rgba(10,15,36,0.92)",
+            border: "1px solid rgba(94,240,255,0.42)",
+            boxShadow: "0 0 16px rgba(94,240,255,0.18)",
+            color: "var(--color-fg)",
+          }}
+          role="dialog"
+          aria-label="Configurar sesión"
+        >
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="font-display text-[11px] uppercase tracking-hud text-[var(--color-cyan)]">
+              sesión · modelo
+            </div>
+            <button
+              type="button"
+              onClick={() => setConfigOpen(false)}
+              className="p-1 clip-tag text-[var(--color-dim)] hover:text-[var(--color-fg)]"
+              style={{ border: "1px solid var(--color-line)" }}
+              aria-label="Cerrar configuración"
+            >
+              <X size={13} strokeWidth={1.8} />
+            </button>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <label className="flex min-w-0 flex-col gap-1 uppercase text-[var(--color-dim)]">
+              sesión
+              <select
+                value={sessionId}
+                onChange={(e) => onSessionSelect?.(Number(e.target.value))}
+                className="w-full clip-tag bg-transparent px-2 py-1.5 outline-none cursor-pointer normal-case"
+                style={{
+                  color: "var(--color-magenta)",
+                  border: "1px solid rgba(255,78,214,0.45)",
+                  background: "rgba(255,78,214,0.10)",
+                  font: "inherit",
+                  letterSpacing: "inherit",
+                }}
+                title="cambiar sesión"
+              >
+                {(sessions.length > 0 ? sessions : [{ id: sessionId, name: sessionName ?? String(sessionId) } as ProjectSession]).map((s) => (
+                  <option key={s.id} value={s.id} style={{ background: "#0a0f24" }}>{s.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <div className="flex flex-col gap-1 uppercase text-[var(--color-dim)]">
+              acciones
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={onCreateSession}
+                  className="inline-flex flex-1 items-center justify-center gap-1 px-2 py-1.5 clip-tag cursor-pointer normal-case"
+                  style={{
+                    color: "var(--color-lime)",
+                    border: "1px solid rgba(163,255,78,0.55)",
+                    background: "rgba(163,255,78,0.10)",
+                    font: "inherit",
+                    letterSpacing: "inherit",
+                  }}
+                  title="crear sesión"
+                >
+                  <Plus size={12} strokeWidth={1.8} />
+                  nueva
+                </button>
+                {onDeleteSession && (
+                  <button
+                    type="button"
+                    onClick={() => onDeleteSession(sessionId)}
+                    disabled={isRunning}
+                    className="inline-flex flex-1 items-center justify-center gap-1 px-2 py-1.5 clip-tag cursor-pointer normal-case hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{
+                      color: "var(--color-danger)",
+                      border: "1px solid rgba(255,92,122,0.45)",
+                      background: "rgba(255,92,122,0.08)",
+                      font: "inherit",
+                      letterSpacing: "inherit",
+                    }}
+                    title="eliminar sesión actual"
+                  >
+                    <Trash2 size={12} strokeWidth={1.8} />
+                    borrar
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <label className="flex min-w-0 flex-col gap-1 uppercase text-[var(--color-dim)]">
+              modelo <span className="normal-case text-[var(--color-dim)]">engine: {engine ?? "—"}</span>
+              <select
+                value={selectedModel}
+                disabled={isRunning || modelChanging}
+                onChange={(e) => void applySessionModel(e.target.value, selectedEffort)}
+                className="w-full clip-tag bg-transparent px-2 py-1.5 outline-none cursor-pointer normal-case disabled:cursor-not-allowed disabled:opacity-50"
+                style={{
+                  color: modelChanging ? "var(--color-dim)" : "var(--color-lime)",
+                  border: "1px solid rgba(163,255,78,0.45)",
+                  background: "rgba(163,255,78,0.10)",
+                  font: "inherit",
+                  letterSpacing: "inherit",
+                }}
+                title={`modelo para esta sesión ${engine ? `(${engine})` : ""}`}
+              >
+                {modelOptions.map((m) => (
+                  <option key={m} value={m} style={{ background: "#0a0f24" }}>{m}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex min-w-0 flex-col gap-1 uppercase text-[var(--color-dim)]">
+              reasoning effort
+              <select
+                value={selectedEffort}
+                disabled={isRunning || modelChanging}
+                onChange={(e) => void applySessionModel(selectedModel, e.target.value)}
+                className="w-full clip-tag bg-transparent px-2 py-1.5 outline-none cursor-pointer normal-case disabled:cursor-not-allowed disabled:opacity-50"
+                style={{
+                  color: modelChanging ? "var(--color-dim)" : "var(--color-orange)",
+                  border: "1px solid rgba(255,159,67,0.45)",
+                  background: "rgba(255,159,67,0.10)",
+                  font: "inherit",
+                  letterSpacing: "inherit",
+                }}
+                title="reasoning effort para esta sesión"
+              >
+                {effortOptions.map((eff) => (
+                  <option key={eff} value={eff} style={{ background: "#0a0f24" }}>{eff}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-[9px] uppercase text-[var(--color-dim)]">
+            <span>{transportLabel}</span>
+            {modelChanging && <span className="text-[var(--color-lime)]">aplicando…</span>}
+          </div>
+        </div>
+      )}
+
       <div
         ref={scrollRef}
         className="flex-1 min-h-0 overflow-y-auto pr-1"
@@ -418,127 +605,6 @@ export function ProjectChat({
 
       <div className="mt-2 -mx-3 -mb-2 sm:-mx-4 sm:-mb-3">
         <Composer onSend={handleSend} disabled={sessionId <= 0 || isRunning} />
-        {/* Session status bar — reemplaza StatusBar del main agent */}
-        <div
-          className="flex items-center gap-2 overflow-x-auto whitespace-nowrap px-2 py-2 font-mono text-[10px] tracking-hud-tight border-t border-[var(--color-line)] select-none sm:gap-3 sm:px-4 sm:py-1.5"
-          style={{ background: "rgba(0,0,0,0.55)", minHeight: 26 }}
-        >
-          <select
-            value={sessionId}
-            onChange={(e) => onSessionSelect?.(Number(e.target.value))}
-            className="clip-tag bg-transparent outline-none cursor-pointer max-w-[140px] sm:max-w-[180px]"
-            style={{
-              color: "var(--color-magenta)",
-              border: "1px solid rgba(255,78,214,0.45)",
-              background: "rgba(255,78,214,0.10)",
-              padding: "1px 6px",
-              font: "inherit",
-              letterSpacing: "inherit",
-            }}
-            title="cambiar sesión"
-          >
-            {(sessions.length > 0 ? sessions : [{ id: sessionId, name: sessionName ?? String(sessionId) } as ProjectSession]).map((s) => (
-              <option key={s.id} value={s.id} style={{ background: "#0a0f24" }}>{s.name}</option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={onCreateSession}
-            className="clip-tag cursor-pointer hover:opacity-80"
-            style={{
-              color: "var(--color-lime)",
-              border: "1px solid rgba(163,255,78,0.55)",
-              background: "rgba(163,255,78,0.10)",
-              font: "inherit",
-              letterSpacing: "inherit",
-              padding: "1px 6px",
-            }}
-            title="crear sesión"
-          >
-            +
-          </button>
-          {onDeleteSession && (
-            <button
-              type="button"
-              onClick={() => onDeleteSession(sessionId)}
-              disabled={isRunning}
-              className="clip-tag cursor-pointer hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{
-                color: "var(--color-danger)",
-                border: "1px solid rgba(255,92,122,0.45)",
-                background: "rgba(255,92,122,0.08)",
-                font: "inherit",
-                letterSpacing: "inherit",
-                padding: "1px 6px",
-              }}
-              title="eliminar sesión actual"
-            >
-              ×
-            </button>
-          )}
-
-          <select
-            value={selectedModel}
-            disabled={isRunning || modelChanging}
-            onChange={(e) => void applySessionModel(e.target.value, selectedEffort)}
-            className="clip-tag bg-transparent outline-none cursor-pointer"
-            style={{
-              color: modelChanging ? "var(--color-dim)" : "var(--color-lime)",
-              border: "1px solid rgba(163,255,78,0.45)",
-              background: "rgba(163,255,78,0.10)",
-              padding: "1px 6px",
-              font: "inherit",
-              letterSpacing: "inherit",
-            }}
-            title={`modelo para esta sesión ${engine ? `(${engine})` : ""}`}
-          >
-            {modelOptions.map((m) => (
-              <option key={m} value={m} style={{ background: "#0a0f24" }}>{m}</option>
-            ))}
-          </select>
-
-          <select
-            value={selectedEffort}
-            disabled={isRunning || modelChanging}
-            onChange={(e) => void applySessionModel(selectedModel, e.target.value)}
-            className="clip-tag bg-transparent outline-none cursor-pointer"
-            style={{
-              color: modelChanging ? "var(--color-dim)" : "var(--color-orange)",
-              border: "1px solid rgba(255,159,67,0.45)",
-              background: "rgba(255,159,67,0.10)",
-              padding: "1px 6px",
-              font: "inherit",
-              letterSpacing: "inherit",
-            }}
-            title="reasoning effort para esta sesión"
-          >
-            {effortOptions.map((eff) => (
-              <option key={eff} value={eff} style={{ background: "#0a0f24" }}>{eff}</option>
-            ))}
-          </select>
-
-          {isRunning && (
-            <>
-              <span className="text-[var(--color-dim)]">·</span>
-              <button
-                onClick={() => void handleCancel()}
-                className="clip-tag cursor-pointer hover:opacity-80"
-                style={{
-                  background: "rgba(255,92,122,0.08)",
-                  border: "1px solid rgba(255,92,122,0.4)",
-                  color: "var(--color-danger)",
-                  font: "inherit",
-                  letterSpacing: "inherit",
-                  padding: "1px 6px",
-                }}
-              >
-                ✕ cancelar
-              </button>
-            </>
-          )}
-
-          <span className="shrink-0 text-[var(--color-dim)] sm:ml-auto">{transportLabel}</span>
-        </div>
       </div>
     </div>
   );

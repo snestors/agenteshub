@@ -8,6 +8,14 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.39 — 2026-04-29
+
+### Fixed
+- **Mobile menu vive en el topbar**: se eliminó el handle lateral que quedaba cortado/encima del contenido; ahora el drawer mobile se abre desde un botón del topbar con badge de notificaciones.
+- **Project chat mueve sesión/modelo arriba**: la barra inferior de sesión/modelo desaparece para no pelear con el composer. En su lugar hay un botón **configurar** arriba del chat que abre sesión, nueva/borrar sesión, modelo y reasoning effort.
+
+---
+
 ## v0.2.38 — 2026-04-29
 
 ### Fixed
