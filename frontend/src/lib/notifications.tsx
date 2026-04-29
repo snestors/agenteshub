@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Bot, AlertTriangle, Info, X } from "lucide-react";
 import { wsClient } from "@/lib/wsClient";
 import { api } from "@/lib/api";
+import { startUiUpdateWatcher } from "@/lib/uiUpdateWatcher";
 import {
   getFirebasePushSupport,
   registerFirebasePush,
@@ -273,6 +274,21 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     return off;
   }, [push]);
 
+  React.useEffect(() => {
+    return startUiUpdateWatcher(() => {
+      push({
+        id: "ui-update-available",
+        kind: "ui_update_available",
+        severity: "info",
+        title: "UI nueva disponible",
+        body: "Hay una versión nueva de AgentHub. Recargá para verla.",
+        context: { action: "reload" },
+        ts: Math.floor(Date.now() / 1000),
+      });
+      playBlip("info");
+    });
+  }, [push]);
+
   const value = React.useMemo<NotificationsState>(
     () => ({
       items,
@@ -372,6 +388,10 @@ function NotificationDrawer({
   const read = items.filter((i) => i.read);
 
   function handleEntryClick(n: Notification) {
+    if (n.kind === "ui_update_available") {
+      window.location.reload();
+      return;
+    }
     const route = routeForNotification(n);
     if (!route || pathname === route || pathname.startsWith(route + "/")) {
       onMarkRead(n.id);
@@ -749,7 +769,8 @@ function Toast({
       : "var(--color-cyan)";
   const Icon = n.severity === "error" ? AlertTriangle : n.kind.startsWith("agent_run") ? Bot : Info;
   const isLongRunning = n.kind === "long_running_turn";
-  const hasRoute = !isLongRunning && routeForNotification(n) !== null;
+  const isUiUpdate = n.kind === "ui_update_available";
+  const hasRoute = !isLongRunning && !isUiUpdate && routeForNotification(n) !== null;
 
   const cancelScope = isLongRunning ? toStr(n.context?.scope) : "";
   const cancelID = isLongRunning ? toStr(n.context?.id) : "";
@@ -837,6 +858,37 @@ function Toast({
                 {cancelMsg}
               </span>
             )}
+          </div>
+        )}
+        {isUiUpdate && (
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.location.reload();
+              }}
+              className="px-2 py-1 clip-tag font-mono text-[10px] uppercase tracking-hud-tight border cursor-pointer transition-colors"
+              style={{
+                color: "var(--color-bg)",
+                borderColor: "var(--color-cyan)",
+                background: "var(--color-cyan)",
+                boxShadow: "0 0 8px rgba(94, 240, 255, 0.45)",
+              }}
+            >
+              recargar
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
+              className="px-2 py-1 clip-tag font-mono text-[10px] uppercase tracking-hud-tight border text-[var(--color-dim)] hover:text-[var(--color-fg)] cursor-pointer transition-colors"
+              style={{ borderColor: "var(--color-line)", background: "rgba(255,255,255,0.02)" }}
+            >
+              después
+            </button>
           </div>
         )}
       </div>

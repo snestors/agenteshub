@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.47 — 2026-04-29
+
+### Added
+- **Watcher de actualización UI**: la PWA compara periódicamente el `index.html` actual contra el publicado y muestra una notificación con botón **recargar** cuando detecta nuevos bundles de Vite.
+
+---
+
 ## v0.2.46 — 2026-04-29
 
 ### Fixed

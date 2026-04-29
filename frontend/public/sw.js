@@ -1,4 +1,4 @@
-const VERSION = "0.2.46";
+const VERSION = "0.2.47";
 const CACHE_NAME = `agenthub-pwa-${VERSION}`;
 
 function parsePushPayload(event) {
