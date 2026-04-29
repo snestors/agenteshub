@@ -5,7 +5,7 @@ import { api, DEFAULT_REASONING_EFFORTS, FALLBACK_ENGINES, type EngineDef, type 
 import { HudPanel } from "@/components/HudPanel";
 import { Topbar } from "@/components/Topbar";
 import { ProjectChat } from "@/components/ProjectChat";
-import { toggleProjectSessionConfig } from "@/lib/projectSessionConfig";
+import { cancelProjectSession, toggleProjectSessionConfig } from "@/lib/projectSessionConfig";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -131,6 +131,7 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
   const [deleteTarget, setDeleteTarget] = React.useState<{ id: number; name: string } | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [tab, setTab] = React.useState<"chat" | "services" | "changes">("chat");
+  const [projectRunActive, setProjectRunActive] = React.useState(false);
 
   const refresh = React.useCallback(async () => {
     try {
@@ -161,10 +162,19 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
 
   const current = sessions.find((s) => s.id === selected) ?? null;
 
+  React.useEffect(() => {
+    setProjectRunActive(false);
+  }, [selected]);
+
   function openCurrentSessionConfig() {
     if (!current) return;
     setTab("chat");
     window.requestAnimationFrame(() => toggleProjectSessionConfig(current.id));
+  }
+
+  function cancelCurrentProjectRun() {
+    if (!current) return;
+    cancelProjectSession(current.id);
   }
 
   async function createSession(payload: { engine: string; model: string; reasoning_effort: string }) {
@@ -229,6 +239,22 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
             <TabButton active={tab === "chat"} onClick={() => setTab("chat")} icon={MessageSquare} label="Chat" />
             <TabButton active={tab === "services"} onClick={() => setTab("services")} icon={Server} label="Services" />
             <TabButton active={tab === "changes"} onClick={() => setTab("changes")} icon={GitBranch} label="Changes" />
+            {current && tab === "chat" && projectRunActive && (
+              <button
+                type="button"
+                onClick={cancelCurrentProjectRun}
+                className="inline-flex h-8 min-w-8 items-center justify-center clip-tag cursor-pointer transition-opacity hover:opacity-85"
+                style={{
+                  color: "var(--color-danger)",
+                  border: "1px solid rgba(255,92,122,0.55)",
+                  background: "rgba(255,92,122,0.10)",
+                }}
+                title="Cancelar ejecución"
+                aria-label="Cancelar ejecución"
+              >
+                <X size={13} strokeWidth={1.8} />
+              </button>
+            )}
             {current && (
               <button
                 type="button"
@@ -271,6 +297,7 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
                   prev.map((s) => (s.id === current.id ? { ...s, ...patch } : s))
                 )
               }
+              onRunningChange={setProjectRunActive}
             />
           ) : (
             <div className="h-full flex flex-col items-center justify-center gap-3 font-mono text-[11px] text-[var(--color-dim)] tracking-hud-tight">

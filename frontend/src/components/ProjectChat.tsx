@@ -5,7 +5,7 @@ import { useTopic } from "@/lib/useTopic";
 import { Composer } from "@/components/Composer";
 import { MessageBubble } from "@/components/MessageBubble";
 import { GhostBubble, type GhostBubbleData, type SubagentStats, type ToolCall } from "@/components/GhostBubble";
-import { PROJECT_SESSION_CONFIG_EVENT } from "@/lib/projectSessionConfig";
+import { PROJECT_SESSION_CANCEL_EVENT, PROJECT_SESSION_CONFIG_EVENT } from "@/lib/projectSessionConfig";
 
 function extractStatsFromMeta(meta: Record<string, unknown> | undefined): SubagentStats {
   if (!meta || typeof meta !== "object") return {};
@@ -39,6 +39,7 @@ interface ProjectChatProps {
   onCreateSession?: () => void;
   onDeleteSession?: (sessionId: number) => void;
   onSessionConfigChange?: (patch: Partial<ProjectSession>) => void;
+  onRunningChange?: (running: boolean) => void;
 }
 
 interface WsEnvelope {
@@ -137,6 +138,7 @@ export function ProjectChat({
   onCreateSession,
   onDeleteSession,
   onSessionConfigChange,
+  onRunningChange,
 }: ProjectChatProps) {
   const topic = React.useMemo(() => `project_session:${sessionId}`, [sessionId]);
   const [messages, setMessages] = React.useState<AgentMessage[]>([]);
@@ -393,25 +395,22 @@ export function ProjectChat({
     }
   }
 
+  React.useEffect(() => {
+    onRunningChange?.(isRunning);
+  }, [isRunning, onRunningChange]);
+
+  React.useEffect(() => {
+    function onCancel(event: Event) {
+      const detail = (event as CustomEvent<{ sessionId?: number }>).detail;
+      if (detail?.sessionId && detail.sessionId !== sessionId) return;
+      void handleCancel();
+    }
+    window.addEventListener(PROJECT_SESSION_CANCEL_EVENT, onCancel);
+    return () => window.removeEventListener(PROJECT_SESSION_CANCEL_EVENT, onCancel);
+  });
+
   return (
     <div className="flex flex-col h-full min-h-0">
-      {isRunning && (
-        <div className="mb-2 flex items-center justify-end">
-          <button
-            type="button"
-            onClick={() => void handleCancel()}
-            className="px-2.5 py-1.5 clip-tag font-mono text-[10px] uppercase tracking-hud-tight cursor-pointer hover:opacity-80"
-            style={{
-              background: "rgba(255,92,122,0.08)",
-              border: "1px solid rgba(255,92,122,0.4)",
-              color: "var(--color-danger)",
-            }}
-          >
-            ✕ cancelar
-          </button>
-        </div>
-      )}
-
       {configOpen && (
         <div
           className="mb-2 clip-hud-sm p-3 font-mono text-[10px] tracking-hud-tight"

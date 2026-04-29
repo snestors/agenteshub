@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.43 — 2026-04-29
+
+### Fixed
+- **Cancelar ejecución junto a sesión**: el botón de cancelar de Project Chat ahora aparece arriba, en la misma fila de tabs donde está el engranaje de sesión/modelo, y se quitó del cuerpo del chat para no generar saltos visuales.
+
+---
+
 ## v0.2.42 — 2026-04-29
 
 ### Fixed
