@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.50 — 2026-04-29
+
+### Fixed
+- **Picker anclado al botón real**: el selector de engine/modelo ahora calcula la posición del chip que lo abrió, evita salirse de pantalla y queda por encima de drawers/overlays (`z-[90]`).
+
+---
+
 ## v0.2.49 — 2026-04-29
 
 ### Fixed

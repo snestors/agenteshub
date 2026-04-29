@@ -12,6 +12,8 @@ interface EnginePickerProps {
   currentEngine: string;
   /** currently active model (drives initial selection) */
   currentModel: string;
+  /** viewport rect of the badge that opened the picker */
+  anchorRect?: DOMRect | null;
   /** invoked after a successful POST /api/agent/engine */
   onApplied: (engine: string, model: string) => void;
   /** invoked when the user dismisses the picker (Esc, click outside, Cancel) */
@@ -31,6 +33,7 @@ function fmtCtxWindow(n: number): string {
 export function EnginePicker({
   currentEngine,
   currentModel,
+  anchorRect,
   onApplied,
   onClose,
 }: EnginePickerProps) {
@@ -82,6 +85,18 @@ export function EnginePicker({
   const currentEngineDef = engines.find((e) => e.engine === selectedEngine);
   const models = currentEngineDef?.models ?? [];
   const ctxWindows = currentEngineDef?.ctx_windows ?? {};
+  const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 360;
+  const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 640;
+  const panelWidth = Math.min(360, Math.max(260, viewportWidth - 24));
+  const panelLeft = anchorRect
+    ? Math.min(Math.max(12, anchorRect.left), viewportWidth - panelWidth - 12)
+    : 12;
+  const panelBottom = anchorRect
+    ? Math.max(12, viewportHeight - anchorRect.top + 8)
+    : 56;
+  const panelMaxHeight = anchorRect
+    ? Math.max(220, Math.min(420, anchorRect.top - 16))
+    : Math.min(420, viewportHeight - 72);
 
   async function handleApply() {
     if (!selectedEngine || !selectedModel) return;
@@ -109,20 +124,23 @@ export function EnginePicker({
     <>
       {/* invisible overlay — click outside dismisses */}
       <div
-        className="fixed inset-0 z-40"
+        className="fixed inset-0 z-[80]"
         onClick={onClose}
         aria-hidden="true"
       />
 
-      {/* dropdown panel — fixed, not inside StatusBar overflow, so it stays clickable. */}
+      {/* dropdown panel — fixed + anchored to the badge, not clipped by StatusBar overflow/drawers. */}
       <div
-        className="fixed left-3 right-3 bottom-14 z-50 max-h-[70vh] overflow-y-auto clip-hud-sm font-mono text-[11px] tracking-hud-tight sm:left-4 sm:right-auto sm:w-[360px]"
+        className="fixed z-[90] overflow-y-auto clip-hud-sm font-mono text-[11px] tracking-hud-tight"
         style={{
+          left: panelLeft,
+          bottom: panelBottom,
+          width: panelWidth,
+          maxHeight: panelMaxHeight,
           background: "rgba(10, 15, 36, 0.95)",
           border: "1px solid rgba(94, 240, 255, 0.55)",
           boxShadow: "0 0 16px rgba(94, 240, 255, 0.35)",
           color: "var(--color-fg)",
-          minWidth: 260,
           padding: "10px 12px",
         }}
         role="dialog"

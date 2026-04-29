@@ -39,7 +39,9 @@ function ctxColor(pct: number): string {
 export function StatusBar({ transportLabel }: StatusBarProps) {
   const [status, setStatus] = React.useState<AgentStatus>(AGENT_STATUS_FALLBACK);
   const [pickerOpen, setPickerOpen] = React.useState(false);
+  const [pickerAnchor, setPickerAnchor] = React.useState<DOMRect | null>(null);
   const [toast, setToast] = React.useState<string | null>(null);
+  const engineButtonRef = React.useRef<HTMLButtonElement | null>(null);
 
   // Agent status is pushed by WS and refreshed by the server heartbeat.
   useTopic<AgentStatus>("agent_status", (payload) => {
@@ -66,10 +68,34 @@ export function StatusBar({ transportLabel }: StatusBarProps) {
 
   function handleApplied(engine: string, model: string) {
     setPickerOpen(false);
+    setPickerAnchor(null);
     setToast(`engine cambiado a ${engine} · ${model}`);
     // Optimistic update; the canonical snapshot arrives over WS.
     setStatus((s) => ({ ...s, engine, model }));
   }
+
+  function togglePicker() {
+    setPickerAnchor(engineButtonRef.current?.getBoundingClientRect() ?? null);
+    setPickerOpen((v) => !v);
+  }
+
+  function closePicker() {
+    setPickerOpen(false);
+    setPickerAnchor(null);
+  }
+
+  React.useEffect(() => {
+    if (!pickerOpen) return;
+    const updateAnchor = () => {
+      setPickerAnchor(engineButtonRef.current?.getBoundingClientRect() ?? null);
+    };
+    window.addEventListener("resize", updateAnchor);
+    window.addEventListener("scroll", updateAnchor, true);
+    return () => {
+      window.removeEventListener("resize", updateAnchor);
+      window.removeEventListener("scroll", updateAnchor, true);
+    };
+  }, [pickerOpen]);
 
   return (
     <div
@@ -82,8 +108,9 @@ export function StatusBar({ transportLabel }: StatusBarProps) {
       {/* engine · model · ctx-window — clickable badge */}
       <div className="relative">
         <button
+          ref={engineButtonRef}
           type="button"
-          onClick={() => setPickerOpen((v) => !v)}
+          onClick={togglePicker}
           className="inline-flex items-center px-2 py-0.5 clip-tag cursor-pointer hover:opacity-80 transition-opacity"
           style={{
             background: "rgba(94, 240, 255, 0.10)",
@@ -103,8 +130,9 @@ export function StatusBar({ transportLabel }: StatusBarProps) {
           <EnginePicker
             currentEngine={status.engine}
             currentModel={status.model}
+            anchorRect={pickerAnchor}
             onApplied={handleApplied}
-            onClose={() => setPickerOpen(false)}
+            onClose={closePicker}
           />
         ) : null}
       </div>
