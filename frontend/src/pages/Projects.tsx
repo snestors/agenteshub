@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Check, ExternalLink, FileText, FolderKanban, Loader2, Pencil, RefreshCw, X } from "lucide-react";
+import { Check, ExternalLink, FileText, FolderKanban, GitBranch, Loader2, MessageSquare, Pencil, RefreshCw, Server, X } from "lucide-react";
 import { api, DEFAULT_REASONING_EFFORTS, FALLBACK_ENGINES, type EngineDef, type OpenSpecChange, type OpenSpecChangeDetail, type OpenSpecSpec, type Project, type ProjectServiceStatus, type ProjectSession } from "@/lib/api";
 import { HudPanel } from "@/components/HudPanel";
 import { Topbar } from "@/components/Topbar";
@@ -218,10 +218,10 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
           accent={tab === "changes" ? "lime" : tab === "services" ? "cyan" : "magenta"}
           className="min-h-0"
         >
-          <div className="mb-3 flex flex-wrap gap-2">
-            <TabButton active={tab === "chat"} onClick={() => setTab("chat")}>Chat</TabButton>
-            <TabButton active={tab === "services"} onClick={() => setTab("services")}>Services</TabButton>
-            <TabButton active={tab === "changes"} onClick={() => setTab("changes")}>Changes</TabButton>
+          <div className="mb-2 flex items-center gap-1.5">
+            <TabButton active={tab === "chat"} onClick={() => setTab("chat")} icon={MessageSquare} label="Chat" />
+            <TabButton active={tab === "services"} onClick={() => setTab("services")} icon={Server} label="Services" />
+            <TabButton active={tab === "changes"} onClick={() => setTab("changes")} icon={GitBranch} label="Changes" />
           </div>
           {error && <ErrorBox msg={error} />}
           {tab === "changes" ? (
@@ -284,18 +284,32 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
 }
 
 
-function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function TabButton({
+  active,
+  onClick,
+  icon: Icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
+  label: string;
+}) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className="px-3 py-1 clip-tag font-mono text-[10px] tracking-hud uppercase cursor-pointer"
+      className="inline-flex h-8 min-w-8 items-center justify-center gap-1.5 px-2 clip-tag font-mono text-[10px] tracking-hud uppercase cursor-pointer sm:h-auto sm:px-3 sm:py-1"
       style={{
         color: active ? "var(--color-cyan)" : "var(--color-dim)",
         border: `1px solid ${active ? "var(--color-cyan)" : "var(--color-line)"}`,
         background: active ? "rgba(100,220,255,0.10)" : "rgba(255,255,255,0.03)",
       }}
+      title={label}
+      aria-label={label}
     >
-      {children}
+      <Icon size={13} strokeWidth={1.7} />
+      <span className="hidden sm:inline">{label}</span>
     </button>
   );
 }

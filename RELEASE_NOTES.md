@@ -8,6 +8,16 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.41 — 2026-04-29
+
+### Added
+- **PWA instalable**: se agregó manifest web, registro de service worker, meta tags mobile y assets PNG 192/512/maskable para que Chrome pueda instalar AgentHub como app standalone y ocultar la barra del navegador al abrirlo instalado.
+
+### Fixed
+- **Tabs de Project Chat compactos en mobile**: Chat, Services y Changes ahora se ven como botones chicos con icono en pantallas chicas; las etiquetas completas quedan para desktop.
+
+---
+
 ## v0.2.40 — 2026-04-29
 
 ### Fixed
