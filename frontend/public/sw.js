@@ -1,4 +1,4 @@
-const VERSION = "0.2.41";
+const VERSION = "0.2.42";
 const CACHE_NAME = `agenthub-pwa-${VERSION}`;
 
 self.addEventListener("install", () => {

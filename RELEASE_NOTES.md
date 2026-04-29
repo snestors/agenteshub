@@ -8,6 +8,13 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.42 — 2026-04-29
+
+### Fixed
+- **Botón de sesión sin salto visual**: el engranaje de configuración de sesión/modelo ahora vive al lado de `Changes` en la fila de tabs del proyecto. Se quitó la fila extra arriba del chat que generaba el salto/espacio raro.
+
+---
+
 ## v0.2.41 — 2026-04-29
 
 ### Added

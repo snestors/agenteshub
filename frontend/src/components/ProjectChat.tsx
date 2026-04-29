@@ -1,10 +1,11 @@
 import * as React from "react";
-import { Plus, Settings2, Trash2, X } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 import { api, DEFAULT_REASONING_EFFORTS, FALLBACK_ENGINES, type AgentMessage, type ConversationRuntime, type EngineDef, type MessageAttachmentRef, type ProjectMessage, type ProjectSession, type RuntimeToolState } from "@/lib/api";
 import { useTopic } from "@/lib/useTopic";
 import { Composer } from "@/components/Composer";
 import { MessageBubble } from "@/components/MessageBubble";
 import { GhostBubble, type GhostBubbleData, type SubagentStats, type ToolCall } from "@/components/GhostBubble";
+import { PROJECT_SESSION_CONFIG_EVENT } from "@/lib/projectSessionConfig";
 
 function extractStatsFromMeta(meta: Record<string, unknown> | undefined): SubagentStats {
   if (!meta || typeof meta !== "object") return {};
@@ -184,6 +185,16 @@ export function ProjectChat({
         .catch(() => {});
     }
   }, [refresh, projectId, sessionId]);
+
+  React.useEffect(() => {
+    function onToggle(event: Event) {
+      const detail = (event as CustomEvent<{ sessionId?: number }>).detail;
+      if (detail?.sessionId && detail.sessionId !== sessionId) return;
+      setConfigOpen((v) => !v);
+    }
+    window.addEventListener(PROJECT_SESSION_CONFIG_EVENT, onToggle);
+    return () => window.removeEventListener(PROJECT_SESSION_CONFIG_EVENT, onToggle);
+  }, [sessionId]);
 
   const applyStreamChunk = React.useCallback((chunk: WsStreamPayload) => {
     const sid = chunk.session_id || `project-${sessionId}`;
@@ -384,12 +395,8 @@ export function ProjectChat({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="mb-2 flex items-center justify-end gap-2">
-        <span className="mr-auto hidden shrink-0 font-mono text-[10px] tracking-hud-tight text-[var(--color-dim)] sm:block">
-          {transportLabel}
-        </span>
-
-        {isRunning && (
+      {isRunning && (
+        <div className="mb-2 flex items-center justify-end">
           <button
             type="button"
             onClick={() => void handleCancel()}
@@ -402,25 +409,8 @@ export function ProjectChat({
           >
             ✕ cancelar
           </button>
-        )}
-
-        <button
-          type="button"
-          onClick={() => setConfigOpen((v) => !v)}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center clip-tag cursor-pointer transition-opacity hover:opacity-85"
-          style={{
-            color: "var(--color-cyan)",
-            border: "1px solid rgba(94,240,255,0.55)",
-            background: "rgba(94,240,255,0.10)",
-          }}
-          aria-expanded={configOpen}
-          aria-haspopup="dialog"
-          aria-label="Configurar sesión y modelo"
-          title="Configurar sesión y modelo"
-        >
-          <Settings2 size={15} strokeWidth={1.9} />
-        </button>
-      </div>
+        </div>
+      )}
 
       {configOpen && (
         <div

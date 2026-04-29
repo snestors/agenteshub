@@ -1,10 +1,11 @@
 import * as React from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Check, ExternalLink, FileText, FolderKanban, GitBranch, Loader2, MessageSquare, Pencil, RefreshCw, Server, X } from "lucide-react";
+import { Check, ExternalLink, FileText, FolderKanban, GitBranch, Loader2, MessageSquare, Pencil, RefreshCw, Server, Settings2, X } from "lucide-react";
 import { api, DEFAULT_REASONING_EFFORTS, FALLBACK_ENGINES, type EngineDef, type OpenSpecChange, type OpenSpecChangeDetail, type OpenSpecSpec, type Project, type ProjectServiceStatus, type ProjectSession } from "@/lib/api";
 import { HudPanel } from "@/components/HudPanel";
 import { Topbar } from "@/components/Topbar";
 import { ProjectChat } from "@/components/ProjectChat";
+import { toggleProjectSessionConfig } from "@/lib/projectSessionConfig";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -160,6 +161,12 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
 
   const current = sessions.find((s) => s.id === selected) ?? null;
 
+  function openCurrentSessionConfig() {
+    if (!current) return;
+    setTab("chat");
+    window.requestAnimationFrame(() => toggleProjectSessionConfig(current.id));
+  }
+
   async function createSession(payload: { engine: string; model: string; reasoning_effort: string }) {
     try {
       const s = await api.createProjectSession(projectId, { name: "", ...payload });
@@ -222,6 +229,22 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
             <TabButton active={tab === "chat"} onClick={() => setTab("chat")} icon={MessageSquare} label="Chat" />
             <TabButton active={tab === "services"} onClick={() => setTab("services")} icon={Server} label="Services" />
             <TabButton active={tab === "changes"} onClick={() => setTab("changes")} icon={GitBranch} label="Changes" />
+            {current && (
+              <button
+                type="button"
+                onClick={openCurrentSessionConfig}
+                className="inline-flex h-8 min-w-8 items-center justify-center clip-tag cursor-pointer transition-opacity hover:opacity-85"
+                style={{
+                  color: "var(--color-magenta)",
+                  border: "1px solid rgba(255,78,214,0.48)",
+                  background: "rgba(255,78,214,0.08)",
+                }}
+                title="Configurar sesión y modelo"
+                aria-label="Configurar sesión y modelo"
+              >
+                <Settings2 size={13} strokeWidth={1.8} />
+              </button>
+            )}
           </div>
           {error && <ErrorBox msg={error} />}
           {tab === "changes" ? (
