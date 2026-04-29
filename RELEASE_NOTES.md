@@ -8,6 +8,14 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.48 — 2026-04-29
+
+### Documentation
+- **PWA/FCM/update watcher documentado**: se agregó `docs/PWA_PUSH_UPDATES.md` con arquitectura, flujos, headers de caché, operación y troubleshooting.
+- **README/DESIGN/SPECS actualizados**: la PWA, FCM push y el watcher de updates quedan registrados como capacidad y decisión técnica.
+
+---
+
 ## v0.2.47 — 2026-04-29
 
 ### Added

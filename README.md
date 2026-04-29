@@ -13,6 +13,8 @@ A self-hosted AI agent hub that runs on your hardware. One brain, two surfaces: 
 - **Topics** — Persistent context threads for recurring subjects
 - **OpenSpec gates** — SDD-style change workflow with proposal → spec → design → tasks → apply
 - **Diagrams** — Mermaid rendering and Excalidraw whiteboard
+- **PWA + FCM push** — Installable mobile UI with Firebase Cloud Messaging notifications
+- **UI update watcher** — PWA detects new Vite bundles and prompts to reload
 - **Release versioning** — `/releases` page with live version comparison between backend and UI
 
 ## Requirements
@@ -166,6 +168,17 @@ See `CLAUDE.md` for the full recipe.
 Each release bumps `VERSION`, adds an entry to `RELEASE_NOTES.md`, and gets a git tag. The running version is visible in:
 - `GET /healthz` → `{"version": "0.2.11", "git_commit": "abc1234"}`
 - Sidebar stats badge — goes orange if UI and backend are out of sync
+
+## PWA, push and UI updates
+
+The web UI can be installed as a PWA. AgentHub uses:
+
+- `frontend/public/manifest.webmanifest` for install metadata
+- `frontend/public/sw.js` for Web Push and notification click handling
+- Firebase Cloud Messaging project `relogtemperatura`
+- a UI watcher that compares published Vite asset hashes and shows a reload toast when a new UI is available
+
+Full operational notes: [`docs/PWA_PUSH_UPDATES.md`](docs/PWA_PUSH_UPDATES.md).
 
 ## License
 

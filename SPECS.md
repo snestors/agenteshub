@@ -1,7 +1,7 @@
 # AgentHub — Specs
 
 Path: `/home/nestor/agenthub`
-Última actualización: 2026-04-29 (v0.2.35)
+Última actualización: 2026-04-29 (v0.2.48)
 
 > Este documento describe **qué es AgentHub** y **qué tiene que hacer** desde la mirada de capacidades. Es la fuente de verdad para validar que el sistema cumple con sus promesas. Las decisiones técnicas viven en `DESIGN.md`; la planificación viva en `ROADMAP.md`.
 
@@ -176,6 +176,27 @@ Cualquier turn activo puede cancelarse desde la UI sin importar dónde se dispar
 **Requisitos**:
 - `POST /api/runs/cancel` con `{scope, id}` invoca el `context.CancelFunc` registrado.
 - El watcher de turns >1h emite `Notification{kind:"long_running_turn"}` con botones `Cancelar`/`Continuar` accionables.
+
+### 15. PWA, FCM push y updates de UI
+
+La UI web puede instalarse como PWA y debe avisar tanto eventos del daemon como nuevas versiones de la propia UI.
+
+**Requisitos**:
+- `manifest.webmanifest` debe permitir instalación PWA en Chrome/Android.
+- `sw.js` debe manejar `push` y `notificationclick`.
+- `sw.js` y `manifest.webmanifest` deben servirse con `Cache-Control: no-store`; assets Vite hasheados pueden ser immutable.
+- El registro del service worker debe incluir query de versión para evitar caches viejos de Cloudflare.
+- La UI debe intentar pedir permiso de notificaciones al abrir; si el browser exige gesto humano, debe reintentar con el próximo tap/tecla.
+- Los tokens FCM se registran en `POST /api/push/register` y se persisten en `push_tokens`.
+- El backend envía FCM HTTP v1 al proyecto `relogtemperatura` usando credenciales del Firebase CLI local.
+- La PWA debe detectar nuevas versiones de UI comparando los assets publicados en `index.html` contra los cargados.
+- Cuando haya UI nueva, debe mostrar una notificación con acción `recargar`.
+
+**Escenarios verificables**:
+- _Dado_ que abro la PWA sin permiso de notificaciones, _cuando_ el browser permite pedir permiso, _entonces_ AgentHub muestra el prompt sin obligarme a abrir manualmente el drawer.
+- _Dado_ que Chrome exige gesto humano para el permiso, _cuando_ toco la pantalla, _entonces_ AgentHub reintenta pedir permiso.
+- _Dado_ un token FCM registrado, _cuando_ el backend ejecuta `POST /api/push/test`, _entonces_ se envía una notificación FCM al dispositivo.
+- _Dado_ que se publica un nuevo build de frontend, _cuando_ la PWA sigue abierta, _entonces_ el watcher detecta el cambio y muestra `UI nueva disponible` con botón `recargar`.
 
 ---
 

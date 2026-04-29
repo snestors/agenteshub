@@ -1,7 +1,7 @@
 # AgentHub — Diseño
 
 Path: `/home/nestor/agenthub`
-Última actualización: 2026-04-29 (v0.2.35)
+Última actualización: 2026-04-29 (v0.2.48)
 
 > Este documento describe **cómo** AgentHub está construido y **por qué**. Las capacidades viven en `SPECS.md`; el plan de evolución en `ROADMAP.md`.
 
@@ -52,6 +52,22 @@ Path: `/home/nestor/agenthub`
 | `internal/setup/` | Wizard de setup inicial (genera `.env`, primer admin). |
 | `internal/config/` | Carga de env vars y validación. |
 | `frontend/src/` | React + Vite + Tailwind. Estética cyberpunk HUD. |
+
+### PWA, push y update watcher
+
+La UI web también funciona como PWA instalable. La documentación operativa completa vive en [`docs/PWA_PUSH_UPDATES.md`](docs/PWA_PUSH_UPDATES.md).
+
+- `frontend/public/manifest.webmanifest` define metadata de instalación.
+- `frontend/public/sw.js` maneja lifecycle básico, `push` y `notificationclick`.
+- `frontend/src/pwa.ts` registra el service worker con query de versión (`/sw.js?v=<VERSION>`) para esquivar caches viejos de Cloudflare/navegador.
+- `frontend/src/lib/firebasePush.ts` registra tokens FCM desde el navegador usando el proyecto Firebase `relogtemperatura`.
+- `internal/server/push.go` persiste tokens en `push_tokens` y manda FCM HTTP v1 usando el login cacheado del Firebase CLI.
+- `frontend/src/lib/uiUpdateWatcher.ts` compara los assets hasheados publicados en `index.html` contra los cargados; si cambian, emite una notificación local con botón **recargar**.
+
+Regla de caché:
+
+- `index.html`, `sw.js` y `manifest.webmanifest`: `Cache-Control: no-store`.
+- `/assets/*`: `public, max-age=31536000, immutable` porque Vite genera nombres con hash.
 
 ### Persistencia
 
@@ -152,6 +168,13 @@ Cada decisión fechada y con motivo. No tocar sin discusión + entrada en change
 **Qué**: cualquier cambio backend pasa por build → smoke en `:8094` con DB temp + WA disabled → promote → safe-restart.
 **Por qué**: SQLite WAL no permite dos escritores; matar la sesión WA del prod por un smoke es destructivo.
 **Ref**: skill `.claude/skills/deploy-safe-restart/SKILL.md` v2.0.
+
+### 2026-04-29 · PWA updates por hash de assets, no solo por versión
+
+**Qué**: la PWA detecta updates comparando la firma de scripts/styles `/assets/*` en el `index.html` publicado contra la UI cargada.
+**Por qué**: en mobile no siempre está visible el sidebar desktop que compara backend/UI version, y un frontend-only deploy puede publicar bundles nuevos antes de que el proceso backend cambie de versión.
+**Mitigación de caché**: `sw.js` se registra con query de versión y se sirve con `no-store`.
+**Ref**: `docs/PWA_PUSH_UPDATES.md`, v0.2.47-v0.2.48.
 
 ---
 
