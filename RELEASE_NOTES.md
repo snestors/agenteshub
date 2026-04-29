@@ -8,6 +8,21 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.35 — 2026-04-29
+
+### Added (docs)
+- **`SPECS.md` vivo del proyecto**: 14 capabilities listadas (chat unificado, project sessions, mini-agents, topics, vault, openspec, records, diagrams, skills sync, system manager, sub-agents, slash commands, versionado, cancel cross-scope) con escenarios verificables `Dado/Cuando/Entonces` y sección "fuera de scope" explícita.
+- **`DESIGN.md` vivo del proyecto**: arquitectura real con vista de bloques, tabla de paquetes `internal/*` con responsabilidades, persistencia (SQLite WAL + FTS5 + snapshots + vault), engines (Claude/Codex/Ollama), sub-agents. Decisiones congeladas fechadas con motivo y trade-off (DB única, engines como child processes, MCP server interno, vault AES-GCM, sin timeout duro, DeepSeek directo, openspec approval-gated, runtime persistence, deploy blue/green).
+- **`ROADMAP.md` con Camino A**: plan incremental para cerrar el loop SDD canónico. Fase 1 (este release, docs vivos), fase 2 (`archive-merges-deltas`), fase 3 (`explore-phase`), fase 4 (`auto-mode`), fase 5 (`living-project-bridge`). Caminos paralelos: streaming Codex y fix Codex killed.
+- **`openspec/specs/openspec-flow/spec.md`**: primera capability viva en `openspec/specs/`. Documenta la máquina de estados (8 estados, 4 acciones por estado), filesystem layout, API HTTP, escenarios verificables (5 casos) y limitaciones conocidas.
+
+### Why
+- Los `SPECS.md` y `DESIGN.md` vivían como stubs (3 `TODO` cada uno) desde el bootstrap; `ROADMAP.md` ni existía aunque `CLAUDE.md` lo referenciaba. Se hizo evidente al revisar el avance: la historia del proyecto vive en `RELEASE_NOTES.md`, pero no había un documento que dijera **qué somos** ni **a dónde vamos**.
+- Decisión 2026-04-29 con el user: completar el modelo SDD interno de AgentHub (Camino A) en vez de delegar al SDD global o mantener el OpenSpec recortado.
+- Esta es la fase 1 del Camino A: solo documentación, cero código backend o frontend tocado, sirve de base para que las fases siguientes puedan mergear deltas a specs vivas.
+
+---
+
 ## v0.2.34 — 2026-04-29
 
 ### Fixed
