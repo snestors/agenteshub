@@ -19,6 +19,20 @@ const vapidKey = "";
 
 let messagingPromise: Promise<Messaging | null> | null = null;
 let registeredToken: string | null = null;
+let foregroundListenerStarted = false;
+
+export type FirebasePushResult =
+  | "registered"
+  | "unsupported"
+  | "denied"
+  | "dismissed"
+  | "no-token";
+
+export type FirebasePushSupport = {
+  ok: boolean;
+  reason?: string;
+  message?: string;
+};
 
 async function messaging(): Promise<Messaging | null> {
   if (!messagingPromise) {
@@ -31,18 +45,52 @@ async function messaging(): Promise<Messaging | null> {
   return messagingPromise;
 }
 
-export async function registerFirebasePush(): Promise<"registered" | "unsupported" | "denied" | "no-token"> {
-  if (!("Notification" in window) || !("serviceWorker" in navigator)) return "unsupported";
+async function serviceWorkerReady(): Promise<ServiceWorkerRegistration | null> {
+  return Promise.race<ServiceWorkerRegistration | null>([
+    navigator.serviceWorker.ready,
+    new Promise((resolve) => window.setTimeout(() => resolve(null), 10000)),
+  ]);
+}
+
+export async function getFirebasePushSupport(): Promise<FirebasePushSupport> {
+  if (!("Notification" in window)) {
+    return { ok: false, reason: "notification-api", message: "Este navegador no expone permisos de notificación." };
+  }
+  if (!window.isSecureContext) {
+    return { ok: false, reason: "insecure", message: "Abrilo por HTTPS para activar push." };
+  }
+  if (!("serviceWorker" in navigator)) {
+    return { ok: false, reason: "service-worker", message: "Este navegador no soporta service workers." };
+  }
+  if (!("PushManager" in window)) {
+    return { ok: false, reason: "push-manager", message: "Este navegador no soporta Web Push." };
+  }
+  const m = await messaging();
+  if (!m) {
+    return { ok: false, reason: "firebase", message: "Firebase Messaging no está soportado en este contexto." };
+  }
+  return { ok: true };
+}
+
+export async function registerFirebasePush(): Promise<FirebasePushResult> {
+  const support = await getFirebasePushSupport();
+  if (!support.ok) return "unsupported";
   const m = await messaging();
   if (!m) return "unsupported";
 
   let permission = Notification.permission;
   if (permission === "default") {
-    permission = await Notification.requestPermission();
+    try {
+      permission = await Notification.requestPermission();
+    } catch {
+      return "dismissed";
+    }
   }
+  if (permission === "default") return "dismissed";
   if (permission !== "granted") return "denied";
 
-  const sw = await navigator.serviceWorker.ready;
+  const sw = await serviceWorkerReady();
+  if (!sw) return "unsupported";
   const token = await getToken(m, {
     serviceWorkerRegistration: sw,
     ...(vapidKey ? { vapidKey } : {}),
@@ -53,13 +101,16 @@ export async function registerFirebasePush(): Promise<"registered" | "unsupporte
     registeredToken = token;
   }
 
-  onMessage(m, (payload) => {
-    if (payload.notification?.title) {
-      // El WS ya muestra el toast in-app. Esto queda como fallback suave si FCM
-      // llega en foreground sin duplicar fuerte.
-      console.debug("[fcm] foreground", payload.notification.title);
-    }
-  });
+  if (!foregroundListenerStarted) {
+    foregroundListenerStarted = true;
+    onMessage(m, (payload) => {
+      if (payload.notification?.title) {
+        // El WS ya muestra el toast in-app. Esto queda como fallback suave si FCM
+        // llega en foreground sin duplicar fuerte.
+        console.debug("[fcm] foreground", payload.notification.title);
+      }
+    });
+  }
 
   return "registered";
 }

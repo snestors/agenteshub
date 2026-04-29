@@ -3,7 +3,12 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Bot, AlertTriangle, Info, X } from "lucide-react";
 import { wsClient } from "@/lib/wsClient";
 import { api } from "@/lib/api";
-import { registerFirebasePush, registerFirebasePushIfGranted } from "@/lib/firebasePush";
+import {
+  getFirebasePushSupport,
+  registerFirebasePush,
+  registerFirebasePushIfGranted,
+  type FirebasePushResult,
+} from "@/lib/firebasePush";
 
 // Web Audio API blip — synthesizes a short two-tone notification on demand.
 // We don't ship an audio file because (a) one less network request, (b) no
@@ -110,10 +115,58 @@ function parsePayload(payload: unknown): Notification | null {
   return null;
 }
 
+type PushUiStatus =
+  | "idle"
+  | "asking"
+  | "registered"
+  | "unsupported"
+  | "denied"
+  | "dismissed"
+  | "error";
+
+type PushState = {
+  status: PushUiStatus;
+  detail?: string;
+};
+
+function stateFromPushResult(res: FirebasePushResult): PushState {
+  switch (res) {
+    case "registered":
+      return { status: "registered", detail: "push activo" };
+    case "unsupported":
+      return { status: "unsupported", detail: "Push no está disponible en este navegador/contexto. Probá desde HTTPS o la PWA instalada." };
+    case "denied":
+      return { status: "denied", detail: "El navegador tiene bloqueadas las notificaciones para este sitio." };
+    case "dismissed":
+      return { status: "dismissed", detail: "El navegador no mostró el permiso todavía; lo intento de nuevo con tu próximo toque." };
+    case "no-token":
+      return { status: "error", detail: "Firebase no devolvió token. Tocá para reintentar." };
+  }
+}
+
+function pushButtonLabel(status: PushUiStatus): string {
+  switch (status) {
+    case "asking":
+      return "pidiendo permiso";
+    case "registered":
+      return "push activo";
+    case "unsupported":
+      return "push no disponible";
+    case "denied":
+      return "push bloqueado";
+    case "dismissed":
+      return "permitir push";
+    case "error":
+      return "reintentar push";
+    default:
+      return "activar push";
+  }
+}
+
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = React.useState<Notification[]>([]);
   const [isDrawerOpen, setDrawerOpen] = React.useState(false);
-  const [pushStatus, setPushStatus] = React.useState<"idle" | "registered" | "unsupported" | "denied" | "error">("idle");
+  const [pushState, setPushState] = React.useState<PushState>({ status: "idle" });
 
   const push = React.useCallback((n: Notification) => {
     setItems((curr) => {
@@ -152,20 +205,61 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     [items]
   );
 
-  React.useEffect(() => {
-    void registerFirebasePushIfGranted().then((ok) => {
-      if (ok) setPushStatus("registered");
-    });
+  const enablePush = React.useCallback(async () => {
+    try {
+      setPushState({ status: "asking", detail: "pidiendo permiso al navegador…" });
+      const res = await registerFirebasePush();
+      setPushState(stateFromPushResult(res));
+    } catch {
+      setPushState({ status: "error", detail: "No pude registrar el token FCM. Tocá para reintentar." });
+    }
   }, []);
 
-  async function enablePush() {
-    try {
+  React.useEffect(() => {
+    let cancelled = false;
+    const retryOnGesture = () => {
+      window.removeEventListener("pointerdown", retryOnGesture, true);
+      window.removeEventListener("keydown", retryOnGesture, true);
+      void enablePush();
+    };
+
+    void (async () => {
+      const support = await getFirebasePushSupport();
+      if (cancelled) return;
+      if (!support.ok) {
+        setPushState({ status: "unsupported", detail: support.message });
+        return;
+      }
+
+      if (Notification.permission === "granted") {
+        const ok = await registerFirebasePushIfGranted();
+        if (!cancelled && ok) setPushState({ status: "registered", detail: "push activo" });
+        return;
+      }
+      if (Notification.permission === "denied") {
+        setPushState({ status: "denied", detail: "El navegador tiene bloqueadas las notificaciones para este sitio." });
+        return;
+      }
+
+      // Intento automático: en Chrome mobile suele mostrar el permiso directo.
+      // Si el navegador exige gesto de usuario, armamos un retry invisible con
+      // el próximo tap/tecla para que Nestor no tenga que buscar el botón.
+      setPushState({ status: "asking", detail: "pidiendo permiso al navegador…" });
       const res = await registerFirebasePush();
-      setPushStatus(res === "registered" ? "registered" : res === "denied" ? "denied" : res === "unsupported" ? "unsupported" : "error");
-    } catch {
-      setPushStatus("error");
-    }
-  }
+      if (cancelled) return;
+      setPushState(stateFromPushResult(res));
+      if (res === "dismissed") {
+        window.addEventListener("pointerdown", retryOnGesture, { capture: true, once: true, passive: true });
+        window.addEventListener("keydown", retryOnGesture, { capture: true, once: true });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("pointerdown", retryOnGesture, true);
+      window.removeEventListener("keydown", retryOnGesture, true);
+    };
+  }, [enablePush]);
 
   // Subscribe globally to the 'notifications' topic.
   React.useEffect(() => {
@@ -215,7 +309,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       {isDrawerOpen && (
         <NotificationDrawer
           items={items}
-          pushStatus={pushStatus}
+          pushState={pushState}
           onEnablePush={() => void enablePush()}
           onClose={closeDrawer}
           onDismiss={dismiss}
@@ -246,7 +340,7 @@ interface DrawerProps {
   onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
   onClearRead: () => void;
-  pushStatus: "idle" | "registered" | "unsupported" | "denied" | "error";
+  pushState: PushState;
   onEnablePush: () => void;
 }
 
@@ -257,7 +351,7 @@ function NotificationDrawer({
   onMarkRead,
   onMarkAllRead,
   onClearRead,
-  pushStatus,
+  pushState,
   onEnablePush,
 }: DrawerProps) {
   const navigate = useNavigate();
@@ -345,13 +439,18 @@ function NotificationDrawer({
             <button
               type="button"
               onClick={onEnablePush}
-              disabled={pushStatus === "registered" || pushStatus === "unsupported"}
+              disabled={pushState.status === "registered" || pushState.status === "asking"}
               className="px-2 py-1 clip-tag font-mono text-[10px] uppercase tracking-hud-tight border text-[var(--color-dim)] hover:text-[var(--color-fg)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
-              style={{ borderColor: pushStatus === "registered" ? "var(--color-lime)" : "var(--color-line)", color: pushStatus === "registered" ? "var(--color-lime)" : undefined }}
-              title={pushStatus === "denied" ? "Permiso bloqueado en el navegador" : "Activar push FCM"}
+              style={{ borderColor: pushState.status === "registered" ? "var(--color-lime)" : "var(--color-line)", color: pushState.status === "registered" ? "var(--color-lime)" : undefined }}
+              title={pushState.detail || "Activar push FCM"}
             >
-              {pushStatus === "registered" ? "push activo" : pushStatus === "denied" ? "push bloqueado" : "activar push"}
+              {pushButtonLabel(pushState.status)}
             </button>
+            {pushState.detail && pushState.status !== "registered" && (
+              <div className="basis-full font-mono text-[9px] text-[var(--color-dim)] leading-snug">
+                {pushState.detail}
+              </div>
+            )}
           </div>
 
           {/* list */}

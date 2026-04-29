@@ -8,6 +8,14 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.45 — 2026-04-29
+
+### Fixed
+- **Permiso push menos fastidioso**: AgentHub ahora intenta pedir el permiso de notificaciones automáticamente al abrir; si Chrome exige gesto del usuario, reintenta con el próximo toque/tecla sin obligar a abrir el drawer.
+- **Botón push no queda muerto**: el botón de notificaciones ya no se deshabilita por estados `unsupported`/`denied`; muestra el motivo y permite reintentar.
+
+---
+
 ## v0.2.44 — 2026-04-29
 
 ### Added
