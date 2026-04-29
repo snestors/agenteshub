@@ -138,6 +138,15 @@ func (s *Server) runConversationTurn(turn conversationTurn) {
 	defer s.runs.UnregisterCancel("main", turn.Engine)
 	go s.watchLongRunning(ctx, "main", turn.Engine, "Main · "+turn.Engine, "Cancelá el turn desde el toast.")
 
+	runRef := runtimeRunRef{
+		Scope:     "main",
+		ScopeKey:  mainAgentSessionName(turn.Engine, turn.Model),
+		Topic:     "agent",
+		Engine:    turn.Engine,
+		Model:     turn.Model,
+		SessionID: turn.PreviousID,
+	}
+	s.beginRuntimeRun(ctx, runRef)
 	activity := &turnActivity{}
 	res, err := s.engines.Run(ctx, cliengine.RunOpts{
 		Prompt:    turn.Prompt,
@@ -148,9 +157,10 @@ func (s *Server) runConversationTurn(turn conversationTurn) {
 		Model:     turn.Model,
 		Scope:     "main",
 		AgentName: "main-agent",
-		OnEvent:   s.streamEventBroadcasterWithActivity(activity),
+		OnEvent:   s.streamEventBroadcasterWithActivity(runRef, activity),
 	})
 	if err != nil {
+		s.finalizeRuntimeRun(context.Background(), runRef, "error", turn.PreviousID, "", err.Error())
 		if isShutdownError(ctx, err) {
 			s.log.Info("conversation turn cancelled (shutdown)", "channel", turn.Source)
 			return
@@ -161,6 +171,7 @@ func (s *Server) runConversationTurn(turn conversationTurn) {
 		s.broadcastNotification(Notification{Kind: "main_turn_failed", Severity: "error", Title: "Main · " + turn.Engine, Body: truncate(err.Error(), 280), Context: map[string]any{"engine": turn.Engine, "model": turn.Model, "channel": turn.Source}})
 		return
 	}
+	s.finalizeRuntimeRun(context.Background(), runRef, "done", res.SessionID, res.Text, "")
 	if res.SessionID != "" && res.SessionID != turn.PreviousID {
 		_ = s.repos.Sessions.UpsertAgentSession(context.Background(), store.AgentSession{AgentName: mainAgentSessionName(turn.Engine, turn.Model), Engine: turn.Engine, SessionID: res.SessionID})
 	}

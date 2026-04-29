@@ -20,6 +20,7 @@ type SessionMessage struct {
 	ToolName      sql.NullString
 	ToolArgs      sql.NullString
 	ToolResult    sql.NullString
+	Activity      sql.NullString
 	CostTokens    int64
 	TS            int64
 }
@@ -43,9 +44,9 @@ func (r *SessionsRepo) AppendMessage(ctx context.Context, m SessionMessage) (int
 		m.TS = time.Now().Unix()
 	}
 	res, err := r.db.ExecContext(ctx, `
-		INSERT INTO session_messages(scope, topic_id, project_id, project_sess_id, session_id, role, body, tool_name, tool_args, tool_result, cost_tokens, ts)
-		VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
-	`, m.Scope, m.TopicID, m.ProjectID, m.ProjectSessID, m.SessionID, m.Role, m.Body, m.ToolName, m.ToolArgs, m.ToolResult, m.CostTokens, m.TS)
+		INSERT INTO session_messages(scope, topic_id, project_id, project_sess_id, session_id, role, body, tool_name, tool_args, tool_result, activity, cost_tokens, ts)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+	`, m.Scope, m.TopicID, m.ProjectID, m.ProjectSessID, m.SessionID, m.Role, m.Body, m.ToolName, m.ToolArgs, m.ToolResult, m.Activity, m.CostTokens, m.TS)
 	if err != nil {
 		return 0, fmt.Errorf("append message: %w", err)
 	}
@@ -59,6 +60,7 @@ func (r *SessionsRepo) MessagesForSession(ctx context.Context, sessionID string,
 	}
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, scope, topic_id, project_id, project_sess_id, session_id, role, body, tool_name, tool_args, tool_result, cost_tokens, ts
+		       , activity
 		FROM session_messages WHERE session_id = ? ORDER BY ts ASC LIMIT ?
 	`, sessionID, limit)
 	if err != nil {
@@ -68,7 +70,7 @@ func (r *SessionsRepo) MessagesForSession(ctx context.Context, sessionID string,
 	out := []SessionMessage{}
 	for rows.Next() {
 		var m SessionMessage
-		if err := rows.Scan(&m.ID, &m.Scope, &m.TopicID, &m.ProjectID, &m.ProjectSessID, &m.SessionID, &m.Role, &m.Body, &m.ToolName, &m.ToolArgs, &m.ToolResult, &m.CostTokens, &m.TS); err != nil {
+		if err := rows.Scan(&m.ID, &m.Scope, &m.TopicID, &m.ProjectID, &m.ProjectSessID, &m.SessionID, &m.Role, &m.Body, &m.ToolName, &m.ToolArgs, &m.ToolResult, &m.CostTokens, &m.TS, &m.Activity); err != nil {
 			return nil, err
 		}
 		out = append(out, m)
@@ -85,7 +87,7 @@ func (r *SessionsRepo) MessagesForProjectSession(ctx context.Context, projectSes
 		limit = 200
 	}
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, scope, topic_id, project_id, project_sess_id, session_id, role, body, tool_name, tool_args, tool_result, cost_tokens, ts
+		SELECT id, scope, topic_id, project_id, project_sess_id, session_id, role, body, tool_name, tool_args, tool_result, cost_tokens, ts, activity
 		FROM session_messages WHERE scope='project' AND project_sess_id = ? ORDER BY ts ASC, id ASC LIMIT ?
 	`, projectSessID, limit)
 	if err != nil {
@@ -95,7 +97,7 @@ func (r *SessionsRepo) MessagesForProjectSession(ctx context.Context, projectSes
 	out := []SessionMessage{}
 	for rows.Next() {
 		var m SessionMessage
-		if err := rows.Scan(&m.ID, &m.Scope, &m.TopicID, &m.ProjectID, &m.ProjectSessID, &m.SessionID, &m.Role, &m.Body, &m.ToolName, &m.ToolArgs, &m.ToolResult, &m.CostTokens, &m.TS); err != nil {
+		if err := rows.Scan(&m.ID, &m.Scope, &m.TopicID, &m.ProjectID, &m.ProjectSessID, &m.SessionID, &m.Role, &m.Body, &m.ToolName, &m.ToolArgs, &m.ToolResult, &m.CostTokens, &m.TS, &m.Activity); err != nil {
 			return nil, err
 		}
 		out = append(out, m)
@@ -113,6 +115,22 @@ func (r *SessionsRepo) BackfillProjectSessionID(ctx context.Context, projectSess
 		UPDATE session_messages SET session_id=?
 		WHERE scope='project' AND project_sess_id=? AND session_id=''
 	`, sessionID, projectSessID)
+	return err
+}
+
+func (r *SessionsRepo) UpdateLatestAssistantActivityForProjectSession(ctx context.Context, projectSessID int64, sessionID string, activity sql.NullString) error {
+	if !activity.Valid {
+		return nil
+	}
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE session_messages
+		SET activity=?
+		WHERE id = (
+			SELECT id FROM session_messages
+			WHERE scope='project' AND project_sess_id=? AND role='assistant' AND session_id=?
+			ORDER BY id DESC LIMIT 1
+		)
+	`, activity, projectSessID, sessionID)
 	return err
 }
 

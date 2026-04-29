@@ -8,6 +8,18 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.32 — 2026-04-29
+
+### Added
+- **Persistencia backend del runtime live**: nueva tabla `conversation_runs` para guardar el snapshot de ejecución de `main` y `project` (texto parcial, thinking, tools, sub-agents, estado, tiempos, errores) y poder hidratar el chat al reentrar.
+- **Hydration endpoints**: agregados `GET /api/agent/runtime` y `GET /api/projects/{id}/sessions/{sid}/runtime` para reconstruir el estado live desde backend después de navegar/recargar.
+
+### Changed
+- **Project chat ya no pierde el estado live**: al volver a entrar, la UI reconstruye el ghost bubble desde backend y muestra sub-agents/tools que siguen corriendo.
+- **Actividad final persistida en project messages**: `session_messages` ahora guarda `activity` para respuestas del assistant en proyectos, así el historial conserva thinking/tools/sub-agents incluso cuando el run ya terminó.
+
+---
+
 ## v0.2.31 — 2026-04-28
 
 ### Added

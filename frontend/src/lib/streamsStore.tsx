@@ -60,6 +60,8 @@ interface StreamsState {
   markAgentPending: () => void;
   /** Drop a ghost once the persisted message has reached the consumer. */
   dismissAgentGhost: (sessionId: string) => void;
+  /** Seed the store from a backend snapshot after reload/navigation. */
+  hydrateAgentGhost: (sessionId: string, ghost: GhostBubbleData) => void;
   /** Clear every ghost on the agent topic — used when the assistant's
    *  persisted message arrives, since at that point any in-flight ghost
    *  (placeholder or real) is stale.  */
@@ -251,6 +253,17 @@ export function StreamsProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const hydrateAgentGhost = React.useCallback((sessionId: string, ghost: GhostBubbleData) => {
+    if (!sessionId) return;
+    setByTopic((curr) => ({
+      ...curr,
+      agent: {
+        ...(curr.agent ?? {}),
+        [sessionId]: ghost,
+      },
+    }));
+  }, []);
+
   const clearAgentGhosts = React.useCallback(() => {
     setByTopic((curr) => {
       const inner = curr.agent ?? {};
@@ -268,9 +281,10 @@ export function StreamsProvider({ children }: { children: React.ReactNode }) {
       agentGhostsList,
       markAgentPending,
       dismissAgentGhost,
+      hydrateAgentGhost,
       clearAgentGhosts,
     }),
-    [agentGhosts, agentGhostsList, markAgentPending, dismissAgentGhost, clearAgentGhosts]
+    [agentGhosts, agentGhostsList, markAgentPending, dismissAgentGhost, hydrateAgentGhost, clearAgentGhosts]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

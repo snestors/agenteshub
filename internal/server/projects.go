@@ -53,6 +53,7 @@ type sessionMessageWire struct {
 	Direction     string `json:"direction"`
 	Channel       string `json:"channel"`
 	Body          string `json:"body"`
+	Activity      string `json:"activity,omitempty"`
 	CostTokens    int64  `json:"cost_tokens,omitempty"`
 	TS            int64  `json:"ts"`
 }
@@ -346,6 +347,16 @@ func (s *Server) runProjectSessionTurn(project *store.Project, sess *store.Proje
 	model := s.ensureProjectSessionModel(sess, engineName)
 	effort := s.ensureProjectSessionReasoningEffort(sess)
 	prev := sess.SessionID
+	runRef := runtimeRunRef{
+		Scope:     "project",
+		ScopeKey:  strconv.FormatInt(sess.ID, 10),
+		Topic:     topic,
+		Engine:    engineName,
+		Model:     model,
+		SessionID: prev,
+	}
+	s.beginRuntimeRun(ctx, runRef)
+	activity := &turnActivity{}
 	res, err := s.engines.Run(ctx, cliengine.RunOpts{
 		Prompt:          body,
 		UserBody:        body,
@@ -358,9 +369,10 @@ func (s *Server) runProjectSessionTurn(project *store.Project, sess *store.Proje
 		Scope:           "project",
 		ProjectID:       project.ID,
 		ProjectSessID:   sess.ID,
-		OnEvent:         s.streamEventBroadcasterForTopic(topic),
+		OnEvent:         s.streamEventBroadcasterForTopicWithRuntime(topic, runRef, activity),
 	})
 	if err != nil {
+		s.finalizeRuntimeRun(context.Background(), runRef, "error", prev, "", err.Error())
 		s.broadcastStreamFinal(topic)
 		if isShutdownError(ctx, err) {
 			s.log.Info("project turn cancelled (shutdown)", "project", project.Name, "session", sess.Name)
@@ -386,12 +398,14 @@ func (s *Server) runProjectSessionTurn(project *store.Project, sess *store.Proje
 		})
 		return
 	}
+	s.finalizeRuntimeRun(context.Background(), runRef, "done", res.SessionID, res.Text, "")
 	if res != nil && res.SessionID != "" && res.SessionID != prev {
 		_ = s.repos.Projects.UpdateSessionID(context.Background(), sess.ID, res.SessionID)
 		_ = s.repos.Sessions.BackfillProjectSessionID(context.Background(), sess.ID, res.SessionID)
 	} else {
 		_ = s.repos.Projects.TouchSession(context.Background(), sess.ID)
 	}
+	_ = s.repos.Sessions.UpdateLatestAssistantActivityForProjectSession(context.Background(), sess.ID, res.SessionID, store.MustJSON(activity))
 	s.broadcastLatestProjectMessage(context.Background(), project.ID, sess.ID, topic)
 	s.broadcastNotification(Notification{
 		Kind:     "project_turn_done",
@@ -584,6 +598,54 @@ func (s *Server) streamEventBroadcasterForTopic(topic string) func(cliengine.Str
 	}
 }
 
+func (s *Server) streamEventBroadcasterForTopicWithRuntime(topic string, ref runtimeRunRef, acc *turnActivity) func(cliengine.StreamEvent) {
+	broadcast := s.streamEventBroadcasterForTopic(topic)
+	snap := &runtimeSnapshot{}
+	return func(ev cliengine.StreamEvent) {
+		broadcast(ev)
+		applyRuntimeEvent(snap, ev)
+		s.persistRuntimeSnapshot(context.Background(), ref, "running", *snap, ev.SessionID, "", "", ev.Seq, false)
+		if acc == nil {
+			return
+		}
+		switch ev.Kind {
+		case "thinking":
+			if ev.Text != "" {
+				acc.Thinking += ev.Text
+			}
+		case "tool_use":
+			acc.Tools = append(acc.Tools, activityToolEntry{
+				ID:     ev.ToolID,
+				Name:   ev.ToolName,
+				Args:   ev.ToolArgs,
+				Status: "running",
+			})
+		case "tool_result":
+			idx := -1
+			if ev.ToolID != "" {
+				for i := range acc.Tools {
+					if acc.Tools[i].ID == ev.ToolID {
+						idx = i
+						break
+					}
+				}
+			}
+			if idx == -1 {
+				for i := len(acc.Tools) - 1; i >= 0; i-- {
+					if acc.Tools[i].Status == "running" {
+						idx = i
+						break
+					}
+				}
+			}
+			if idx >= 0 {
+				acc.Tools[idx].Status = "ok"
+				acc.Tools[idx].ResultPreview = truncate(ev.ToolResult, 1000)
+			}
+		}
+	}
+}
+
 func (s *Server) projectFromRequest(w http.ResponseWriter, r *http.Request) (*store.Project, bool) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil || id <= 0 {
@@ -666,6 +728,7 @@ func sessionMessageToWire(projectID, projectSessID int64, m store.SessionMessage
 		Direction:     direction,
 		Channel:       "project",
 		Body:          nullString(m.Body),
+		Activity:      nullString(m.Activity),
 		CostTokens:    m.CostTokens,
 		TS:            m.TS,
 	}

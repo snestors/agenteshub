@@ -139,6 +139,36 @@ export interface MessageActivity {
   tools?: MessageActivityTool[];
 }
 
+export interface RuntimeToolState {
+  id?: string;
+  name: string;
+  args?: unknown;
+  status: "running" | "ok" | "error" | "cancelled";
+  result_preview?: string;
+  started_at?: number;
+  finished_at?: number;
+  subagent_stats?: Record<string, unknown>;
+}
+
+export interface ConversationRuntime {
+  scope: string;
+  scope_key: string;
+  topic?: string;
+  engine: string;
+  model?: string;
+  session_id?: string;
+  status: "running" | "done" | "error" | "cancelled" | "interrupted";
+  started_at: number;
+  updated_at: number;
+  finished_at?: number;
+  last_error?: string;
+  text?: string;
+  thinking?: string;
+  tools?: RuntimeToolState[];
+  result_text?: string;
+  last_seq?: number;
+}
+
 export interface AgentMessage {
   id: number;
   channel: string;
@@ -246,6 +276,7 @@ export interface ProjectMessage {
   direction: "in" | "out";
   channel: string;
   body: string;
+  activity?: MessageActivity;
   cost_tokens?: number;
   ts: number;
 }
@@ -653,10 +684,19 @@ export const api = {
     projectId: number,
     sessionId: number,
   ): Promise<ProjectMessage[]> {
-    const res = await request<{ messages: ProjectMessage[] | null }>(
+    const res = await request<{ messages: (Omit<ProjectMessage, "activity"> & { activity?: string })[] | null }>(
       `/api/projects/${projectId}/sessions/${sessionId}/messages`,
     );
-    return res.messages ?? [];
+    return (res.messages ?? []).map((m) => {
+      let activity: MessageActivity | undefined;
+      if (m.activity) {
+        try {
+          const obj = JSON.parse(m.activity) as MessageActivity;
+          if (obj && typeof obj === "object") activity = obj;
+        } catch {}
+      }
+      return { ...m, activity };
+    });
   },
 
   async sendProjectMessage(
@@ -674,6 +714,18 @@ export const api = {
     return request<{ running: boolean }>(
       `/api/projects/${projectId}/sessions/${sessionId}/run`,
     );
+  },
+
+  async getAgentRuntime(): Promise<ConversationRuntime | null> {
+    const res = await request<{ run: ConversationRuntime | null }>(`/api/agent/runtime`);
+    return res.run ?? null;
+  },
+
+  async getProjectRuntime(projectId: number, sessionId: number): Promise<ConversationRuntime | null> {
+    const res = await request<{ run: ConversationRuntime | null }>(
+      `/api/projects/${projectId}/sessions/${sessionId}/runtime`,
+    );
+    return res.run ?? null;
   },
 
   async cancelProjectRun(projectId: number, sessionId: number): Promise<void> {

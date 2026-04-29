@@ -1,5 +1,5 @@
 import * as React from "react";
-import { api, DEFAULT_REASONING_EFFORTS, FALLBACK_ENGINES, type AgentMessage, type EngineDef, type MessageAttachmentRef, type ProjectMessage, type ProjectSession } from "@/lib/api";
+import { api, DEFAULT_REASONING_EFFORTS, FALLBACK_ENGINES, type AgentMessage, type ConversationRuntime, type EngineDef, type MessageAttachmentRef, type ProjectMessage, type ProjectSession, type RuntimeToolState } from "@/lib/api";
 import { useTopic } from "@/lib/useTopic";
 import { Composer } from "@/components/Composer";
 import { MessageBubble } from "@/components/MessageBubble";
@@ -88,8 +88,32 @@ function projectMessageToAgent(m: ProjectMessage): AgentMessage {
     channel: m.channel || "project",
     direction: m.direction === "in" ? "in" : "out",
     body: m.body ?? "",
+    activity: m.activity,
     ts: m.ts,
     isRead: true,
+  };
+}
+
+function runtimeToGhost(run: ConversationRuntime): GhostBubbleData | null {
+  if (!run.session_id) return null;
+  const tools: ToolCall[] = (run.tools ?? []).map((t: RuntimeToolState, idx) => ({
+    id: t.id || `${run.session_id}-${idx}`,
+    name: t.name,
+    args: t.args,
+    status: t.status === "cancelled" ? "error" : t.status,
+    resultPreview: t.result_preview,
+    startedAt: t.started_at,
+    finishedAt: t.finished_at,
+    subagentStats: extractStatsFromMeta(t.subagent_stats),
+    claudeToolUseID: t.id,
+  }));
+  return {
+    id: `stream-${run.session_id}`,
+    thinking: run.thinking ?? "",
+    text: run.text ?? "",
+    tools,
+    done: run.status !== "running",
+    pending: run.status === "running" && !(run.text || run.thinking || tools.length > 0),
   };
 }
 
@@ -139,6 +163,15 @@ export function ProjectChat({
     if (sessionId > 0) {
       api.getProjectRunStatus(projectId, sessionId)
         .then(({ running }) => { if (running) setPending(true); })
+        .catch(() => {});
+      api.getProjectRuntime(projectId, sessionId)
+        .then((run) => {
+          if (!run) return;
+          if (run.status === "running") setPending(true);
+          const ghost = runtimeToGhost(run);
+          if (!ghost || !run.session_id) return;
+          setGhosts({ [run.session_id]: ghost });
+        })
         .catch(() => {});
     }
   }, [refresh, projectId, sessionId]);

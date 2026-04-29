@@ -77,20 +77,21 @@ func migrate(ctx context.Context, db *sql.DB) error {
 
 // Repos bundles all repositories for dependency injection.
 type Repos struct {
-	db        *sql.DB
-	Auth      *AuthRepo
-	Settings  *SettingsRepo
-	Messages  *MessagesRepo
-	Topics    *TopicsRepo
-	Projects  *ProjectsRepo
-	Agents    *AgentsRepo
-	Records   *RecordsRepo
-	Sessions  *SessionsRepo
-	Snapshots *SnapshotsRepo
-	Subagents *SubagentRunsRepo
-	Secrets   *SecretsRepo
-	Diagrams  *DiagramsRepo
-	OpenSpec  *OpenSpecChangesRepo
+	db                *sql.DB
+	Auth              *AuthRepo
+	Settings          *SettingsRepo
+	Messages          *MessagesRepo
+	Topics            *TopicsRepo
+	Projects          *ProjectsRepo
+	Agents            *AgentsRepo
+	Records           *RecordsRepo
+	Sessions          *SessionsRepo
+	Snapshots         *SnapshotsRepo
+	Subagents         *SubagentRunsRepo
+	Secrets           *SecretsRepo
+	Diagrams          *DiagramsRepo
+	OpenSpec          *OpenSpecChangesRepo
+	ConversationRuns  *ConversationRunsRepo
 	WaOutbox          *WaOutboxRepo
 	Skills            *SkillsRepo
 	SkillImprovements *SkillImprovementsRepo
@@ -103,20 +104,21 @@ func (r *Repos) DB() *sql.DB { return r.db }
 // NewRepos wires up every repo around a single *sql.DB handle.
 func NewRepos(db *sql.DB) *Repos {
 	return &Repos{
-		db:        db,
-		Auth:      NewAuthRepo(db),
-		Settings:  NewSettingsRepo(db),
-		Messages:  NewMessagesRepo(db),
-		Topics:    NewTopicsRepo(db),
-		Projects:  NewProjectsRepo(db),
-		Agents:    NewAgentsRepo(db),
-		Records:   NewRecordsRepo(db),
-		Sessions:  NewSessionsRepo(db),
-		Snapshots: NewSnapshotsRepo(db),
-		Subagents: NewSubagentRunsRepo(db),
-		Secrets:   NewSecretsRepo(db),
-		Diagrams:  NewDiagramsRepo(db),
-		OpenSpec:  NewOpenSpecChangesRepo(db),
+		db:                db,
+		Auth:              NewAuthRepo(db),
+		Settings:          NewSettingsRepo(db),
+		Messages:          NewMessagesRepo(db),
+		Topics:            NewTopicsRepo(db),
+		Projects:          NewProjectsRepo(db),
+		Agents:            NewAgentsRepo(db),
+		Records:           NewRecordsRepo(db),
+		Sessions:          NewSessionsRepo(db),
+		Snapshots:         NewSnapshotsRepo(db),
+		Subagents:         NewSubagentRunsRepo(db),
+		Secrets:           NewSecretsRepo(db),
+		Diagrams:          NewDiagramsRepo(db),
+		OpenSpec:          NewOpenSpecChangesRepo(db),
+		ConversationRuns:  NewConversationRunsRepo(db),
 		WaOutbox:          NewWaOutboxRepo(db),
 		Skills:            NewSkillsRepo(db),
 		SkillImprovements: NewSkillImprovementsRepo(db),

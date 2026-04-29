@@ -2,7 +2,9 @@ import * as React from "react";
 import {
   api,
   type AgentMessage,
+  type ConversationRuntime,
   type MessageAttachmentRef,
+  type RuntimeToolState,
 } from "@/lib/api";
 import { useTopic } from "@/lib/useTopic";
 import { wsClient } from "@/lib/wsClient";
@@ -80,7 +82,7 @@ function fromWs(m: WsAgentPayload): AgentMessage {
 export function ChatMain() {
   // Live ghost bubbles for in-flight turns are managed by the global
   // StreamsProvider so they survive cross-navigation. We only read from it.
-  const { agentGhostsList: ghostList, markAgentPending, clearAgentGhosts } = useStreams();
+  const { agentGhostsList: ghostList, markAgentPending, clearAgentGhosts, hydrateAgentGhost } = useStreams();
   const [messages, setMessages] = React.useState<AgentMessage[]>([]);
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
@@ -91,6 +93,41 @@ export function ChatMain() {
   const [searching, setSearching] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const lastIdRef = React.useRef<number>(0);
+
+  const runtimeToGhost = React.useCallback((run: ConversationRuntime) => {
+    if (!run.session_id) return null;
+    return {
+      id: `stream-${run.session_id}`,
+      thinking: run.thinking ?? "",
+      text: run.text ?? "",
+      tools: (run.tools ?? []).map((t: RuntimeToolState, idx) => ({
+        id: t.id || `${run.session_id}-${idx}`,
+        name: t.name,
+        args: t.args,
+        status: t.status === "cancelled" ? "error" : t.status,
+        resultPreview: t.result_preview,
+        startedAt: t.started_at,
+        finishedAt: t.finished_at,
+        subagentStats:
+          t.subagent_stats && typeof t.subagent_stats === "object"
+            ? {
+                agentId: typeof t.subagent_stats.agent_id === "string" ? t.subagent_stats.agent_id : undefined,
+                agentType: typeof t.subagent_stats.agent_type === "string" ? t.subagent_stats.agent_type : undefined,
+                status: typeof t.subagent_stats.status === "string" ? t.subagent_stats.status : undefined,
+                totalDurationMs: typeof t.subagent_stats.total_duration_ms === "number" ? t.subagent_stats.total_duration_ms : undefined,
+                totalTokens: typeof t.subagent_stats.total_tokens === "number" ? t.subagent_stats.total_tokens : undefined,
+                totalToolUseCount: typeof t.subagent_stats.total_tool_use_count === "number" ? t.subagent_stats.total_tool_use_count : undefined,
+                toolStats:
+                  t.subagent_stats.tool_stats && typeof t.subagent_stats.tool_stats === "object"
+                    ? (t.subagent_stats.tool_stats as Record<string, unknown>)
+                    : undefined,
+              }
+            : undefined,
+      })),
+      done: run.status !== "running",
+      pending: run.status === "running" && !(run.text || run.thinking || (run.tools?.length ?? 0) > 0),
+    };
+  }, []);
 
   // ─── load helpers ──────────────────────────────
   const refresh = React.useCallback(async () => {
@@ -141,7 +178,13 @@ export function ChatMain() {
   // initial fetch — always do this so we have history before WS opens
   React.useEffect(() => {
     void refresh();
-  }, [refresh]);
+    void api.getAgentRuntime().then((run) => {
+      if (!run || !run.session_id) return;
+      if (run.status === "running") setPending(true);
+      const ghost = runtimeToGhost(run);
+      if (ghost) hydrateAgentGhost(run.session_id, ghost);
+    }).catch(() => undefined);
+  }, [refresh, runtimeToGhost, hydrateAgentGhost]);
 
   // ─── search ────────────────────────────────────
   React.useEffect(() => {

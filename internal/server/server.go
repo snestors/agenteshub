@@ -56,6 +56,9 @@ func New(cfg *config.Config, repos *store.Repos, engines *cliengine.Manager, sm 
 	tokens := auth.NewTokenService(cfg, repos.Auth)
 	hub := ws.New(log.With("comp", "ws"))
 	s := &Server{cfg: cfg, repos: repos, tokens: tokens, engines: engines, sysman: sm, hub: hub, runs: NewRunTracker(), log: log}
+	if repos != nil && repos.ConversationRuns != nil {
+		_ = repos.ConversationRuns.MarkInterruptedOlderThan(context.Background(), time.Now().Unix())
+	}
 	s.registerWSActions()
 	s.httpSrv = &http.Server{
 		Addr:              cfg.HTTPAddr,
@@ -138,6 +141,7 @@ func (s *Server) routes() http.Handler {
 
 		// Agent status (StatusBar UI)
 		pr.Get("/api/agent/status", s.handleAgentStatus)
+		pr.Get("/api/agent/runtime", s.handleAgentRuntime)
 		pr.Get("/api/agent/engines", s.handleListEngines)
 		pr.Post("/api/agent/engine", s.handleSetEngine)
 
@@ -171,6 +175,7 @@ func (s *Server) routes() http.Handler {
 		pr.Get("/api/projects/{id}/sessions/{sid}/messages", s.handleProjectSessionMessagesList)
 		pr.Post("/api/projects/{id}/sessions/{sid}/messages", s.handleProjectSessionMessagesSend)
 		pr.Get("/api/projects/{id}/sessions/{sid}/run", s.handleProjectSessionRunStatus)
+		pr.Get("/api/projects/{id}/sessions/{sid}/runtime", s.handleProjectSessionRuntime)
 		pr.Delete("/api/projects/{id}/sessions/{sid}/run", s.handleProjectSessionCancel)
 		pr.Post("/api/projects/{id}/sessions/{sid}/engine", s.handleProjectSessionSetEngine)
 		pr.Post("/api/projects/{id}/sessions/{sid}/model", s.handleProjectSessionSetModel)
@@ -762,10 +767,13 @@ func (s *Server) streamEventBroadcaster() func(cliengine.StreamEvent) {
 // streamEventBroadcasterWithActivity is like streamEventBroadcaster but also
 // accumulates thinking + tool calls into the provided pointer so the caller
 // can persist the turn's audit trail after Run returns.
-func (s *Server) streamEventBroadcasterWithActivity(acc *turnActivity) func(cliengine.StreamEvent) {
+func (s *Server) streamEventBroadcasterWithActivity(ref runtimeRunRef, acc *turnActivity) func(cliengine.StreamEvent) {
 	broadcast := s.streamEventBroadcaster()
+	snap := &runtimeSnapshot{}
 	return func(ev cliengine.StreamEvent) {
 		broadcast(ev)
+		applyRuntimeEvent(snap, ev)
+		s.persistRuntimeSnapshot(context.Background(), ref, "running", *snap, ev.SessionID, "", "", ev.Seq, false)
 		switch ev.Kind {
 		case "thinking":
 			if ev.Text != "" {
