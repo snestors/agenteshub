@@ -58,6 +58,7 @@ export function StatusBar({ transportLabel }: StatusBarProps) {
   const ctxPctStr = fmtPct(status.ctx_pct ?? 0);
   const ctxClr = ctxColor(status.ctx_pct ?? 0);
   const ctxUsedStr = fmtTokens(status.ctx_used ?? 0);
+  const ctxWindowStr = fmtCtxWindow(status.ctx_window);
   const engineBadge = `${status.engine} · ${status.model} · ${fmtCtxWindow(
     status.ctx_window
   )}`;
@@ -110,12 +111,21 @@ export function StatusBar({ transportLabel }: StatusBarProps) {
 
       <span className="text-[var(--color-dim)]">·</span>
 
-      {/* ctx:N% — contexto consumido por el último turn (input_tokens del JSONL) */}
+      {/* contexto consumido por el último turn (input_tokens del JSONL) */}
       <span
-        style={{ color: ctxClr }}
-        title={`contexto consumido del último turn: ${ctxUsedStr} / ${fmtCtxWindow(status.ctx_window)}`}
+        className="inline-flex items-center gap-1 px-2 py-0.5 clip-tag"
+        style={{
+          color: ctxClr,
+          background: "rgba(255,255,255,0.04)",
+          border: `1px solid ${ctxClr}`,
+        }}
+        title={`contexto consumido del último turn: ${ctxUsedStr} / ${ctxWindowStr}`}
       >
-        ctx:{ctxPctStr}
+        <span>ctx</span>
+        <span>{ctxPctStr}</span>
+        <span className="hidden sm:inline text-[var(--color-dim)]">
+          · {ctxUsedStr}/{ctxWindowStr}
+        </span>
       </span>
 
       {/* plan badge — leído de ~/.claude/.credentials.json */}

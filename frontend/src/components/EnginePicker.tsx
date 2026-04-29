@@ -114,9 +114,9 @@ export function EnginePicker({
         aria-hidden="true"
       />
 
-      {/* dropdown panel — anchored above the badge by parent */}
+      {/* dropdown panel — fixed, not inside StatusBar overflow, so it stays clickable. */}
       <div
-        className="fixed left-3 right-3 bottom-24 z-50 clip-hud-sm font-mono text-[11px] tracking-hud-tight sm:absolute sm:bottom-full sm:left-0 sm:right-auto sm:mb-2 sm:w-[300px]"
+        className="fixed left-3 right-3 bottom-14 z-50 max-h-[70vh] overflow-y-auto clip-hud-sm font-mono text-[11px] tracking-hud-tight sm:left-4 sm:right-auto sm:w-[360px]"
         style={{
           background: "rgba(10, 15, 36, 0.95)",
           border: "1px solid rgba(94, 240, 255, 0.55)",

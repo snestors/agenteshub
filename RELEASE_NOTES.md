@@ -8,6 +8,14 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.49 — 2026-04-29
+
+### Fixed
+- **Selector de modelos clickeable**: el picker de engine/modelo del status bar ahora es `fixed` y no queda recortado por el overflow horizontal de la barra.
+- **Contexto más legible**: el indicador de contexto ahora es un chip con porcentaje y uso/window en desktop (`ctx 81% · 162K/200K ctx`) en vez de texto suelto.
+
+---
+
 ## v0.2.48 — 2026-04-29
 
 ### Documentation
