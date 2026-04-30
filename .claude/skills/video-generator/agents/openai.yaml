@@ -1,0 +1,4 @@
+interface:
+  display_name: "Video Generator"
+  short_description: "Generate and publish MP4 videos."
+  default_prompt: "Create a polished video from a brief, using HyperFrames by default, validate/render it, publish the MP4 under data/uploads/shared, and return a downloadable link."

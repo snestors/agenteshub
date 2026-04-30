@@ -20,6 +20,7 @@ Path: `/home/nestor/agenthub`
 - `cron-admin`: crear y administrar cronjobs del host con guardrails, priorizando `/etc/cron.d/agenthub-*`, inventario previo y validación conservadora.
 - `hyperframes` / `hyperframes-cli`: stack HTML+GSAP para videos generativos; usar para componer, lint, inspeccionar y renderizar demos en `videos/hyperframes-*`.
 - `agenthub-ui-video`: crear videos explicativos de AgentHub con capturas reales de UI, diagramas HyperFrames y links descargables.
+- `video-generator`: crear videos generativos o explicativos desde brief/assets, validar, renderizar MP4 y publicar links descargables.
 - `website-to-hyperframes` / `remotion-to-hyperframes` / `gsap`: skills auxiliares instaladas desde el registry de HyperFrames para capturas web, migración desde Remotion y animación GSAP.
 - `branch-pr` / `issue-creation`: usar para flujos GitHub cuando aplique.
 - `sdd-workflow`: reglas OpenSpec/SDD con gates obligatorios para proposal/design/tasks/apply/verify/archive.

@@ -8,6 +8,17 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.58 — 2026-04-30
+
+### Added
+- **Skill `video-generator`**: guía general para crear videos desde brief/assets, elegir HyperFrames o Remotion, validar, renderizar MP4 y publicar links descargables.
+- **Workflow de publicación de videos**: referencia con estructura de brief, comandos de render, hardlink a `data/uploads/shared/` y fallback de inserción en historial web.
+
+### Validated
+- **Skill válida**: `quick_validate.py .claude/skills/video-generator`.
+
+---
+
 ## v0.2.57 — 2026-04-30
 
 ### Added

@@ -66,3 +66,13 @@ set -a; source .env; set +a
 .claude/skills/agenthub-ui-video/scripts/capture-agenthub-ui.mjs \
   videos/<slug>/assets/screens
 ```
+
+
+## Generic video generator skill
+
+Para videos no necesariamente ligados a capturas de AgentHub, usar:
+
+- `.claude/skills/video-generator/SKILL.md`
+- `.claude/skills/video-generator/references/workflow.md`
+
+Esta skill decide HyperFrames vs Remotion, estructura el brief, valida, renderiza y publica el MP4 en `data/uploads/shared/`.
