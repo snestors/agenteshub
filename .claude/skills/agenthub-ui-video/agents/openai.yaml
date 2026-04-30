@@ -1,4 +1,0 @@
-interface:
-  display_name: "AgentHub UI Video"
-  short_description: "Build visual UI tour videos."
-  default_prompt: "Create a visual AgentHub explainer video with real UI screenshots, flow diagrams, HyperFrames validation, and a downloadable link."

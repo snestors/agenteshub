@@ -19,8 +19,6 @@ Path: `/home/nestor/agenthub`
 - `deploy-safe-restart`: flujo obligatorio para backend Go — build con ldflags, smoke aislado, promote a `bin/agenthub` y `bin/safe-restart.sh`.
 - `cron-admin`: crear y administrar cronjobs del host con guardrails, priorizando `/etc/cron.d/agenthub-*`, inventario previo y validación conservadora.
 - `hyperframes` / `hyperframes-cli`: stack HTML+GSAP para videos generativos; usar para componer, lint, inspeccionar y renderizar demos en `videos/hyperframes-*`.
-- `agenthub-ui-video`: crear videos explicativos de AgentHub con capturas reales de UI, diagramas HyperFrames y links descargables.
-- `video-generator`: crear videos generativos o explicativos desde brief/assets, validar, renderizar MP4 y publicar links descargables.
 - `agenthub-media-delivery`: entregar fotos, videos, audios, documentos y renders al chat actual con `send_*` sin `jid` cuando esté disponible, o publicar links `/api/file` seguros bajo `data/uploads/shared/`.
 - `website-to-hyperframes` / `remotion-to-hyperframes` / `gsap`: skills auxiliares instaladas desde el registry de HyperFrames para capturas web, migración desde Remotion y animación GSAP.
 - `branch-pr` / `issue-creation`: usar para flujos GitHub cuando aplique.
