@@ -8,6 +8,17 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.52 — 2026-04-30
+
+### Added
+- **Skill `cron-admin`**: nueva guía de proyecto en `.claude/skills/cron-admin/` para crear, auditar, pausar y retirar cronjobs con guardrails. Prioriza `/etc/cron.d/agenthub-*`, usa inventario previo, logs absolutos, `flock` para evitar overlap y deja claro que este host soporta `crontab -n` pero no `crontab -T`.
+- **Template + notas locales verificadas**: la skill incluye `assets/cron.d.template` y `references/local-cron-notes.md` con hechos chequeados en esta máquina (servicio `cron` activo, `cron -f -P`, auto-reload de `/etc/cron.d`, reglas de ownership/perms y límites de `run-parts`).
+
+### Changed
+- **AGENTS.md ahora registra `cron-admin`** como skill custom del proyecto para futuros agentes.
+
+---
+
 ## v0.2.51 — 2026-04-30
 
 ### Added
