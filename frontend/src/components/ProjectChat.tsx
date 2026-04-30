@@ -94,6 +94,9 @@ function projectMessageToAgent(m: ProjectMessage): AgentMessage {
     activity: m.activity,
     ts: m.ts,
     isRead: true,
+    media_type: m.media_type,
+    media_path: m.media_path,
+    media_caption: m.media_caption,
   };
 }
 

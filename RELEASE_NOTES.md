@@ -8,6 +8,28 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.60 — 2026-04-30
+
+### Fixed
+- **Media delivery en project sessions**: `send_image`, `send_video`, `send_audio`, `send_voice` y `send_document` sin `jid` ahora funcionan cuando el agente corre en un canal `project`/`topic`/`agent`/`mini-agent`. Antes, el MCP server rechazaba con `"jid required outside the live web/wa chat"` y el archivo no llegaba al chat aunque el frontend ya soportaba la preview.
+- **Mensajes intermedios del turno no se perdían más**: tras un turn de project, el daemon emitía sólo la última row de `session_messages`, así que cualquier media insertada mid-turn (por ejemplo un video que el agente acababa de renderizar) quedaba persistido pero invisible hasta el próximo refresh manual.
+
+### Added
+- Migración `0017_session_messages_media.sql`: agrega `media_type`, `media_path`, `media_caption` a `session_messages` para alcanzar paridad de render con `wa_messages` (el `MessageBubble` ya las consumía).
+- `SessionsRepo.LatestMessageIDForProjectSession`: helper para capturar el baseline antes de un Run y replay de todas las rows nuevas al final del turn.
+- Variables de entorno `AGENTHUB_ACTIVE_SCOPE`, `AGENTHUB_ACTIVE_PROJECT_ID`, `AGENTHUB_ACTIVE_PROJECT_SESS_ID`, `AGENTHUB_ACTIVE_TOPIC_ID`, `AGENTHUB_ACTIVE_AGENT_NAME`, `AGENTHUB_ACTIVE_SESSION_ID`: el spawn de Claude las pasa al MCP server para que pueda persistir `session_messages` con el contexto correcto.
+
+### Changed
+- `sendMedia` (MCP) ya no escribe en `wa_outbox` cuando el chat activo es project/topic/agent: persiste la entrega como `session_messages` (`role='assistant'`) con los campos de media, evitando que un video destinado al UI termine como mensaje de WhatsApp para Nestor.
+- `broadcastLatestProjectMessage` queda como compat shim sobre `broadcastProjectMessagesSince`, que reproduce todas las filas con `id > baselineID` (incluyendo media intermedia).
+
+### Validated
+- `go build -tags 'sqlite_fts5 sqlite_json'` OK.
+- Smoke `127.0.0.1:8094`: `/healthz` responde `ok=true`, `migrations.applied=17`.
+- `pnpm run build` (frontend) OK.
+
+---
+
 ## v0.2.59 — 2026-04-30
 
 ### Added

@@ -23,6 +23,9 @@ type SessionMessage struct {
 	Activity      sql.NullString
 	CostTokens    int64
 	TS            int64
+	MediaType     sql.NullString
+	MediaPath     sql.NullString
+	MediaCaption  sql.NullString
 }
 
 // AgentSession links an agent name to its current resume id.
@@ -44,9 +47,9 @@ func (r *SessionsRepo) AppendMessage(ctx context.Context, m SessionMessage) (int
 		m.TS = time.Now().Unix()
 	}
 	res, err := r.db.ExecContext(ctx, `
-		INSERT INTO session_messages(scope, topic_id, project_id, project_sess_id, session_id, role, body, tool_name, tool_args, tool_result, activity, cost_tokens, ts)
-		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
-	`, m.Scope, m.TopicID, m.ProjectID, m.ProjectSessID, m.SessionID, m.Role, m.Body, m.ToolName, m.ToolArgs, m.ToolResult, m.Activity, m.CostTokens, m.TS)
+		INSERT INTO session_messages(scope, topic_id, project_id, project_sess_id, session_id, role, body, tool_name, tool_args, tool_result, activity, cost_tokens, ts, media_type, media_path, media_caption)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+	`, m.Scope, m.TopicID, m.ProjectID, m.ProjectSessID, m.SessionID, m.Role, m.Body, m.ToolName, m.ToolArgs, m.ToolResult, m.Activity, m.CostTokens, m.TS, m.MediaType, m.MediaPath, m.MediaCaption)
 	if err != nil {
 		return 0, fmt.Errorf("append message: %w", err)
 	}
@@ -59,8 +62,7 @@ func (r *SessionsRepo) MessagesForSession(ctx context.Context, sessionID string,
 		limit = 200
 	}
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, scope, topic_id, project_id, project_sess_id, session_id, role, body, tool_name, tool_args, tool_result, cost_tokens, ts
-		       , activity
+		SELECT id, scope, topic_id, project_id, project_sess_id, session_id, role, body, tool_name, tool_args, tool_result, cost_tokens, ts, activity, media_type, media_path, media_caption
 		FROM session_messages WHERE session_id = ? ORDER BY ts ASC LIMIT ?
 	`, sessionID, limit)
 	if err != nil {
@@ -70,7 +72,7 @@ func (r *SessionsRepo) MessagesForSession(ctx context.Context, sessionID string,
 	out := []SessionMessage{}
 	for rows.Next() {
 		var m SessionMessage
-		if err := rows.Scan(&m.ID, &m.Scope, &m.TopicID, &m.ProjectID, &m.ProjectSessID, &m.SessionID, &m.Role, &m.Body, &m.ToolName, &m.ToolArgs, &m.ToolResult, &m.CostTokens, &m.TS, &m.Activity); err != nil {
+		if err := rows.Scan(&m.ID, &m.Scope, &m.TopicID, &m.ProjectID, &m.ProjectSessID, &m.SessionID, &m.Role, &m.Body, &m.ToolName, &m.ToolArgs, &m.ToolResult, &m.CostTokens, &m.TS, &m.Activity, &m.MediaType, &m.MediaPath, &m.MediaCaption); err != nil {
 			return nil, err
 		}
 		out = append(out, m)
@@ -87,7 +89,7 @@ func (r *SessionsRepo) MessagesForProjectSession(ctx context.Context, projectSes
 		limit = 200
 	}
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, scope, topic_id, project_id, project_sess_id, session_id, role, body, tool_name, tool_args, tool_result, cost_tokens, ts, activity
+		SELECT id, scope, topic_id, project_id, project_sess_id, session_id, role, body, tool_name, tool_args, tool_result, cost_tokens, ts, activity, media_type, media_path, media_caption
 		FROM session_messages WHERE scope='project' AND project_sess_id = ? ORDER BY ts ASC, id ASC LIMIT ?
 	`, projectSessID, limit)
 	if err != nil {
@@ -97,12 +99,31 @@ func (r *SessionsRepo) MessagesForProjectSession(ctx context.Context, projectSes
 	out := []SessionMessage{}
 	for rows.Next() {
 		var m SessionMessage
-		if err := rows.Scan(&m.ID, &m.Scope, &m.TopicID, &m.ProjectID, &m.ProjectSessID, &m.SessionID, &m.Role, &m.Body, &m.ToolName, &m.ToolArgs, &m.ToolResult, &m.CostTokens, &m.TS, &m.Activity); err != nil {
+		if err := rows.Scan(&m.ID, &m.Scope, &m.TopicID, &m.ProjectID, &m.ProjectSessID, &m.SessionID, &m.Role, &m.Body, &m.ToolName, &m.ToolArgs, &m.ToolResult, &m.CostTokens, &m.TS, &m.Activity, &m.MediaType, &m.MediaPath, &m.MediaCaption); err != nil {
 			return nil, err
 		}
 		out = append(out, m)
 	}
 	return out, rows.Err()
+}
+
+// LatestMessageIDForProjectSession returns the highest id currently persisted
+// for the given project session, or 0 when the session has no messages yet.
+// Callers use it as a baseline before a turn so they can later replay every
+// row inserted during the turn — including media the MCP server pushed —
+// instead of only the final assistant text.
+func (r *SessionsRepo) LatestMessageIDForProjectSession(ctx context.Context, projectSessID int64) (int64, error) {
+	var id sql.NullInt64
+	err := r.db.QueryRowContext(ctx, `
+		SELECT MAX(id) FROM session_messages WHERE scope='project' AND project_sess_id = ?
+	`, projectSessID).Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+	if !id.Valid {
+		return 0, nil
+	}
+	return id.Int64, nil
 }
 
 // BackfillProjectSessionID replaces the temporary empty session_id emitted

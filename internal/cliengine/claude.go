@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/snestors/agenteshub/internal/auth"
@@ -621,18 +622,24 @@ func ensureMCPConfig(cfg *config.Config, opts RunOpts) (string, error) {
 				Command: bin,
 				Args:    []string{"mcp"},
 				Env: map[string]string{
-					"AGENTHUB_DB_PATH":             cfg.DBPath,
-					"AGENTHUB_DEV":                 "true", // mcp mode reads same .env, but force minimal
-					"AGENTHUB_SECRET_KEY":          fmt.Sprintf("%x", cfg.SecretKey),
-					"AGENTHUB_JWT_SECRET":          string(cfg.JWTSecret),
-					"AGENTHUB_UPLOAD_DIR":          cfg.UploadDir,
-					"AGENTHUB_WA_MEDIA_DIR":        cfg.WAMediaDir,
-					"AGENTHUB_ACTIVE_CHANNEL":      opts.Channel,
-					"AGENTHUB_ACTIVE_ENGINE":       opts.Engine,
-					"AGENTHUB_ACTIVE_MODEL":        opts.Model,
-					"AGENTHUB_ACTIVE_WA_JID":       opts.ActiveWAJID,
-					"AGENTHUB_ACTIVE_WA_REPLY_JID": opts.ActiveWAReplyJID,
-					"AGENTHUB_ACTIVE_WA_STANZA_ID": opts.ActiveWAStanzaID,
+					"AGENTHUB_DB_PATH":                cfg.DBPath,
+					"AGENTHUB_DEV":                    "true", // mcp mode reads same .env, but force minimal
+					"AGENTHUB_SECRET_KEY":             fmt.Sprintf("%x", cfg.SecretKey),
+					"AGENTHUB_JWT_SECRET":             string(cfg.JWTSecret),
+					"AGENTHUB_UPLOAD_DIR":             cfg.UploadDir,
+					"AGENTHUB_WA_MEDIA_DIR":           cfg.WAMediaDir,
+					"AGENTHUB_ACTIVE_CHANNEL":         opts.Channel,
+					"AGENTHUB_ACTIVE_ENGINE":          opts.Engine,
+					"AGENTHUB_ACTIVE_MODEL":           opts.Model,
+					"AGENTHUB_ACTIVE_WA_JID":          opts.ActiveWAJID,
+					"AGENTHUB_ACTIVE_WA_REPLY_JID":    opts.ActiveWAReplyJID,
+					"AGENTHUB_ACTIVE_WA_STANZA_ID":    opts.ActiveWAStanzaID,
+					"AGENTHUB_ACTIVE_SCOPE":           opts.Scope,
+					"AGENTHUB_ACTIVE_PROJECT_ID":      strconv.FormatInt(opts.ProjectID, 10),
+					"AGENTHUB_ACTIVE_PROJECT_SESS_ID": strconv.FormatInt(opts.ProjectSessID, 10),
+					"AGENTHUB_ACTIVE_TOPIC_ID":        strconv.FormatInt(opts.TopicID, 10),
+					"AGENTHUB_ACTIVE_AGENT_NAME":      opts.AgentName,
+					"AGENTHUB_ACTIVE_SESSION_ID":      opts.SessionID,
 				},
 			},
 		},

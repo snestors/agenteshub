@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -266,23 +267,47 @@ func (s *Server) registerTools() {
 // ---------- handlers ----------
 
 type activeChatContext struct {
-	Channel    string
-	Engine     string
-	Model      string
-	WAJID      string
-	WAReplyJID string
-	WAStanzaID string
+	Channel       string
+	Engine        string
+	Model         string
+	WAJID         string
+	WAReplyJID    string
+	WAStanzaID    string
+	Scope         string
+	ProjectID     int64
+	ProjectSessID int64
+	TopicID       int64
+	AgentName     string
+	SessionID     string
 }
 
 func currentActiveChatContext() activeChatContext {
 	return activeChatContext{
-		Channel:    strings.TrimSpace(os.Getenv("AGENTHUB_ACTIVE_CHANNEL")),
-		Engine:     strings.TrimSpace(os.Getenv("AGENTHUB_ACTIVE_ENGINE")),
-		Model:      strings.TrimSpace(os.Getenv("AGENTHUB_ACTIVE_MODEL")),
-		WAJID:      strings.TrimSpace(os.Getenv("AGENTHUB_ACTIVE_WA_JID")),
-		WAReplyJID: strings.TrimSpace(os.Getenv("AGENTHUB_ACTIVE_WA_REPLY_JID")),
-		WAStanzaID: strings.TrimSpace(os.Getenv("AGENTHUB_ACTIVE_WA_STANZA_ID")),
+		Channel:       strings.TrimSpace(os.Getenv("AGENTHUB_ACTIVE_CHANNEL")),
+		Engine:        strings.TrimSpace(os.Getenv("AGENTHUB_ACTIVE_ENGINE")),
+		Model:         strings.TrimSpace(os.Getenv("AGENTHUB_ACTIVE_MODEL")),
+		WAJID:         strings.TrimSpace(os.Getenv("AGENTHUB_ACTIVE_WA_JID")),
+		WAReplyJID:    strings.TrimSpace(os.Getenv("AGENTHUB_ACTIVE_WA_REPLY_JID")),
+		WAStanzaID:    strings.TrimSpace(os.Getenv("AGENTHUB_ACTIVE_WA_STANZA_ID")),
+		Scope:         strings.TrimSpace(os.Getenv("AGENTHUB_ACTIVE_SCOPE")),
+		ProjectID:     parseInt64Env("AGENTHUB_ACTIVE_PROJECT_ID"),
+		ProjectSessID: parseInt64Env("AGENTHUB_ACTIVE_PROJECT_SESS_ID"),
+		TopicID:       parseInt64Env("AGENTHUB_ACTIVE_TOPIC_ID"),
+		AgentName:     strings.TrimSpace(os.Getenv("AGENTHUB_ACTIVE_AGENT_NAME")),
+		SessionID:     strings.TrimSpace(os.Getenv("AGENTHUB_ACTIVE_SESSION_ID")),
 	}
+}
+
+func parseInt64Env(key string) int64 {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return 0
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 func (c activeChatContext) targetWAJID() string {
@@ -481,6 +506,8 @@ func (s *Server) sendMedia(ctx context.Context, kind, rawPath, caption, replyTo,
 				return mcp.NewToolResultError("queued wa ok but failed to persist preview: " + err.Error()), nil
 			}
 			return mcp.NewToolResultText(fmt.Sprintf("ok outbox_id=%d message_id=%d kind=%s channel=wa", outboxID, msgID, kind)), nil
+		case "project", "topic", "agent", "mini-agent", "main":
+			return s.persistSessionMedia(ctx, active, kind, stagedPath, caption)
 		default:
 			return mcp.NewToolResultError("jid required outside the live web/wa chat"), nil
 		}
@@ -500,6 +527,68 @@ func (s *Server) sendMedia(ctx context.Context, kind, rawPath, caption, replyTo,
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	return mcp.NewToolResultText(fmt.Sprintf("queued id=%d kind=%s", id, kind)), nil
+}
+
+// persistSessionMedia stores an out-of-turn media drop on the active
+// project/topic/agent session. The MCP server cannot reach the WS hub
+// directly (it runs as a child process spawned by the CLI), so it writes
+// the row and lets the parent daemon broadcast it once the turn finishes.
+//
+// The spawning daemon captures the latest session_messages id BEFORE the
+// turn starts and replays every row above that baseline at the end —
+// see broadcastProjectMessagesSince in internal/server/projects.go.
+func (s *Server) persistSessionMedia(ctx context.Context, active activeChatContext, kind, stagedPath, caption string) (*mcp.CallToolResult, error) {
+	scope := strings.TrimSpace(active.Scope)
+	if scope == "" {
+		// Fall back to channel for legacy spawns that did not set scope.
+		switch active.Channel {
+		case "project":
+			scope = "project"
+		case "topic":
+			scope = "topic"
+		case "agent", "mini-agent":
+			scope = "agent"
+		default:
+			scope = "main"
+		}
+	}
+	if scope == "mini-agent" {
+		scope = "agent"
+	}
+
+	msg := store.SessionMessage{
+		Scope:        scope,
+		SessionID:    active.SessionID,
+		Role:         "assistant",
+		Body:         sqlStr(caption),
+		MediaType:    sqlStr(kind),
+		MediaPath:    sqlStr(stagedPath),
+		MediaCaption: sqlStr(caption),
+		TS:           time.Now().Unix(),
+	}
+	switch scope {
+	case "project":
+		if active.ProjectID == 0 || active.ProjectSessID == 0 {
+			return mcp.NewToolResultError(fmt.Sprintf("project session context missing (project_id=%d session=%d) — cannot deliver %s inline", active.ProjectID, active.ProjectSessID, kind)), nil
+		}
+		msg.ProjectID = sql.NullInt64{Int64: active.ProjectID, Valid: true}
+		msg.ProjectSessID = sql.NullInt64{Int64: active.ProjectSessID, Valid: true}
+	case "topic":
+		if active.TopicID == 0 {
+			return mcp.NewToolResultError("topic context missing — cannot deliver media inline"), nil
+		}
+		msg.TopicID = sql.NullInt64{Int64: active.TopicID, Valid: true}
+	case "agent":
+		if strings.TrimSpace(active.AgentName) == "" && active.SessionID == "" {
+			return mcp.NewToolResultError("agent context missing — cannot deliver media inline"), nil
+		}
+	}
+
+	id, err := s.repos.Sessions.AppendMessage(ctx, msg)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return mcp.NewToolResultText(fmt.Sprintf("ok session_message_id=%d kind=%s scope=%s", id, kind, scope)), nil
 }
 
 func (s *Server) handleSendMessage(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

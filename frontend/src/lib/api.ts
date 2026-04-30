@@ -279,6 +279,9 @@ export interface ProjectMessage {
   activity?: MessageActivity;
   cost_tokens?: number;
   ts: number;
+  media_type?: string;
+  media_path?: string;
+  media_caption?: string;
 }
 
 export interface Skill {

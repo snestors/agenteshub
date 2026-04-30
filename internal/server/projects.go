@@ -56,6 +56,9 @@ type sessionMessageWire struct {
 	Activity      string `json:"activity,omitempty"`
 	CostTokens    int64  `json:"cost_tokens,omitempty"`
 	TS            int64  `json:"ts"`
+	MediaType     string `json:"media_type,omitempty"`
+	MediaPath     string `json:"media_path,omitempty"`
+	MediaCaption  string `json:"media_caption,omitempty"`
 }
 
 type createProjectReq struct {
@@ -347,6 +350,7 @@ func (s *Server) runProjectSessionTurn(project *store.Project, sess *store.Proje
 	model := s.ensureProjectSessionModel(sess, engineName)
 	effort := s.ensureProjectSessionReasoningEffort(sess)
 	prev := sess.SessionID
+	baselineID, _ := s.repos.Sessions.LatestMessageIDForProjectSession(context.Background(), sess.ID)
 	runRef := runtimeRunRef{
 		Scope:     "project",
 		ScopeKey:  strconv.FormatInt(sess.ID, 10),
@@ -388,7 +392,7 @@ func (s *Server) runProjectSessionTurn(project *store.Project, sess *store.Proje
 			Body:          sql.NullString{String: "⚠ engine: " + err.Error(), Valid: true},
 		})
 		_ = s.repos.Projects.TouchSession(context.Background(), sess.ID)
-		s.broadcastLatestProjectMessage(context.Background(), project.ID, sess.ID, topic)
+		s.broadcastProjectMessagesSince(context.Background(), project.ID, sess.ID, topic, baselineID)
 		s.broadcastNotification(Notification{
 			Kind:     "project_turn_failed",
 			Severity: "error",
@@ -406,7 +410,7 @@ func (s *Server) runProjectSessionTurn(project *store.Project, sess *store.Proje
 		_ = s.repos.Projects.TouchSession(context.Background(), sess.ID)
 	}
 	_ = s.repos.Sessions.UpdateLatestAssistantActivityForProjectSession(context.Background(), sess.ID, res.SessionID, store.MustJSON(activity))
-	s.broadcastLatestProjectMessage(context.Background(), project.ID, sess.ID, topic)
+	s.broadcastProjectMessagesSince(context.Background(), project.ID, sess.ID, topic, baselineID)
 	s.broadcastNotification(Notification{
 		Kind:     "project_turn_done",
 		Severity: "info",
@@ -450,13 +454,32 @@ func (s *Server) deliverProjectSlashResponse(ctx context.Context, project *store
 }
 
 func (s *Server) broadcastLatestProjectMessage(ctx context.Context, projectID, sessID int64, topic string) {
+	s.broadcastProjectMessagesSince(ctx, projectID, sessID, topic, 0)
+}
+
+// broadcastProjectMessagesSince emits every persisted session_messages row whose
+// id is greater than baselineID. baselineID=0 keeps the legacy single-row
+// behaviour (only the latest). Used after a turn ends so any media the agent
+// inserted mid-turn (videos, images) reaches the UI together with the final
+// assistant text — broadcasting only the last row dropped them silently.
+func (s *Server) broadcastProjectMessagesSince(ctx context.Context, projectID, sessID int64, topic string, baselineID int64) {
 	msgs, err := s.repos.Sessions.MessagesForProjectSession(ctx, sessID, 500)
 	if err != nil || len(msgs) == 0 {
 		return
 	}
-	m := msgs[len(msgs)-1]
-	raw, _ := json.Marshal(sessionMessageToWire(projectID, sessID, m))
-	s.hub.Broadcast(ws.Envelope{Type: "message", Topic: topic, Payload: raw})
+	if baselineID <= 0 {
+		m := msgs[len(msgs)-1]
+		raw, _ := json.Marshal(sessionMessageToWire(projectID, sessID, m))
+		s.hub.Broadcast(ws.Envelope{Type: "message", Topic: topic, Payload: raw})
+		return
+	}
+	for _, m := range msgs {
+		if m.ID <= baselineID {
+			continue
+		}
+		raw, _ := json.Marshal(sessionMessageToWire(projectID, sessID, m))
+		s.hub.Broadcast(ws.Envelope{Type: "message", Topic: topic, Payload: raw})
+	}
 }
 
 // broadcastStreamFinal emits a synthetic final stream event so the frontend
@@ -731,6 +754,9 @@ func sessionMessageToWire(projectID, projectSessID int64, m store.SessionMessage
 		Activity:      nullString(m.Activity),
 		CostTokens:    m.CostTokens,
 		TS:            m.TS,
+		MediaType:     nullString(m.MediaType),
+		MediaPath:     nullString(m.MediaPath),
+		MediaCaption:  nullString(m.MediaCaption),
 	}
 }
 
