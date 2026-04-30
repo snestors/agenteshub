@@ -168,7 +168,7 @@ func (s *Server) slashEngine(ctx context.Context, scope slashScope, args []strin
 			Error:   "/engine: valor desconocido. Usa: /engine claude  |  /engine codex",
 		}
 	}
-	newModel := defaultModelForEngine(target, s.cfg.OllamaModel)
+	newModel := defaultModelForEngine(target)
 	if _, err := s.setEngine(ctx, engineSetReq{Engine: target, Model: newModel}); err != nil {
 		return slashResult{Handled: true, Error: "/engine: " + err.Error()}
 	}

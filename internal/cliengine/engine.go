@@ -1,4 +1,4 @@
-// Package cliengine spawns Claude/Codex/Ollama CLIs with --resume and persists
+// Package cliengine spawns Claude/Codex CLIs with --resume and persists
 // turns + restores JSONL snapshots before each spawn.
 package cliengine
 
@@ -26,7 +26,7 @@ type RunOpts struct {
 	ActiveWAReplyJID string // preferred WA chat jid to reply into (groups may differ from ActiveWAJID)
 	ActiveWAStanzaID string // current incoming WA stanza id to quote by default
 	Cwd              string // working dir (where .claude/skills/ is discovered)
-	Engine           string // 'claude' | 'codex' | 'ollama'
+	Engine           string // 'claude' | 'codex'
 	Model            string // 'opus-4-7' | 'sonnet' | 'haiku' (model selection per engine)
 	ReasoningEffort  string // codex reasoning effort: low | medium | high | xhigh
 	OutputFmt        string // 'json' (final result) | 'stream-json' (chunks)
@@ -73,7 +73,7 @@ type Result struct {
 	ToolsUsed  []string
 }
 
-// Engine is the abstraction implemented by Claude/Codex/Ollama.
+// Engine is the abstraction implemented by Claude/Codex.
 type Engine interface {
 	Name() string
 	Run(ctx context.Context, opts RunOpts) (*Result, error)
@@ -88,7 +88,7 @@ type Manager struct {
 	defaultEn string
 }
 
-// New constructs a Manager with claude/codex/ollama wired.
+// New constructs a Manager with claude/codex wired.
 func New(cfg *config.Config, repos *store.Repos, log *slog.Logger) *Manager {
 	m := &Manager{
 		cfg:       cfg,
@@ -100,7 +100,6 @@ func New(cfg *config.Config, repos *store.Repos, log *slog.Logger) *Manager {
 	resolver := newSystemPromptResolver(cfg, repos, log.With("engine", "system_prompt"))
 	m.engines["claude"] = &ClaudeEngine{cfg: cfg, repos: repos, log: log.With("engine", "claude"), prompt: resolver}
 	m.engines["codex"] = &CodexEngine{cfg: cfg, repos: repos, log: log.With("engine", "codex"), prompt: resolver}
-	m.engines["ollama"] = &OllamaEngine{cfg: cfg, log: log.With("engine", "ollama")}
 	return m
 }
 

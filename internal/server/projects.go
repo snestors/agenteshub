@@ -209,7 +209,7 @@ func (s *Server) handleProjectSessionsCreate(w http.ResponseWriter, r *http.Requ
 	}
 	model := strings.TrimSpace(req.Model)
 	if model == "" {
-		model = defaultModelForEngine(engine, s.cfg.OllamaModel)
+		model = defaultModelForEngine(engine)
 	}
 	if !validEngineModel(engine, model) {
 		http.Error(w, "model not supported for engine", http.StatusBadRequest)
@@ -562,7 +562,7 @@ func (s *Server) handleProjectSessionSetModel(w http.ResponseWriter, r *http.Req
 	}
 	model := strings.TrimSpace(req.Model)
 	if model == "" {
-		model = defaultModelForEngine(sess.Engine, s.cfg.OllamaModel)
+		model = defaultModelForEngine(sess.Engine)
 	}
 	if !validEngineModel(sess.Engine, model) {
 		http.Error(w, "model not supported for engine", http.StatusBadRequest)
@@ -598,7 +598,7 @@ func (s *Server) ensureProjectSessionModel(sess *store.ProjectSession, engine st
 	if sess.Model.Valid && strings.TrimSpace(sess.Model.String) != "" {
 		return strings.TrimSpace(sess.Model.String)
 	}
-	return defaultModelForEngine(engine, s.cfg.OllamaModel)
+	return defaultModelForEngine(engine)
 }
 
 func (s *Server) ensureProjectSessionReasoningEffort(sess *store.ProjectSession) string {

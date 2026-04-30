@@ -8,6 +8,16 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.62 — 2026-04-30
+
+### Removed
+
+- **Ollama retirado del catálogo de engines**: el daemon ya no registra `OllamaEngine` ni intenta descubrir modelos contra `:11434/api/tags`. `GET /api/engines` devuelve únicamente `claude` y `codex`. La lógica de cache, `resolveOllamaEngine`, `fetchOllamaModels` e `isEmbeddingModel` fueron eliminadas de `internal/server/engines.go`. El archivo `internal/cliengine/ollama.go` fue borrado por completo. Los campos `OllamaURL`/`OllamaModel` del config siguen presentes para no romper `.env` existentes, pero no tienen efecto.
+
+---
+
+---
+
 ## v0.2.61 — 2026-04-30
 
 ### Added
