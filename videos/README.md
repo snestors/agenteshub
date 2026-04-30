@@ -49,3 +49,20 @@ npx hyperframes render videos/agenthub-architecture-tour \
 ln -f /home/nestor/agenthub/data/generated-videos/agenthub-architecture-tour.mp4 \
   /home/nestor/agenthub/data/uploads/shared/agenthub-architecture-tour.mp4
 ```
+
+## Reusable skill
+
+Para repetir este flujo en futuros videos, usar la skill del proyecto:
+
+- `.claude/skills/agenthub-ui-video/SKILL.md`
+- `.claude/skills/agenthub-ui-video/references/workflow.md`
+- `.claude/skills/agenthub-ui-video/scripts/capture-agenthub-ui.mjs`
+
+Ejemplo rápido:
+
+```bash
+cd /home/nestor/agenthub
+set -a; source .env; set +a
+.claude/skills/agenthub-ui-video/scripts/capture-agenthub-ui.mjs \
+  videos/<slug>/assets/screens
+```

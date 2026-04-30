@@ -8,6 +8,18 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.57 — 2026-04-30
+
+### Added
+- **Skill `agenthub-ui-video`**: workflow reutilizable para crear videos explicativos de AgentHub con capturas reales autenticadas de la UI, diagramas HyperFrames, render MP4 y links descargables.
+- **Script de captura CDP**: `.claude/skills/agenthub-ui-video/scripts/capture-agenthub-ui.mjs` captura páginas reales usando JWT temporal sin imprimir secretos.
+- **Documentación del workflow**: referencia paso a paso en `.claude/skills/agenthub-ui-video/references/workflow.md` y registro en `AGENTS.md`.
+
+### Validated
+- **Skill válida y script probado**: `quick_validate.py .claude/skills/agenthub-ui-video` y captura real de `/` a `/tmp/agenthub-ui-video-test/chat.png`.
+
+---
+
 ## v0.2.56 — 2026-04-30
 
 ### Added
