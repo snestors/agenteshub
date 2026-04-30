@@ -27,7 +27,7 @@ Use this skill whenever an agent needs to deliver a non-text file to Nestor:
 4. **Always provide a direct link for generated files.** Even when using `send_video`, include or be ready to provide the `/api/file` link so tunnel/local users can open/download it.
 5. **Paths are daemon filesystem paths, not URLs.** `send_*` expects an existing absolute path on the mini PC.
 6. **Do not fake a preview with raw SQLite inserts.** DB-only inserts do not broadcast WebSocket events; use `send_*` or return a link.
-7. **Project/Codex sessions may not expose MCP media tools.** If `send_video` is unavailable or returns `jid required outside the live web/wa chat`, publish under `data/uploads/shared/` and return the link instead of pretending it was posted inline.
+7. **Cualquier engine (claude o codex) corriendo dentro de agenthub tiene `send_*` per-run vía MCP.** El path normal es `send_<kind>(path=...)` sin `jid`. Si por alguna razón la tool no estuviera disponible en un run específico, publicá bajo `data/uploads/shared/` y devolvé el link, pero eso es la excepción, no la regla.
 
 ## Decision table
 
@@ -35,7 +35,7 @@ Use this skill whenever an agent needs to deliver a non-text file to Nestor:
 | --- | --- |
 | Show image/video in the current main Web/WA chat | `send_image` / `send_video` with `path`, optional `caption`, **no `jid`** |
 | Send media to another WhatsApp contact | `send_image` / `send_video` / etc. with `jid`, `path`, optional `caption` |
-| Agent is in a project/GridBot/Codex session without `send_*` | Copy/hardlink to `data/uploads/shared/`, return `/api/file` link |
+| Tool no disponible en un run específico (caso excepcional) | Copiar a `data/uploads/shared/`, devolver link `/api/file` |
 | User says they are on the tunnel | Return full `https://agenthub.kyn3d.com/api/file?path=...` URL |
 | User says they are local/LAN | Return relative `/api/file?path=...` or `http://192.168.1.62:8093/api/file?path=...` |
 | Voice note | Create Opus `.ogg` first, then `send_voice(path=...)` |

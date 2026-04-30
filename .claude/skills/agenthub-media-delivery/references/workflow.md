@@ -80,21 +80,11 @@ For another WhatsApp chat, pass `jid`:
 send_video(jid="519XXXXXXXX@s.whatsapp.net", path="/home/nestor/agenthub/data/uploads/shared/file.mp4", caption="Video listo")
 ```
 
-## 5. Project/GridBot/Codex fallback
+## 5. El link /api/file como recurso externo
 
-Some project sessions run without AgentHub MCP media tools. In that case:
+El link `/api/file?path=...` queda como recurso para clientes externos al chat (tunnel, browser remoto), no como fallback de un engine que no tenía la tool.
 
-1. Publish the file under `data/uploads/shared/`.
-2. Return the direct `/api/file` link.
-3. Do not manually insert `wa_messages` rows unless the user explicitly asked you to patch AgentHub itself.
-4. Do not claim “te lo dejé en el chat” unless `send_*` succeeded or the UI visibly shows the media row.
-
-Good fallback response:
-
-```text
-No pude insertarlo como preview desde esta sesión, pero quedó publicado acá:
-https://agenthub.kyn3d.com/api/file?path=...
-```
+Cualquier engine (claude o codex) corriendo dentro de agenthub tiene `send_*` per-run vía MCP; usar `send_<kind>(path=...)` es el path normal. Solo publicá el link como complemento (para descarga/apertura fuera del chat) o si en un run específico la tool genuinamente no estuviera disponible.
 
 ## 6. Video sanity checks
 
