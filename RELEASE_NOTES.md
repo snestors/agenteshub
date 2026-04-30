@@ -8,6 +8,19 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.61 — 2026-04-30
+
+### Added
+- **Codex spawn registra el MCP `agenthub` per-run**: `cliengine/codex.go` inyecta `-c mcp_servers.agenthub.{command,args,env.*}` con todas las env vars de scope/project/session, replicando lo que ya hace claude.go con `--mcp-config`. Resultado: Codex pasa a usar exactamente las mismas tools `send_image/video/voice/...` que Claude para entregar media al chat actual, eliminando la práctica previa de inserts manuales en SQLite.
+
+### Fixed
+- **Receta de release con path de módulo erróneo**: `.claude/CLAUDE.md` y `CLAUDE.md` ya pintaban `-X github.com/snestors/agenthub/internal/buildinfo.Version` cuando el `go.mod` real es `github.com/snestors/agenteshub`. El ldflags caía en silencio y el daemon reportaba `version="dev"` aunque la build hubiera bumpeado VERSION (eso era lo que disparaba el banner `vdev ≠ ui v0.2.x · recargar ui`). El root `CLAUDE.md` ya estaba correcto; queda pendiente sincronizar `.claude/CLAUDE.md` (no se pudo editar en este pase por bloqueo de archivo sensible).
+
+### Validated
+- Smoke en `127.0.0.1:8094` reporta ahora `version="0.2.60"` y `git_commit="fc7deba"`, confirmando que el ldflags ya inyecta correctamente.
+
+---
+
 ## v0.2.60 — 2026-04-30
 
 ### Fixed

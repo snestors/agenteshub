@@ -9,7 +9,9 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -74,6 +76,7 @@ func (e *CodexEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 	if opts.Cwd != "" && opts.SessionID == "" {
 		args = append(args, "-C", opts.Cwd)
 	}
+	args = append(args, e.codexAgenthubMCPArgs(opts)...)
 	args = append(args, e.augmentedPrompt(ctx, opts))
 
 	bin := e.cfg.CodexBinPath
@@ -350,6 +353,46 @@ func (e *CodexEngine) systemPrompt(ctx context.Context, opts RunOpts) string {
 		return ""
 	}
 	return e.prompt.Resolve(ctx, opts.Cwd)
+}
+
+// codexAgenthubMCPArgs registers the agenthub MCP server inline for this
+// codex run via -c overrides, mirroring what claude.go writes to its
+// per-spawn JSON config. We do it per-run instead of editing
+// ~/.codex/config.toml so the MCP env (scope/project_id/session_id) tracks
+// the live chat the user is in.
+func (e *CodexEngine) codexAgenthubMCPArgs(opts RunOpts) []string {
+	bin, err := os.Executable()
+	if err != nil || strings.TrimSpace(bin) == "" {
+		bin = "agenthub"
+	}
+	cfg := e.cfg
+	pairs := [][2]string{
+		{"command", strconv.Quote(bin)},
+		{"args", `["mcp"]`},
+		{"env.AGENTHUB_DB_PATH", strconv.Quote(cfg.DBPath)},
+		{"env.AGENTHUB_DEV", `"true"`},
+		{"env.AGENTHUB_SECRET_KEY", strconv.Quote(fmt.Sprintf("%x", cfg.SecretKey))},
+		{"env.AGENTHUB_JWT_SECRET", strconv.Quote(string(cfg.JWTSecret))},
+		{"env.AGENTHUB_UPLOAD_DIR", strconv.Quote(cfg.UploadDir)},
+		{"env.AGENTHUB_WA_MEDIA_DIR", strconv.Quote(cfg.WAMediaDir)},
+		{"env.AGENTHUB_ACTIVE_CHANNEL", strconv.Quote(opts.Channel)},
+		{"env.AGENTHUB_ACTIVE_ENGINE", strconv.Quote(opts.Engine)},
+		{"env.AGENTHUB_ACTIVE_MODEL", strconv.Quote(opts.Model)},
+		{"env.AGENTHUB_ACTIVE_WA_JID", strconv.Quote(opts.ActiveWAJID)},
+		{"env.AGENTHUB_ACTIVE_WA_REPLY_JID", strconv.Quote(opts.ActiveWAReplyJID)},
+		{"env.AGENTHUB_ACTIVE_WA_STANZA_ID", strconv.Quote(opts.ActiveWAStanzaID)},
+		{"env.AGENTHUB_ACTIVE_SCOPE", strconv.Quote(opts.Scope)},
+		{"env.AGENTHUB_ACTIVE_PROJECT_ID", strconv.Quote(strconv.FormatInt(opts.ProjectID, 10))},
+		{"env.AGENTHUB_ACTIVE_PROJECT_SESS_ID", strconv.Quote(strconv.FormatInt(opts.ProjectSessID, 10))},
+		{"env.AGENTHUB_ACTIVE_TOPIC_ID", strconv.Quote(strconv.FormatInt(opts.TopicID, 10))},
+		{"env.AGENTHUB_ACTIVE_AGENT_NAME", strconv.Quote(opts.AgentName)},
+		{"env.AGENTHUB_ACTIVE_SESSION_ID", strconv.Quote(opts.SessionID)},
+	}
+	out := make([]string, 0, len(pairs)*2)
+	for _, p := range pairs {
+		out = append(out, "-c", "mcp_servers.agenthub."+p[0]+"="+p[1])
+	}
+	return out
 }
 
 func (e *CodexEngine) persistedMessages(ctx context.Context, opts RunOpts) []store.SessionMessage {
