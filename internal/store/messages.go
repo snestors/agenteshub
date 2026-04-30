@@ -5,29 +5,30 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // Message is a row in wa_messages.
 type Message struct {
-	ID            int64
-	Channel       string // 'wa' | 'web'
-	Direction     string // 'in' | 'out'
-	JID           sql.NullString
-	Body          sql.NullString
-	MediaType     sql.NullString
-	MediaPath     sql.NullString
-	MediaCaption  sql.NullString
-	LocationLat   sql.NullFloat64
-	LocationLng   sql.NullFloat64
-	LocationName  sql.NullString
-	QuotedID      sql.NullInt64
-	ReplyTo       sql.NullString
-	TS            int64
-	IsRead        int
-	Engine        sql.NullString // engine usado para producir la respuesta (assistant turns)
-	Model         sql.NullString // model concreto (sonnet, opus, codex, gemma:2b...)
-	Activity      sql.NullString // JSON: thinking + tools used during this turn (assistant only)
-	ExternalID    sql.NullString // WhatsApp StanzaID — what to pass back as reply_to to quote this message
+	ID           int64
+	Channel      string // 'wa' | 'web'
+	Direction    string // 'in' | 'out'
+	JID          sql.NullString
+	Body         sql.NullString
+	MediaType    sql.NullString
+	MediaPath    sql.NullString
+	MediaCaption sql.NullString
+	LocationLat  sql.NullFloat64
+	LocationLng  sql.NullFloat64
+	LocationName sql.NullString
+	QuotedID     sql.NullInt64
+	ReplyTo      sql.NullString
+	TS           int64
+	IsRead       int
+	Engine       sql.NullString // engine usado para producir la respuesta (assistant turns)
+	Model        sql.NullString // model concreto (sonnet, opus, codex, gemma:2b...)
+	Activity     sql.NullString // JSON: thinking + tools used during this turn (assistant only)
+	ExternalID   sql.NullString // WhatsApp StanzaID — what to pass back as reply_to to quote this message
 }
 
 // MessagesRepo persists wa_messages.
@@ -176,6 +177,25 @@ func (r *MessagesRepo) GetByExternalID(ctx context.Context, externalID string) (
 		return nil, err
 	}
 	return &m, nil
+}
+
+// FinalizePendingDelivery swaps a provisional external_id (e.g. outbox:123)
+// for the real delivery id after WhatsApp confirms the send. Optionally
+// refreshes media_path when the worker archived the file elsewhere.
+func (r *MessagesRepo) FinalizePendingDelivery(ctx context.Context, id int64, externalID, mediaPath string) error {
+	if id <= 0 {
+		return fmt.Errorf("finalize pending delivery: invalid id %d", id)
+	}
+	if strings.TrimSpace(mediaPath) == "" {
+		_, err := r.db.ExecContext(ctx, `
+			UPDATE wa_messages SET external_id=?, ts=? WHERE id=?
+		`, externalID, time.Now().Unix(), id)
+		return err
+	}
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE wa_messages SET external_id=?, media_path=?, ts=? WHERE id=?
+	`, externalID, mediaPath, time.Now().Unix(), id)
+	return err
 }
 
 // MarkRead sets is_read=1 for the message.

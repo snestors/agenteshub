@@ -42,6 +42,9 @@ interface WsAgentPayload {
   is_read?: boolean;
   engine?: string;
   model?: string;
+  media_type?: string;
+  media_path?: string;
+  media_caption?: string;
 }
 
 interface SendMessageResult {
@@ -76,6 +79,9 @@ function fromWs(m: WsAgentPayload): AgentMessage {
     isRead: !!m.is_read,
     engine: m.engine,
     model: m.model,
+    media_type: m.media_type,
+    media_path: m.media_path,
+    media_caption: m.media_caption,
   };
 }
 
@@ -255,10 +261,13 @@ export function ChatMain() {
       // of iterating ghostList so a stale closure can't leak the placeholder.
       if (incoming.direction === "out") {
         clearAgentGhosts();
+        if (incoming.channel === "web" || incoming.media_type || incoming.media_path) {
+          void refresh();
+        }
       }
       setError(null);
     },
-    [clearAgentGhosts]
+    [clearAgentGhosts, refresh]
   );
 
   // subscribe to the unified /ws endpoint, topic "agent"
@@ -287,6 +296,17 @@ export function ChatMain() {
       }
     }
   }, [wsStatus, refresh, ghostList, clearAgentGhosts]);
+
+  React.useEffect(() => {
+    if (!ghostList.some((g) => g.done)) return;
+    let cancelled = false;
+    void refresh().finally(() => {
+      if (!cancelled) clearAgentGhosts();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [ghostList, refresh, clearAgentGhosts]);
 
   // ─── auto-scroll on new messages or ghost activity ─
   const ghostSig = React.useMemo(

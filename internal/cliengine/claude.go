@@ -69,7 +69,8 @@ func (e *ClaudeEngine) Run(ctx context.Context, opts RunOpts) (*Result, error) {
 	if includePartialMessages {
 		args = append(args, "--include-partial-messages")
 	}
-	if cfgPath, err := ensureMCPConfig(e.cfg); err == nil {
+	if cfgPath, err := ensureMCPConfig(e.cfg, opts); err == nil {
+		defer os.Remove(cfgPath)
 		args = append(args, "--mcp-config", cfgPath)
 	}
 	if sp := e.appendSystemPrompt(ctx, opts); sp != "" {
@@ -590,14 +591,19 @@ func resolveClaudeAlias(m string) string {
 	return m
 }
 
-// ensureMCPConfig writes a JSON file pointing the Claude CLI to `agenthub mcp`,
-// so spawned sessions can call our embedded tools. Returns the file path.
-func ensureMCPConfig(cfg *config.Config) (string, error) {
+// ensureMCPConfig writes a per-run JSON file pointing the Claude CLI to
+// `agenthub mcp`, so spawned sessions can call our embedded tools with the
+// active conversation context injected via env. Returns the temp file path.
+func ensureMCPConfig(cfg *config.Config, opts RunOpts) (string, error) {
 	dir := filepath.Join(os.TempDir(), "agenthub")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	path := filepath.Join(dir, "mcp.json")
+	tmp, err := os.CreateTemp(dir, "mcp-*.json")
+	if err != nil {
+		return "", err
+	}
+	defer tmp.Close()
 	bin, err := os.Executable()
 	if err != nil {
 		bin = "agenthub"
@@ -615,17 +621,25 @@ func ensureMCPConfig(cfg *config.Config) (string, error) {
 				Command: bin,
 				Args:    []string{"mcp"},
 				Env: map[string]string{
-					"AGENTHUB_DB_PATH":    cfg.DBPath,
-					"AGENTHUB_DEV":        "true", // mcp mode reads same .env, but force minimal
-					"AGENTHUB_SECRET_KEY": fmt.Sprintf("%x", cfg.SecretKey),
-					"AGENTHUB_JWT_SECRET": string(cfg.JWTSecret),
+					"AGENTHUB_DB_PATH":             cfg.DBPath,
+					"AGENTHUB_DEV":                 "true", // mcp mode reads same .env, but force minimal
+					"AGENTHUB_SECRET_KEY":          fmt.Sprintf("%x", cfg.SecretKey),
+					"AGENTHUB_JWT_SECRET":          string(cfg.JWTSecret),
+					"AGENTHUB_UPLOAD_DIR":          cfg.UploadDir,
+					"AGENTHUB_WA_MEDIA_DIR":        cfg.WAMediaDir,
+					"AGENTHUB_ACTIVE_CHANNEL":      opts.Channel,
+					"AGENTHUB_ACTIVE_ENGINE":       opts.Engine,
+					"AGENTHUB_ACTIVE_MODEL":        opts.Model,
+					"AGENTHUB_ACTIVE_WA_JID":       opts.ActiveWAJID,
+					"AGENTHUB_ACTIVE_WA_REPLY_JID": opts.ActiveWAReplyJID,
+					"AGENTHUB_ACTIVE_WA_STANZA_ID": opts.ActiveWAStanzaID,
 				},
 			},
 		},
 	}
 	raw, _ := json.MarshalIndent(body, "", "  ")
-	if err := os.WriteFile(path, raw, 0o600); err != nil {
+	if err := os.WriteFile(tmp.Name(), raw, 0o600); err != nil {
 		return "", err
 	}
-	return path, nil
+	return tmp.Name(), nil
 }

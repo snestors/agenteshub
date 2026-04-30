@@ -8,6 +8,22 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.55 — 2026-04-30
+
+### Added
+- **Media al chat actual sin `jid`**: `send_image`, `send_video`, `send_document`, `send_audio` y `send_voice` ahora pueden postearse en la conversación activa cuando el turn corre en Web/WhatsApp, sin obligar a pasar un JID explícito.
+- **Contexto activo propagado al MCP**: cada run Claude genera un `mcp.json` temporal con el canal/JID/stanza activos para que las tools de media sepan si deben contestar en Web o en el chat WA en curso.
+
+### Changed
+- **Preview web de adjuntos del agente**: cuando el agente inserta media en el chat actual, la UI refresca el historial al cerrar el turn y el video queda clickable/reproducible desde la propia burbuja.
+- **Broadcast WS más rico**: los eventos `message` ahora incluyen metadatos de media (`media_type`, `media_path`, `media_caption`) para que imágenes y videos entrantes/salientes no pierdan contexto live.
+- **Outbox WA sin filas duplicadas**: si una tool crea una vista previa provisional (`outbox:<id>`), el worker la finaliza con el `external_id` real al despachar, en vez de insertar otra fila.
+
+### Validated
+- **Suite del release en verde**: `go test ./...`, `pnpm run build` y smoke backend aislado en `:8094`.
+
+---
+
 ## v0.2.54 — 2026-04-30
 
 ### Added

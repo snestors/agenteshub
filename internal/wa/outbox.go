@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -133,6 +134,12 @@ func (c *Client) dispatchOutboxItem(ctx context.Context, item store.WaOutboxItem
 }
 
 func (c *Client) persistSentOutboxItem(ctx context.Context, item store.WaOutboxItem, sentID, archivedPath string) error {
+	if pending, err := c.repos.Messages.GetByExternalID(ctx, fmt.Sprintf("outbox:%d", item.ID)); err != nil {
+		return err
+	} else if pending != nil {
+		return c.repos.Messages.FinalizePendingDelivery(ctx, pending.ID, sentID, archivedPath)
+	}
+
 	msg := store.Message{
 		Channel:    "wa",
 		Direction:  "out",

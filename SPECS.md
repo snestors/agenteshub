@@ -40,6 +40,7 @@ Una conversación principal que comparte sesión entre los dos canales.
 - El historial es navegable desde la UI con búsqueda full-text (FTS5).
 - El agente puede enviar media saliente por WhatsApp a otros chats usando tools (`send_image`, `send_video`, `send_document`, `send_audio`, `send_voice`) con archivos locales del daemon.
 - Los envíos salientes de imagen/video quedan persistidos en `wa_messages` para auditoría e historial web.
+- Si el agente usa `send_image` o `send_video` sin `jid` dentro del chat principal web, el adjunto queda insertado en esa conversación y se puede abrir/reproducir desde la UI.
 
 **Escenarios verificables**:
 - _Dado_ que envío "hola" desde el chat web, _cuando_ el agente responde, _entonces_ esa respuesta NO se duplica en WhatsApp.
@@ -47,6 +48,7 @@ Una conversación principal que comparte sesión entre los dos canales.
 - _Dado_ que mando una nota de voz por WhatsApp, _cuando_ se procesa, _entonces_ se transcribe localmente con whisper antes de pasar al engine.
 - _Dado_ que le pido al agente "mandale esta foto a X" y existe un archivo local válido, _cuando_ usa `send_image`, _entonces_ el item se encola, sale por WhatsApp y queda visible en el historial web.
 - _Dado_ que le pido al agente "mandale este video a X" y existe un archivo local válido, _cuando_ usa `send_video`, _entonces_ el video sale por WhatsApp y el historial web puede volver a previsualizarlo.
+- _Dado_ que le pido al agente "mostrame este video acá" desde la UI web y existe un archivo local válido, _cuando_ usa `send_video` sin `jid`, _entonces_ el mensaje queda en el chat actual con preview/click para reproducirlo.
 
 ### 2. Project sessions (chats aislados por proyecto)
 

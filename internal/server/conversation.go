@@ -78,7 +78,8 @@ func (s *Server) routeConversationInput(ctx context.Context, in conversationInpu
 	if err != nil {
 		return sendMessageAccepted{}, err
 	}
-	s.broadcastMessage(id, in.Channel, "in", in.Body)
+	row.ID = id
+	s.broadcastStoredMessage(row)
 
 	// Unauthorized WA senders are stored and surfaced in Web, but they never
 	// cross into the agent runtime.
@@ -149,15 +150,18 @@ func (s *Server) runConversationTurn(turn conversationTurn) {
 	s.beginRuntimeRun(ctx, runRef)
 	activity := &turnActivity{}
 	res, err := s.engines.Run(ctx, cliengine.RunOpts{
-		Prompt:    turn.Prompt,
-		SessionID: turn.PreviousID,
-		Channel:   turn.Source,
-		Cwd:       ".",
-		Engine:    turn.Engine,
-		Model:     turn.Model,
-		Scope:     "main",
-		AgentName: "main-agent",
-		OnEvent:   s.streamEventBroadcasterWithActivity(runRef, activity),
+		Prompt:           turn.Prompt,
+		SessionID:        turn.PreviousID,
+		Channel:          turn.Source,
+		ActiveWAJID:      waTargetJID(turn.WAReply),
+		ActiveWAReplyJID: waTargetJID(turn.WAReply),
+		ActiveWAStanzaID: waTargetStanzaID(turn.WAReply),
+		Cwd:              ".",
+		Engine:           turn.Engine,
+		Model:            turn.Model,
+		Scope:            "main",
+		AgentName:        "main-agent",
+		OnEvent:          s.streamEventBroadcasterWithActivity(runRef, activity),
 	})
 	if err != nil {
 		s.finalizeRuntimeRun(context.Background(), runRef, "error", turn.PreviousID, "", err.Error())
@@ -233,5 +237,28 @@ func (s *Server) emitConversationOutput(turn conversationTurn, body, status stri
 		Model:     sqlStr(turn.Model),
 		Activity:  sqlStr(activityJSON),
 	})
-	s.broadcastMessageWithModel(outID, turn.Source, "out", body, turn.Engine, turn.Model)
+	s.broadcastStoredMessage(store.Message{
+		ID:        outID,
+		Channel:   turn.Source,
+		Direction: "out",
+		Body:      sqlStr(body),
+		TS:        time.Now().Unix(),
+		Engine:    sqlStr(turn.Engine),
+		Model:     sqlStr(turn.Model),
+		Activity:  sqlStr(activityJSON),
+	})
+}
+
+func waTargetJID(target *waReplyTarget) string {
+	if target == nil {
+		return ""
+	}
+	return target.JID
+}
+
+func waTargetStanzaID(target *waReplyTarget) string {
+	if target == nil {
+		return ""
+	}
+	return target.StanzaID
 }

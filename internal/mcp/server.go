@@ -9,6 +9,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -62,38 +65,38 @@ func (s *Server) registerTools() {
 	), s.handleSendMessage)
 
 	s.srv.AddTool(mcp.NewTool("send_image",
-		mcp.WithDescription("Send an image to a WhatsApp JID. Queues the file for delivery; the daemon's outbox worker uploads + dispatches."),
-		mcp.WithString("jid", mcp.Required(), mcp.Description("Target JID (digits or full '<phone>@s.whatsapp.net').")),
+		mcp.WithDescription("Send an image. When jid is omitted inside a live chat turn, AgentHub posts it back into the current conversation; otherwise it queues the file for WhatsApp delivery."),
+		mcp.WithString("jid", mcp.Description("Optional target JID (digits or full '<phone>@s.whatsapp.net'). Omit to use the current live chat when available.")),
 		mcp.WithString("path", mcp.Required(), mcp.Description("Absolute path to the image on the daemon's filesystem.")),
 		mcp.WithString("caption", mcp.Description("Optional caption shown below the image.")),
 		mcp.WithString("reply_to", mcp.Description("WA stanza id of the message you are replying to (use the 'reply_to' field of an incoming message).")),
 	), s.handleSendImage)
 
 	s.srv.AddTool(mcp.NewTool("send_voice",
-		mcp.WithDescription("Send a voice note (PTT) to a WhatsApp JID. File should be opus-encoded .ogg."),
-		mcp.WithString("jid", mcp.Required()),
+		mcp.WithDescription("Send a voice note (PTT). File should be opus-encoded .ogg. When jid is omitted inside a live chat turn, AgentHub posts it back into the current conversation when possible."),
+		mcp.WithString("jid"),
 		mcp.WithString("path", mcp.Required(), mcp.Description("Absolute path to the .ogg file.")),
 		mcp.WithString("reply_to", mcp.Description("WA stanza id of the message you are replying to.")),
 	), s.handleSendVoice)
 
 	s.srv.AddTool(mcp.NewTool("send_audio",
-		mcp.WithDescription("Send an audio file (music / non-PTT) to a WhatsApp JID."),
-		mcp.WithString("jid", mcp.Required()),
+		mcp.WithDescription("Send an audio file (music / non-PTT). When jid is omitted inside a live chat turn, AgentHub posts it back into the current conversation when possible."),
+		mcp.WithString("jid"),
 		mcp.WithString("path", mcp.Required()),
 		mcp.WithString("reply_to", mcp.Description("WA stanza id of the message you are replying to.")),
 	), s.handleSendAudio)
 
 	s.srv.AddTool(mcp.NewTool("send_document",
-		mcp.WithDescription("Send a file as a document attachment to a WhatsApp JID. Filename shown is the basename of the path."),
-		mcp.WithString("jid", mcp.Required()),
+		mcp.WithDescription("Send a file as a document attachment. When jid is omitted inside a live chat turn, AgentHub posts it back into the current conversation when possible. Filename shown is the basename of the path."),
+		mcp.WithString("jid"),
 		mcp.WithString("path", mcp.Required()),
 		mcp.WithString("caption", mcp.Description("Optional caption.")),
 		mcp.WithString("reply_to", mcp.Description("WA stanza id of the message you are replying to.")),
 	), s.handleSendDocument)
 
 	s.srv.AddTool(mcp.NewTool("send_video",
-		mcp.WithDescription("Send a video file to a WhatsApp JID."),
-		mcp.WithString("jid", mcp.Required()),
+		mcp.WithDescription("Send a video file. When jid is omitted inside a live chat turn, AgentHub posts it back into the current conversation; in Web this makes the video clickable/playable in the chat UI."),
+		mcp.WithString("jid"),
 		mcp.WithString("path", mcp.Required()),
 		mcp.WithString("caption", mcp.Description("Optional caption.")),
 		mcp.WithString("reply_to", mcp.Description("WA stanza id of the message you are replying to.")),
@@ -262,6 +265,243 @@ func (s *Server) registerTools() {
 
 // ---------- handlers ----------
 
+type activeChatContext struct {
+	Channel    string
+	Engine     string
+	Model      string
+	WAJID      string
+	WAReplyJID string
+	WAStanzaID string
+}
+
+func currentActiveChatContext() activeChatContext {
+	return activeChatContext{
+		Channel:    strings.TrimSpace(os.Getenv("AGENTHUB_ACTIVE_CHANNEL")),
+		Engine:     strings.TrimSpace(os.Getenv("AGENTHUB_ACTIVE_ENGINE")),
+		Model:      strings.TrimSpace(os.Getenv("AGENTHUB_ACTIVE_MODEL")),
+		WAJID:      strings.TrimSpace(os.Getenv("AGENTHUB_ACTIVE_WA_JID")),
+		WAReplyJID: strings.TrimSpace(os.Getenv("AGENTHUB_ACTIVE_WA_REPLY_JID")),
+		WAStanzaID: strings.TrimSpace(os.Getenv("AGENTHUB_ACTIVE_WA_STANZA_ID")),
+	}
+}
+
+func (c activeChatContext) targetWAJID() string {
+	if c.WAReplyJID != "" {
+		return c.WAReplyJID
+	}
+	return c.WAJID
+}
+
+func (s *Server) uploadDir() string {
+	dir := strings.TrimSpace(s.cfg.UploadDir)
+	if dir == "" {
+		dir = "data/uploads"
+	}
+	return dir
+}
+
+func (s *Server) stageOutgoingMedia(kind, rawPath string) (string, error) {
+	rawPath = strings.TrimSpace(rawPath)
+	if rawPath == "" {
+		return "", fmt.Errorf("path required")
+	}
+	src, err := filepath.Abs(rawPath)
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Stat(src)
+	if err != nil {
+		return "", err
+	}
+	if info.IsDir() {
+		return "", fmt.Errorf("path is a directory: %s", rawPath)
+	}
+
+	base, err := filepath.Abs(s.uploadDir())
+	if err != nil {
+		return "", err
+	}
+	if rel, err := filepath.Rel(base, src); err == nil && rel != "." && !strings.HasPrefix(rel, "..") && !filepath.IsAbs(rel) {
+		return src, nil
+	}
+
+	if err := os.MkdirAll(filepath.Join(base, "tool_out"), 0o755); err != nil {
+		return "", err
+	}
+	ext := filepath.Ext(src)
+	if ext == "" {
+		ext = defaultMediaExt(kind)
+	}
+	name := sanitizeOutgoingName(strings.TrimSuffix(filepath.Base(src), filepath.Ext(src)))
+	if name == "" {
+		name = "media"
+	}
+	dst := filepath.Join(base, "tool_out", fmt.Sprintf("%d-%s%s", time.Now().UTC().UnixNano(), name, ext))
+	if err := linkOrCopyFile(src, dst); err != nil {
+		return "", err
+	}
+	return dst, nil
+}
+
+func sanitizeOutgoingName(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ""
+	}
+	var b strings.Builder
+	for _, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z':
+			b.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			b.WriteRune(r)
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '-' || r == '_' || r == '.':
+			b.WriteRune(r)
+		default:
+			b.WriteByte('-')
+		}
+	}
+	return strings.Trim(b.String(), "-_.")
+}
+
+func defaultMediaExt(kind string) string {
+	switch kind {
+	case "image":
+		return ".jpg"
+	case "video":
+		return ".mp4"
+	case "voice", "audio":
+		return ".ogg"
+	case "document":
+		return ".bin"
+	default:
+		return ""
+	}
+}
+
+func linkOrCopyFile(src, dst string) error {
+	if src == dst {
+		return nil
+	}
+	if info, err := os.Stat(dst); err == nil && !info.IsDir() {
+		return nil
+	}
+	_ = os.Remove(dst)
+	if err := os.Link(src, dst); err == nil {
+		return nil
+	}
+
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = out.Close() }()
+
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Sync()
+}
+
+func (s *Server) sendMedia(ctx context.Context, kind, rawPath, caption, replyTo, jid string) (*mcp.CallToolResult, error) {
+	stagedPath, err := s.stageOutgoingMedia(kind, rawPath)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	jid = strings.TrimSpace(jid)
+	replyTo = strings.TrimSpace(replyTo)
+	caption = strings.TrimSpace(caption)
+	active := currentActiveChatContext()
+
+	if jid == "" {
+		switch active.Channel {
+		case "web":
+			msg := store.Message{
+				Channel:      "web",
+				Direction:    "out",
+				Body:         sqlStr(caption),
+				MediaType:    sqlStr(kind),
+				MediaPath:    sqlStr(stagedPath),
+				MediaCaption: sqlStr(caption),
+				TS:           time.Now().Unix(),
+				Engine:       sqlStr(active.Engine),
+				Model:        sqlStr(active.Model),
+			}
+			id, err := s.repos.Messages.Insert(ctx, msg)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			return mcp.NewToolResultText(fmt.Sprintf("ok message_id=%d kind=%s channel=web", id, kind)), nil
+		case "wa":
+			targetJID := active.targetWAJID()
+			if targetJID == "" {
+				return mcp.NewToolResultError("jid required: no live WhatsApp target available"), nil
+			}
+			if replyTo == "" {
+				replyTo = active.WAStanzaID
+			}
+			item := store.WaOutboxItem{
+				JID:       targetJID,
+				Kind:      kind,
+				MediaPath: sqlStr(stagedPath),
+				ReplyTo:   sqlStr(replyTo),
+			}
+			if caption != "" {
+				item.Caption = sqlStr(caption)
+			}
+			outboxID, err := s.repos.WaOutbox.Enqueue(ctx, item)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			msg := store.Message{
+				Channel:      "wa",
+				Direction:    "out",
+				JID:          sqlStr(targetJID),
+				Body:         sqlStr(caption),
+				MediaType:    sqlStr(kind),
+				MediaPath:    sqlStr(stagedPath),
+				MediaCaption: sqlStr(caption),
+				ReplyTo:      sqlStr(replyTo),
+				TS:           time.Now().Unix(),
+				Engine:       sqlStr(active.Engine),
+				Model:        sqlStr(active.Model),
+				ExternalID:   sqlStr(fmt.Sprintf("outbox:%d", outboxID)),
+			}
+			msgID, err := s.repos.Messages.Insert(ctx, msg)
+			if err != nil {
+				return mcp.NewToolResultError("queued wa ok but failed to persist preview: " + err.Error()), nil
+			}
+			return mcp.NewToolResultText(fmt.Sprintf("ok outbox_id=%d message_id=%d kind=%s channel=wa", outboxID, msgID, kind)), nil
+		default:
+			return mcp.NewToolResultError("jid required outside the live web/wa chat"), nil
+		}
+	}
+
+	item := store.WaOutboxItem{
+		JID:       jid,
+		Kind:      kind,
+		MediaPath: sqlStr(stagedPath),
+		ReplyTo:   sqlStr(replyTo),
+	}
+	if caption != "" {
+		item.Caption = sqlStr(caption)
+	}
+	id, err := s.repos.WaOutbox.Enqueue(ctx, item)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return mcp.NewToolResultText(fmt.Sprintf("queued id=%d kind=%s", id, kind)), nil
+}
+
 func (s *Server) handleSendMessage(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	text, err := req.RequireString("text")
 	if err != nil {
@@ -296,119 +536,56 @@ func (s *Server) handleSendMessage(ctx context.Context, req mcp.CallToolRequest)
 }
 
 func (s *Server) handleSendImage(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	jid, err := req.RequireString("jid")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
 	path, err := req.RequireString("path")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
+	jid := strings.TrimSpace(req.GetString("jid", ""))
 	caption := strings.TrimSpace(req.GetString("caption", ""))
 	replyTo := strings.TrimSpace(req.GetString("reply_to", ""))
-	id, err := s.repos.WaOutbox.Enqueue(ctx, store.WaOutboxItem{
-		JID:       jid,
-		Kind:      "image",
-		MediaPath: sqlStr(path),
-		Caption:   sqlStr(caption),
-		ReplyTo:   sqlStr(replyTo),
-	})
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-	return mcp.NewToolResultText(fmt.Sprintf("queued id=%d kind=image", id)), nil
+	return s.sendMedia(ctx, "image", path, caption, replyTo, jid)
 }
 
 func (s *Server) handleSendVoice(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	jid, err := req.RequireString("jid")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
 	path, err := req.RequireString("path")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
+	jid := strings.TrimSpace(req.GetString("jid", ""))
 	replyTo := strings.TrimSpace(req.GetString("reply_to", ""))
-	id, err := s.repos.WaOutbox.Enqueue(ctx, store.WaOutboxItem{
-		JID:       jid,
-		Kind:      "voice",
-		MediaPath: sqlStr(path),
-		ReplyTo:   sqlStr(replyTo),
-	})
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-	return mcp.NewToolResultText(fmt.Sprintf("queued id=%d kind=voice", id)), nil
+	return s.sendMedia(ctx, "voice", path, "", replyTo, jid)
 }
 
 func (s *Server) handleSendAudio(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	jid, err := req.RequireString("jid")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
 	path, err := req.RequireString("path")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
+	jid := strings.TrimSpace(req.GetString("jid", ""))
 	replyTo := strings.TrimSpace(req.GetString("reply_to", ""))
-	id, err := s.repos.WaOutbox.Enqueue(ctx, store.WaOutboxItem{
-		JID:       jid,
-		Kind:      "audio",
-		MediaPath: sqlStr(path),
-		ReplyTo:   sqlStr(replyTo),
-	})
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-	return mcp.NewToolResultText(fmt.Sprintf("queued id=%d kind=audio", id)), nil
+	return s.sendMedia(ctx, "audio", path, "", replyTo, jid)
 }
 
 func (s *Server) handleSendDocument(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	jid, err := req.RequireString("jid")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
 	path, err := req.RequireString("path")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
+	jid := strings.TrimSpace(req.GetString("jid", ""))
 	caption := strings.TrimSpace(req.GetString("caption", ""))
 	replyTo := strings.TrimSpace(req.GetString("reply_to", ""))
-	id, err := s.repos.WaOutbox.Enqueue(ctx, store.WaOutboxItem{
-		JID:       jid,
-		Kind:      "document",
-		MediaPath: sqlStr(path),
-		Caption:   sqlStr(caption),
-		ReplyTo:   sqlStr(replyTo),
-	})
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-	return mcp.NewToolResultText(fmt.Sprintf("queued id=%d kind=document", id)), nil
+	return s.sendMedia(ctx, "document", path, caption, replyTo, jid)
 }
 
 func (s *Server) handleSendVideo(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	jid, err := req.RequireString("jid")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
 	path, err := req.RequireString("path")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
+	jid := strings.TrimSpace(req.GetString("jid", ""))
 	caption := strings.TrimSpace(req.GetString("caption", ""))
 	replyTo := strings.TrimSpace(req.GetString("reply_to", ""))
-	id, err := s.repos.WaOutbox.Enqueue(ctx, store.WaOutboxItem{
-		JID:       jid,
-		Kind:      "video",
-		MediaPath: sqlStr(path),
-		Caption:   sqlStr(caption),
-		ReplyTo:   sqlStr(replyTo),
-	})
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-	return mcp.NewToolResultText(fmt.Sprintf("queued id=%d kind=video", id)), nil
+	return s.sendMedia(ctx, "video", path, caption, replyTo, jid)
 }
 
 func (s *Server) handleSendLocation(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

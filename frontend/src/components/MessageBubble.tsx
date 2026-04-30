@@ -420,9 +420,18 @@ function VideoPreview({ src, caption }: { src: string; caption?: string }) {
         src={src}
         controls
         preload="metadata"
+        playsInline
         className="max-h-[300px] w-full rounded border bg-black"
         style={{ borderColor: "rgba(94,240,255,0.24)" }}
       />
+      <a
+        href={src}
+        target="_blank"
+        rel="noreferrer"
+        className="mt-1 inline-block text-[10.5px] text-[var(--color-cyan)] hover:underline"
+      >
+        Abrir video
+      </a>
       {caption ? (
         <div className="mt-1 text-[10.5px] text-[var(--color-dim)] break-words">
           {caption}

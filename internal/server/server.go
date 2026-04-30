@@ -912,27 +912,61 @@ func (s *Server) broadcastMessage(id int64, channel, direction, body string) {
 	s.broadcastMessageWithModel(id, channel, direction, body, "", "")
 }
 
+func (s *Server) broadcastStoredMessage(msg store.Message) {
+	if s.hub == nil {
+		return
+	}
+	payload := messageBroadcastPayload(msg)
+	raw, _ := json.Marshal(payload)
+	s.hub.Broadcast(ws.Envelope{Type: "message", Topic: "agent", Payload: raw})
+}
+
 // broadcastMessageWithModel includes engine/model so the UI can show the
 // model that produced an assistant turn.
 func (s *Server) broadcastMessageWithModel(id int64, channel, direction, body, engine, model string) {
 	if s.hub == nil {
 		return
 	}
-	out := map[string]any{
-		"id":        id,
-		"channel":   channel,
-		"direction": direction,
-		"body":      body,
-		"ts":        time.Now().Unix(),
-	}
-	if engine != "" {
-		out["engine"] = engine
-	}
-	if model != "" {
-		out["model"] = model
-	}
-	payload, _ := json.Marshal(out)
+	payload, _ := json.Marshal(messageBroadcastPayload(store.Message{
+		ID:        id,
+		Channel:   channel,
+		Direction: direction,
+		Body:      sqlStr(body),
+		TS:        time.Now().Unix(),
+		Engine:    sqlStr(engine),
+		Model:     sqlStr(model),
+	}))
 	s.hub.Broadcast(ws.Envelope{Type: "message", Topic: "agent", Payload: payload})
+}
+
+func messageBroadcastPayload(msg store.Message) map[string]any {
+	out := map[string]any{
+		"id":        msg.ID,
+		"channel":   msg.Channel,
+		"direction": msg.Direction,
+		"body":      msg.Body.String,
+		"ts":        msg.TS,
+		"is_read":   msg.IsRead,
+	}
+	if msg.Engine.Valid {
+		out["engine"] = msg.Engine.String
+	}
+	if msg.Model.Valid {
+		out["model"] = msg.Model.String
+	}
+	if msg.Activity.Valid {
+		out["activity"] = msg.Activity.String
+	}
+	if msg.MediaType.Valid {
+		out["media_type"] = msg.MediaType.String
+	}
+	if msg.MediaPath.Valid {
+		out["media_path"] = msg.MediaPath.String
+	}
+	if msg.MediaCaption.Valid {
+		out["media_caption"] = msg.MediaCaption.String
+	}
+	return out
 }
 
 // ---------- helpers ----------

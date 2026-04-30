@@ -18,15 +18,18 @@ import (
 
 // RunOpts captures everything needed to spawn a CLI for one turn.
 type RunOpts struct {
-	Prompt          string
-	UserBody        string // optional body to persist as the user's visible turn when Prompt is augmented
-	SessionID       string // resume id; empty = first run, engine assigns one
-	Channel         string // 'wa' | 'web' | 'topic' | 'project' | 'agent' | 'mini-agent'
-	Cwd             string // working dir (where .claude/skills/ is discovered)
-	Engine          string // 'claude' | 'codex' | 'ollama'
-	Model           string // 'opus-4-7' | 'sonnet' | 'haiku' (model selection per engine)
-	ReasoningEffort string // codex reasoning effort: low | medium | high | xhigh
-	OutputFmt       string // 'json' (final result) | 'stream-json' (chunks)
+	Prompt           string
+	UserBody         string // optional body to persist as the user's visible turn when Prompt is augmented
+	SessionID        string // resume id; empty = first run, engine assigns one
+	Channel          string // 'wa' | 'web' | 'topic' | 'project' | 'agent' | 'mini-agent'
+	ActiveWAJID      string // original incoming WA chat jid (when Channel='wa')
+	ActiveWAReplyJID string // preferred WA chat jid to reply into (groups may differ from ActiveWAJID)
+	ActiveWAStanzaID string // current incoming WA stanza id to quote by default
+	Cwd              string // working dir (where .claude/skills/ is discovered)
+	Engine           string // 'claude' | 'codex' | 'ollama'
+	Model            string // 'opus-4-7' | 'sonnet' | 'haiku' (model selection per engine)
+	ReasoningEffort  string // codex reasoning effort: low | medium | high | xhigh
+	OutputFmt        string // 'json' (final result) | 'stream-json' (chunks)
 
 	// scope identifiers for persisting session_messages
 	Scope         string // 'main' | 'topic' | 'project' | 'agent'
