@@ -8,6 +8,17 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.56 — 2026-04-30
+
+### Added
+- **Video visual de arquitectura AgentHub**: nuevo proyecto HyperFrames `videos/agenthub-architecture-tour/` con capturas reales de la UI, diagrama del flujo Web/WA → daemon → engines/MCP → SQLite/outbox y explicación de media clickeable.
+- **Render compartido**: MP4 final publicado en `data/uploads/shared/agenthub-architecture-tour.mp4` para descarga desde `/api/file`.
+
+### Validated
+- **HyperFrames OK**: `npx hyperframes lint`, `npx hyperframes inspect --samples 18` y render final a MP4 de 42s.
+
+---
+
 ## v0.2.55 — 2026-04-30
 
 ### Added

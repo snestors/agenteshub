@@ -33,3 +33,19 @@ Los renders quedan fuera de Git en:
 
 - `/home/nestor/agenthub/data/generated-videos/agenthub-workflows-hyperframes.mp4`
 - `/home/nestor/agenthub/data/generated-videos/agenthub-workflows-remotion.mp4`
+
+
+## AgentHub architecture tour
+
+Nuevo video visual con capturas reales de la UI y diagrama de funcionamiento:
+
+```bash
+cd /home/nestor/agenthub
+npx hyperframes lint videos/agenthub-architecture-tour
+npx hyperframes inspect videos/agenthub-architecture-tour --samples 18
+npx hyperframes render videos/agenthub-architecture-tour \
+  --output /home/nestor/agenthub/data/generated-videos/agenthub-architecture-tour.mp4 \
+  --fps 30 --quality standard
+ln -f /home/nestor/agenthub/data/generated-videos/agenthub-architecture-tour.mp4 \
+  /home/nestor/agenthub/data/uploads/shared/agenthub-architecture-tour.mp4
+```
