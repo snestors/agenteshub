@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      :root {
+        --bg: #060814;
+        --bg-2: #0a0f24;
+        --fg: #d6f5ff;
+        --dim: #6b7aa8;
+        --cyan: #5ef0ff;
+        --magenta: #ff4ed6;
+        --lime: #a3ff4e;
+        --orange: #ff9f43;
+        --line: rgba(120, 255, 220, 0.12);
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 20% 10%, rgba(94, 240, 255, 0.16), transparent 32%),
+          radial-gradient(circle at 80% 0%, rgba(255, 78, 214, 0.12), transparent 30%),
+          linear-gradient(180deg, #0b1029 0%, var(--bg) 55%, #02030a 100%);
+        color: var(--fg);
+        font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+      }
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image:
+          linear-gradient(90deg, var(--line) 1px, transparent 1px),
+          linear-gradient(0deg, var(--line) 1px, transparent 1px);
+        background-size: 72px 72px;
+        opacity: 0.35;
+        pointer-events: none;
+      }
+      body::after {
+        content: "";
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: 28%;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, rgba(94, 240, 255, 0.85), transparent);
+        opacity: 0.22;
+        filter: blur(1px);
+        pointer-events: none;
+      }
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+      .scene {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        padding: 110px 136px;
+      }
+      #scene-2,
+      #scene-3,
+      #scene-4 {
+        opacity: 0;
+      }
+      .panel {
+        width: 100%;
+        height: 100%;
+        border: 1px solid rgba(120, 255, 220, 0.2);
+        background: rgba(10, 15, 36, 0.68);
+        box-shadow:
+          0 0 0 1px rgba(94, 240, 255, 0.05) inset,
+          0 24px 72px rgba(0, 0, 0, 0.35);
+        clip-path: polygon(24px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 24px), calc(100% - 24px) 100%, 4px 100%, 0 calc(100% - 4px), 0 24px);
+        padding: 64px 72px;
+        position: relative;
+        overflow: hidden;
+      }
+      .panel::before {
+        content: "";
+        position: absolute;
+        inset: auto 48px 0 48px;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(94, 240, 255, 0.6), transparent);
+      }
+      .eyebrow {
+        color: var(--cyan);
+        font-size: 24px;
+        letter-spacing: 0.32em;
+        text-transform: uppercase;
+        font-weight: 700;
+      }
+      .title {
+        font-size: 96px;
+        line-height: 0.92;
+        font-weight: 800;
+        margin-top: 18px;
+        max-width: 1180px;
+      }
+      .title-accent {
+        color: var(--magenta);
+      }
+      .subtitle {
+        margin-top: 24px;
+        font-size: 34px;
+        color: var(--dim);
+        max-width: 1040px;
+        line-height: 1.4;
+      }
+      .card-row {
+        display: flex;
+        gap: 18px;
+        margin-top: 56px;
+      }
+      .card {
+        flex: 1;
+        min-height: 238px;
+        min-width: 0;
+        padding: 24px;
+        background: linear-gradient(180deg, rgba(12, 18, 40, 0.92), rgba(7, 11, 28, 0.88));
+        border: 1px solid rgba(120, 255, 220, 0.16);
+        clip-path: polygon(16px 0, calc(100% - 3px) 0, 100% 3px, 100% calc(100% - 16px), calc(100% - 16px) 100%, 3px 100%, 0 calc(100% - 3px), 0 16px);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        box-shadow: 0 16px 42px rgba(0, 0, 0, 0.24);
+      }
+      .card-step {
+        font-size: 18px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--orange);
+        font-weight: 700;
+      }
+      .card-label {
+        font-size: 36px;
+        line-height: 1.04;
+        font-weight: 750;
+      }
+      .card-copy {
+        color: var(--dim);
+        font-size: 21px;
+        line-height: 1.35;
+        margin-top: 12px;
+      }
+      .flow-line {
+        margin-top: 36px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+      }
+      .dot {
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        box-shadow: 0 0 18px currentColor;
+      }
+      .flow-label {
+        font-size: 42px;
+        font-weight: 700;
+      }
+      .flow-arrow {
+        color: var(--dim);
+        font-size: 34px;
+        letter-spacing: 0.12em;
+      }
+      .footer-line {
+        position: absolute;
+        left: 72px;
+        right: 72px;
+        bottom: 54px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 24px;
+        color: var(--dim);
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+      }
+      .footer-strong {
+        color: var(--lime);
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="16"
+      data-width="1920"
+      data-height="1080"
+    >
+      <section id="scene-1" class="scene clip" data-start="0" data-duration="4" data-track-index="1">
+        <div class="panel">
+          <div class="eyebrow">agenthub · workflow engine</div>
+          <h1 class="title">
+            AgentHub
+            <span class="title-accent">Workflows</span>
+          </h1>
+          <p class="subtitle">
+            Del mensaje al sistema, sin cambiar de superficie.
+            Chat, contexto, tools y operaciones seguras en un solo flujo.
+          </p>
+          <div class="footer-line">
+            <span>web + whatsapp + proyectos</span>
+            <span class="footer-strong">16s explainer</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="scene-2" class="scene clip" data-start="4" data-duration="4" data-track-index="1">
+        <div class="panel">
+          <div class="eyebrow">1 · chat operativo</div>
+          <h2 class="title" style="font-size: 74px">De la consulta al tool call</h2>
+          <div class="card-row">
+            <article class="card card-a">
+              <span class="card-step">entrada</span>
+              <div>
+                <div class="card-label">Web / WhatsApp</div>
+                <div class="card-copy">Un único chat como superficie de trabajo.</div>
+              </div>
+            </article>
+            <article class="card card-b">
+              <span class="card-step">contexto</span>
+              <div>
+                <div class="card-label">Memoria y contexto</div>
+                <div class="card-copy">Contexto persistente antes de ejecutar.</div>
+              </div>
+            </article>
+            <article class="card card-c">
+              <span class="card-step">acción</span>
+              <div>
+                <div class="card-label">Tools y respuesta</div>
+                <div class="card-copy">Sistema, vault, records o integraciones.</div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="scene-3" class="scene clip" data-start="8" data-duration="4" data-track-index="1">
+        <div class="panel">
+          <div class="eyebrow">2 · project mode</div>
+          <h2 class="title" style="font-size: 74px">Workflow versionado</h2>
+          <div class="flow-line flow-1">
+            <span class="dot" style="color: var(--cyan); background: var(--cyan)"></span>
+            <span class="flow-label">Explore</span>
+            <span class="flow-arrow">→</span>
+            <span class="flow-label">Proposal</span>
+            <span class="flow-arrow">→</span>
+            <span class="flow-label">Apply</span>
+            <span class="flow-arrow">→</span>
+            <span class="flow-label">Verify</span>
+          </div>
+          <p class="subtitle" style="margin-top: 42px; max-width: 1280px">
+            AgentHub baja el trabajo a proyectos, sesiones y cambios con trazabilidad.
+            El resultado queda listo para test, release notes y commit.
+          </p>
+        </div>
+      </section>
+
+      <section id="scene-4" class="scene clip" data-start="12" data-duration="4" data-track-index="1">
+        <div class="panel">
+          <div class="eyebrow">3 · operación segura</div>
+          <h2 class="title" style="font-size: 74px">Skills · Cron · Vault · Safe restart</h2>
+          <div class="card-row" style="margin-top: 42px">
+            <article class="card ops-a">
+              <span class="card-step">automation</span>
+              <div class="card-label">Cron & skills</div>
+            </article>
+            <article class="card ops-b">
+              <span class="card-step">secrets</span>
+              <div class="card-label">Vault</div>
+            </article>
+            <article class="card ops-c">
+              <span class="card-step">deploy</span>
+              <div class="card-label">Safe restart</div>
+            </article>
+          </div>
+          <div class="footer-line">
+            <span class="footer-strong">un cerebro</span>
+            <span>web + whatsapp + system automation</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      // scene 1
+      tl.set("#scene-1", { opacity: 1 }, 0);
+      tl.from("#scene-1 .eyebrow", { opacity: 0, y: 24, duration: 0.5, ease: "power3.out" }, 0.15);
+      tl.from("#scene-1 .title", { opacity: 0, y: 54, duration: 0.75, ease: "power3.out" }, 0.25);
+      tl.from("#scene-1 .subtitle", { opacity: 0, y: 34, duration: 0.6, ease: "power2.out" }, 0.55);
+      tl.from("#scene-1 .footer-line", { opacity: 0, y: 24, duration: 0.45, ease: "power2.out" }, 0.9);
+      tl.to("#scene-1 .panel", { opacity: 0, scale: 0.985, duration: 0.35, ease: "power2.in" }, 3.55);
+      tl.set("#scene-1", { opacity: 0 }, 4);
+
+      // scene 2
+      tl.set("#scene-2", { opacity: 1 }, 4);
+      tl.from("#scene-2 .eyebrow", { opacity: 0, y: 24, duration: 0.35, ease: "power3.out" }, 4.1);
+      tl.from("#scene-2 .title", { opacity: 0, y: 40, duration: 0.55, ease: "power3.out" }, 4.2);
+      tl.from("#scene-2 .card-a", { opacity: 0, x: -80, duration: 0.55, ease: "power3.out" }, 4.45);
+      tl.from("#scene-2 .card-b", { opacity: 0, y: 80, duration: 0.55, ease: "power3.out" }, 4.62);
+      tl.from("#scene-2 .card-c", { opacity: 0, x: 80, duration: 0.55, ease: "power3.out" }, 4.79);
+      tl.to("#scene-2 .panel", { opacity: 0, y: -24, duration: 0.35, ease: "power2.in" }, 7.55);
+      tl.set("#scene-2", { opacity: 0 }, 8);
+
+      // scene 3
+      tl.set("#scene-3", { opacity: 1 }, 8);
+      tl.from("#scene-3 .eyebrow", { opacity: 0, y: 24, duration: 0.35, ease: "power3.out" }, 8.1);
+      tl.from("#scene-3 .title", { opacity: 0, y: 32, duration: 0.55, ease: "power3.out" }, 8.2);
+      tl.from("#scene-3 .flow-1", { opacity: 0, y: 36, duration: 0.6, ease: "power3.out" }, 8.55);
+      tl.from("#scene-3 .subtitle", { opacity: 0, y: 28, duration: 0.55, ease: "power2.out" }, 8.9);
+      tl.to("#scene-3 .panel", { opacity: 0, scale: 1.02, duration: 0.35, ease: "power2.in" }, 11.55);
+      tl.set("#scene-3", { opacity: 0 }, 12);
+
+      // scene 4
+      tl.set("#scene-4", { opacity: 1 }, 12);
+      tl.from("#scene-4 .eyebrow", { opacity: 0, y: 24, duration: 0.35, ease: "power3.out" }, 12.1);
+      tl.from("#scene-4 .title", { opacity: 0, y: 36, duration: 0.55, ease: "power3.out" }, 12.2);
+      tl.from("#scene-4 .ops-a", { opacity: 0, x: -60, duration: 0.45, ease: "power3.out" }, 12.5);
+      tl.from("#scene-4 .ops-b", { opacity: 0, y: 60, duration: 0.45, ease: "power3.out" }, 12.65);
+      tl.from("#scene-4 .ops-c", { opacity: 0, x: 60, duration: 0.45, ease: "power3.out" }, 12.8);
+      tl.from("#scene-4 .footer-line", { opacity: 0, y: 22, duration: 0.35, ease: "power2.out" }, 13.1);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

@@ -8,6 +8,21 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.53 — 2026-04-30
+
+### Added
+- **Stack HyperFrames instalada en el repo**: se agregaron `.agents/skills/` y symlinks en `.claude/skills/` para `hyperframes`, `hyperframes-cli`, `website-to-hyperframes`, `remotion-to-hyperframes` y `gsap`, dejando el skill de Miguel disponible dentro del proyecto.
+- **Demos de video de AgentHub workflows**: nuevo brief en `videos/agenthub-workflows-brief.md`, proyecto HyperFrames en `videos/hyperframes-agenthub-workflows/` y proyecto Remotion en `videos/remotion-agenthub-workflows/`, ambos enfocados en explicar el flujo chat → tools → project workflow → operación segura.
+- **Guía de rerender local**: `videos/README.md` documenta cómo volver a renderizar ambas piezas y dónde quedan los MP4 generados.
+
+### Changed
+- **AGENTS.md registra las skills de video**: el proyecto ya declara HyperFrames/GSAP como herramientas aprobadas para futuras demos y piezas generativas.
+
+### Validated
+- **Render probado en ambos stacks**: se validó HyperFrames con `doctor`, `lint`, `inspect` y render MP4 1080p; Remotion quedó instalado y renderizó su MP4 1080p correctamente.
+
+---
+
 ## v0.2.52 — 2026-04-30
 
 ### Added

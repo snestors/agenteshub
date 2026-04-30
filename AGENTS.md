@@ -18,6 +18,8 @@ Path: `/home/nestor/agenthub`
 - `go-testing`: usar cuando se escriban o modifiquen tests Go.
 - `deploy-safe-restart`: flujo obligatorio para backend Go — build con ldflags, smoke aislado, promote a `bin/agenthub` y `bin/safe-restart.sh`.
 - `cron-admin`: crear y administrar cronjobs del host con guardrails, priorizando `/etc/cron.d/agenthub-*`, inventario previo y validación conservadora.
+- `hyperframes` / `hyperframes-cli`: stack HTML+GSAP para videos generativos; usar para componer, lint, inspeccionar y renderizar demos en `videos/hyperframes-*`.
+- `website-to-hyperframes` / `remotion-to-hyperframes` / `gsap`: skills auxiliares instaladas desde el registry de HyperFrames para capturas web, migración desde Remotion y animación GSAP.
 - `branch-pr` / `issue-creation`: usar para flujos GitHub cuando aplique.
 - `sdd-workflow`: reglas OpenSpec/SDD con gates obligatorios para proposal/design/tasks/apply/verify/archive.
 - TODO: listar más skills custom en `.claude/skills/`.

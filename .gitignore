@@ -18,6 +18,10 @@ data/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+**/node_modules/
+videos/**/.cache/
+videos/**/dist/
+videos/**/out/
 
 # Editor
 .idea/
