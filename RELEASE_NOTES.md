@@ -8,6 +8,22 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.54 — 2026-04-30
+
+### Added
+- **WhatsApp media saliente con traza web**: los envíos `send_image`, `send_video`, `send_document`, `send_audio`, `send_voice` ahora persisten una fila `wa_messages` saliente con `external_id` real y, cuando hace falta, archivan una copia/hardlink bajo `data/uploads/wa_sent/` para que la UI pueda volver a servir el archivo.
+- **Prompt operativo actualizado para media**: el template `system-prompt.example.md` y la instalación local del prompt ya explican cuándo usar `send_image`/`send_video`/`send_document`/`send_audio`/`send_voice` y recuerdan que el `path` debe ser absoluto.
+
+### Changed
+- **Burbuja de mensajes entiende media sin texto**: la UI deja de mostrar `[vacío]` para adjuntos y ahora usa placeholders específicos (`[imagen adjunta]`, `[video adjunto]`, etc.).
+- **Preview inline de video**: `MessageBubble` ahora renderiza videos adjuntos en el historial web, además de imágenes.
+- **SPECS.md documenta media saliente**: el bridge WA ya declara como capacidad verificable el envío de foto/video a otros chats con persistencia en historial web.
+
+### Validated
+- **Builds del release pasaron**: `go test ./...`, `pnpm run build` y smoke backend aislado en `:8094`.
+
+---
+
 ## v0.2.53 — 2026-04-30
 
 ### Added

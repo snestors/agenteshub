@@ -38,11 +38,15 @@ Una conversación principal que comparte sesión entre los dos canales.
 - Si `AGENTHUB_WA_ENABLED=true` y el QR fue scanneado, los mensajes entrantes desde el número configurado en `AGENTHUB_WA_NOTIFY_PHONE` van al mismo cerebro.
 - La respuesta del agente se entrega al canal por el que llegó el mensaje original.
 - El historial es navegable desde la UI con búsqueda full-text (FTS5).
+- El agente puede enviar media saliente por WhatsApp a otros chats usando tools (`send_image`, `send_video`, `send_document`, `send_audio`, `send_voice`) con archivos locales del daemon.
+- Los envíos salientes de imagen/video quedan persistidos en `wa_messages` para auditoría e historial web.
 
 **Escenarios verificables**:
 - _Dado_ que envío "hola" desde el chat web, _cuando_ el agente responde, _entonces_ esa respuesta NO se duplica en WhatsApp.
 - _Dado_ que envío "hola" desde WhatsApp, _cuando_ el agente responde, _entonces_ la respuesta llega por WhatsApp Y queda visible en el chat web sin pasos extra del agente.
 - _Dado_ que mando una nota de voz por WhatsApp, _cuando_ se procesa, _entonces_ se transcribe localmente con whisper antes de pasar al engine.
+- _Dado_ que le pido al agente "mandale esta foto a X" y existe un archivo local válido, _cuando_ usa `send_image`, _entonces_ el item se encola, sale por WhatsApp y queda visible en el historial web.
+- _Dado_ que le pido al agente "mandale este video a X" y existe un archivo local válido, _cuando_ usa `send_video`, _entonces_ el video sale por WhatsApp y el historial web puede volver a previsualizarlo.
 
 ### 2. Project sessions (chats aislados por proyecto)
 

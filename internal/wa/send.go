@@ -35,44 +35,46 @@ func buildContextInfo(reply *ReplyContext) *waE2E.ContextInfo {
 	return ci
 }
 
-// SendImage uploads + sends an image. `caption` is optional. The MIME type is
-// sniffed from the bytes; falls back to image/jpeg. Pass `reply` to quote a
-// previous message; pass nil for a non-reply send.
-func (c *Client) SendImage(ctx context.Context, jid, path, caption string, reply *ReplyContext) error {
+// SendImage uploads + sends an image. Returns the WhatsApp stanza id.
+// `caption` is optional. The MIME type is sniffed from the bytes; falls back
+// to image/jpeg. Pass `reply` to quote a previous message; pass nil for a
+// non-reply send.
+func (c *Client) SendImage(ctx context.Context, jid, path, caption string, reply *ReplyContext) (string, error) {
 	return c.sendMedia(ctx, jid, path, caption, mediaKindImage, reply)
 }
 
 // SendVoice sends a voice note (PTT=true). The file should be opus-encoded
 // .ogg for best compatibility. WhatsApp will reject other codecs silently.
-func (c *Client) SendVoice(ctx context.Context, jid, path string, reply *ReplyContext) error {
+func (c *Client) SendVoice(ctx context.Context, jid, path string, reply *ReplyContext) (string, error) {
 	return c.sendMedia(ctx, jid, path, "", mediaKindVoice, reply)
 }
 
 // SendAudio sends a music/audio file (PTT=false).
-func (c *Client) SendAudio(ctx context.Context, jid, path string, reply *ReplyContext) error {
+func (c *Client) SendAudio(ctx context.Context, jid, path string, reply *ReplyContext) (string, error) {
 	return c.sendMedia(ctx, jid, path, "", mediaKindAudio, reply)
 }
 
 // SendDocument sends an arbitrary file as a document attachment. `caption`
 // optional. The displayed filename is the basename of `path`.
-func (c *Client) SendDocument(ctx context.Context, jid, path, caption string, reply *ReplyContext) error {
+func (c *Client) SendDocument(ctx context.Context, jid, path, caption string, reply *ReplyContext) (string, error) {
 	return c.sendMedia(ctx, jid, path, caption, mediaKindDocument, reply)
 }
 
-// SendVideo sends a video file. `caption` optional.
-func (c *Client) SendVideo(ctx context.Context, jid, path, caption string, reply *ReplyContext) error {
+// SendVideo sends a video file and returns the WhatsApp stanza id.
+// `caption` optional.
+func (c *Client) SendVideo(ctx context.Context, jid, path, caption string, reply *ReplyContext) (string, error) {
 	return c.sendMedia(ctx, jid, path, caption, mediaKindVideo, reply)
 }
 
 // SendLocation sends a static location pin. `name` is the place label
-// shown next to the map; pass "" for none.
-func (c *Client) SendLocation(ctx context.Context, jid string, lat, lng float64, name string, reply *ReplyContext) error {
+// shown next to the map; pass "" for none. Returns the WhatsApp stanza id.
+func (c *Client) SendLocation(ctx context.Context, jid string, lat, lng float64, name string, reply *ReplyContext) (string, error) {
 	if !c.Connected() {
-		return errors.New("wa not connected")
+		return "", errors.New("wa not connected")
 	}
 	parsed, err := parseJID(jid)
 	if err != nil {
-		return err
+		return "", err
 	}
 	loc := &waE2E.LocationMessage{
 		DegreesLatitude:  proto.Float64(lat),
@@ -84,8 +86,11 @@ func (c *Client) SendLocation(ctx context.Context, jid string, lat, lng float64,
 	if ci := buildContextInfo(reply); ci != nil {
 		loc.ContextInfo = ci
 	}
-	_, err = c.wmClient.SendMessage(ctx, parsed, &waE2E.Message{LocationMessage: loc})
-	return err
+	resp, err := c.wmClient.SendMessage(ctx, parsed, &waE2E.Message{LocationMessage: loc})
+	if err != nil {
+		return "", err
+	}
+	return resp.ID, nil
 }
 
 type mediaKind int
@@ -99,21 +104,22 @@ const (
 )
 
 // sendMedia is the shared upload + envelope path. Each kind picks its
-// MediaType + builds the right *waE2E.Message variant. `reply` is optional.
-func (c *Client) sendMedia(ctx context.Context, jid, path, caption string, kind mediaKind, reply *ReplyContext) error {
+// MediaType + builds the right *waE2E.Message variant. Returns the WhatsApp
+// stanza id. `reply` is optional.
+func (c *Client) sendMedia(ctx context.Context, jid, path, caption string, kind mediaKind, reply *ReplyContext) (string, error) {
 	if !c.Connected() {
-		return errors.New("wa not connected")
+		return "", errors.New("wa not connected")
 	}
 	parsed, err := parseJID(jid)
 	if err != nil {
-		return err
+		return "", err
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("read file: %w", err)
+		return "", fmt.Errorf("read file: %w", err)
 	}
 	if len(data) == 0 {
-		return errors.New("empty file")
+		return "", errors.New("empty file")
 	}
 	mtype := http.DetectContentType(data)
 
@@ -128,12 +134,12 @@ func (c *Client) sendMedia(ctx context.Context, jid, path, caption string, kind 
 	case mediaKindVideo:
 		appInfo = whatsmeow.MediaVideo
 	default:
-		return fmt.Errorf("unknown media kind %d", kind)
+		return "", fmt.Errorf("unknown media kind %d", kind)
 	}
 
 	uploaded, err := c.wmClient.Upload(ctx, data, appInfo)
 	if err != nil {
-		return fmt.Errorf("wa upload: %w", err)
+		return "", fmt.Errorf("wa upload: %w", err)
 	}
 	size := uint64(len(data))
 
@@ -216,6 +222,9 @@ func (c *Client) sendMedia(ctx context.Context, jid, path, caption string, kind 
 			msg.VideoMessage.ContextInfo = ci
 		}
 	}
-	_, err = c.wmClient.SendMessage(ctx, parsed, msg)
-	return err
+	resp, err := c.wmClient.SendMessage(ctx, parsed, msg)
+	if err != nil {
+		return "", err
+	}
+	return resp.ID, nil
 }

@@ -168,7 +168,18 @@ const mdComponents: Components = {
 
 export function MessageBubble({ message, topic }: MessageBubbleProps) {
   const isUser = message.direction === "in";
-  const isEmptyAgentBody = !isUser && message.body.trim() === "";
+  const emptyBodyLabel =
+    message.media_type === "image"
+      ? "[imagen adjunta]"
+      : message.media_type === "video"
+        ? "[video adjunto]"
+        : message.media_type === "audio"
+          ? "[audio adjunto]"
+          : message.media_type === "voice"
+            ? "[nota de voz adjunta]"
+            : message.media_type === "document"
+              ? "[archivo adjunto]"
+              : "[vacío]";
   const accent = isUser ? "var(--color-lime)" : "var(--color-magenta)";
   const role = isUser ? "USR" : "MAIN";
   const arrow = isUser ? "▸" : "◂";
@@ -229,12 +240,7 @@ export function MessageBubble({ message, topic }: MessageBubbleProps) {
               : "bg-[rgba(255,78,214,0.04)] border-[rgba(255,78,214,0.20)]",
           )}
         >
-          {isEmptyAgentBody ? (
-            <span className="font-semibold text-[var(--color-danger)]">
-              ⚠ El engine no devolvió respuesta. Probá cambiar de modelo o
-              reintentar.
-            </span>
-          ) : message.body ? (
+          {message.body ? (
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={mdComponents}
@@ -242,12 +248,30 @@ export function MessageBubble({ message, topic }: MessageBubbleProps) {
               {message.body}
             </ReactMarkdown>
           ) : (
-            <span className="text-[var(--color-dim)] italic">[vacío]</span>
+            <span
+              className={cn(
+                "italic",
+                !isUser && !message.media_type
+                  ? "font-semibold text-[var(--color-danger)]"
+                  : "text-[var(--color-dim)]",
+              )}
+            >
+              {!isUser && !message.media_type
+                ? "⚠ El engine no devolvió respuesta. Probá cambiar de modelo o reintentar."
+                : emptyBodyLabel}
+            </span>
           )}
         </div>
 
         {message.media_type === "image" && message.media_path && (
           <ImagePreview
+            src={api.fileUrl(message.media_path)}
+            caption={message.media_caption || message.body}
+          />
+        )}
+
+        {message.media_type === "video" && message.media_path && (
+          <VideoPreview
             src={api.fileUrl(message.media_path)}
             caption={message.media_caption || message.body}
           />
@@ -386,5 +410,24 @@ function ImagePreview({ src, caption }: { src: string; caption?: string }) {
         </div>
       )}
     </>
+  );
+}
+
+function VideoPreview({ src, caption }: { src: string; caption?: string }) {
+  return (
+    <div className="mt-2 max-w-[420px]">
+      <video
+        src={src}
+        controls
+        preload="metadata"
+        className="max-h-[300px] w-full rounded border bg-black"
+        style={{ borderColor: "rgba(94,240,255,0.24)" }}
+      />
+      {caption ? (
+        <div className="mt-1 text-[10.5px] text-[var(--color-dim)] break-words">
+          {caption}
+        </div>
+      ) : null}
+    </div>
   );
 }
