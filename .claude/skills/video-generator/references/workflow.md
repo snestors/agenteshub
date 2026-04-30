@@ -103,14 +103,13 @@ Preferred:
 send_video(path="/home/nestor/agenthub/data/uploads/shared/<slug>.mp4", caption="...")
 ```
 
-Fallback from a shell-only coding session:
+Fallback from a shell-only coding/project session:
 
-```sql
-INSERT INTO wa_messages(channel, direction, body, media_type, media_path, media_caption, ts, is_read, engine, model)
-VALUES('web','out','<caption>','video','/home/nestor/agenthub/data/uploads/shared/<slug>.mp4','<caption>',unixepoch(),1,'codex','gpt-5.5');
-```
+1. publish the MP4 under `data/uploads/shared/`;
+2. return the direct `/api/file` link;
+3. say plainly that inline preview was not available from that session.
 
-Warn that the fallback does not emit a WebSocket event; the user may need to refresh.
+Do not manually insert `wa_messages` rows as a normal delivery path; raw DB inserts do not emit WebSocket events.
 
 ## AgentHub repo bookkeeping
 

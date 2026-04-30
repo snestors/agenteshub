@@ -1,0 +1,5 @@
+version: 1
+agent:
+  display_name: "AgentHub Media Delivery"
+  short_description: "Deliver media through AgentHub chat or safe file links."
+  default_prompt: "Publish images, videos, audio, voice notes, or documents through AgentHub using send_* when available, otherwise create a safe /api/file link under data/uploads/shared."

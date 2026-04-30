@@ -76,3 +76,10 @@ Para videos no necesariamente ligados a capturas de AgentHub, usar:
 - `.claude/skills/video-generator/references/workflow.md`
 
 Esta skill decide HyperFrames vs Remotion, estructura el brief, valida, renderiza y publica el MP4 en `data/uploads/shared/`.
+
+Para entregar el resultado al chat actual o como link descargable, usar:
+
+- `.claude/skills/agenthub-media-delivery/SKILL.md`
+- `.claude/skills/agenthub-media-delivery/references/workflow.md`
+
+Regla práctica: `send_video(path=..., caption=...)` sin `jid` cuando la tool esté disponible; si no, link directo `/api/file` desde `data/uploads/shared/`.

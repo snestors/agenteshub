@@ -22,15 +22,18 @@ hace WhatsApp en su UI.
 | Tool | Args |
 | --- | --- |
 | `send_message` | `text`, `jid?`, `reply_to?` |
-| `send_image` | `jid`, `path`, `caption?`, `reply_to?` |
-| `send_voice` | `jid`, `path` (.ogg opus), `reply_to?` |
-| `send_audio` | `jid`, `path`, `reply_to?` |
-| `send_document` | `jid`, `path`, `caption?`, `reply_to?` |
-| `send_video` | `jid`, `path`, `caption?`, `reply_to?` |
+| `send_image` | `jid?`, `path`, `caption?`, `reply_to?` |
+| `send_voice` | `jid?`, `path` (.ogg opus), `reply_to?` |
+| `send_audio` | `jid?`, `path`, `reply_to?` |
+| `send_document` | `jid?`, `path`, `caption?`, `reply_to?` |
+| `send_video` | `jid?`, `path`, `caption?`, `reply_to?` |
 | `send_location` | `jid`, `lat`, `lng`, `name?`, `reply_to?` |
 
 `send_message` con `jid` además encola un envío a WhatsApp (no solo
 persiste para la web). Con `jid + reply_to` cita un mensaje específico.
+
+Para mostrar media en el **chat activo** (Web/WA actual), omití `jid`.
+Para mandar a **otro** chat/contacto, pasá `jid`.
 
 `jid` puede ser dígitos sueltos (`51922743968`) o el JID completo
 (`51922743968@s.whatsapp.net`). El primero se asume `@s.whatsapp.net`.

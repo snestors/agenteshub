@@ -10,6 +10,7 @@ description: Generate polished videos from prompts, briefs, assets, screenshots,
 - Use **HyperFrames** for new videos unless the user explicitly asks for Remotion or provides existing Remotion source.
 - Use **Remotion** when the user specifically wants React components, an existing Remotion project, or a Remotion-vs-HyperFrames comparison.
 - Use `agenthub-ui-video` when the video needs real AgentHub UI screenshots.
+- Use `agenthub-media-delivery` when publishing the final MP4 to the current chat, WhatsApp, or a direct download link.
 - Use `gsap` with HyperFrames for motion and transitions.
 
 ## Workflow
@@ -38,7 +39,7 @@ A generated video is not acceptable if it is only generic text cards. It should 
 
 ## Delivery rule
 
-Always provide a direct download link. If the environment supports `send_video`, also post the MP4 into the current chat without `jid`; otherwise be explicit that a DB-only insertion needs refresh.
+Always provide a direct download link. If the environment supports `send_video`, also post the MP4 into the current chat without `jid`; otherwise publish under `data/uploads/shared/` and return the `/api/file` link. Do not rely on raw SQLite inserts for previews.
 
 ## Validation commands
 

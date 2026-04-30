@@ -21,6 +21,7 @@ description: Create polished HyperFrames explainer videos for AgentHub using rea
 - Never print `.env` secrets; the capture script reads `AGENTHUB_JWT_SECRET` only to mint an in-memory JWT.
 - Do not claim a video is visible live in chat when you inserted it directly into SQLite; direct DB inserts require refresh and do not emit WebSocket events.
 - Prefer `send_video(path, caption)` without `jid` when available, because that is the product path that creates a playable chat bubble.
+- Use `agenthub-media-delivery` for the final publish/send decision: current chat tool call vs. safe `/api/file` link fallback.
 - For project changes, follow AgentHub release rules: bump `VERSION`, bump `frontend/package.json`, update `RELEASE_NOTES.md`, commit, and use safe restart when the binary version changes.
 
 ## Reusable script

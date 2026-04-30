@@ -8,6 +8,20 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.59 — 2026-04-30
+
+### Added
+- **Skill `agenthub-media-delivery`**: guía reusable para que agentes entreguen fotos, videos, audios, documentos y renders al chat actual con `send_*` sin `jid` cuando exista la tool, o publiquen un link `/api/file` seguro bajo `data/uploads/shared/`.
+- **Workflow de fallback para project/GridBot/Codex**: documenta cuándo no prometer preview inline, cómo publicar archivos generados y cómo construir links para tunnel/local.
+
+### Changed
+- **Skills de video alineadas**: `video-generator`, `agenthub-ui-video` y `wa-messaging` ahora apuntan al patrón correcto de media delivery y evitan recomendar inserts manuales en SQLite como camino normal.
+
+### Validated
+- **Skill válida**: `quick_validate.py .claude/skills/agenthub-media-delivery`.
+
+---
+
 ## v0.2.58 — 2026-04-30
 
 ### Added
