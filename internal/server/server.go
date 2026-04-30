@@ -244,6 +244,7 @@ func (s *Server) routes() http.Handler {
 		pr.Post("/api/system/services/{name}/{action}", s.handleSystemServiceAction)
 		pr.Get("/api/system/processes", s.handleSystemProcesses)
 		pr.Get("/api/system/connections", s.handleSystemConnections)
+		pr.Get("/api/system/cronjobs", s.handleSystemCronJobs)
 
 		// WebSockets
 		pr.Get("/ws", s.handleWSUnified)

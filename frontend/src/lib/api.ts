@@ -1043,6 +1043,10 @@ export const api = {
   async systemConnections(): Promise<SystemConnections> {
     return request<SystemConnections>("/api/system/connections");
   },
+
+  async systemCronjobs(): Promise<SystemCronListing> {
+    return request<SystemCronListing>("/api/system/cronjobs");
+  },
 };
 
 // ─── system manager types ─────────────────────
@@ -1100,6 +1104,22 @@ export interface SystemConnections {
   wa: "connected" | "disconnected" | "pairing" | string;
   ws_clients: number;
   tunnels: SystemTunnel[];
+}
+
+export interface SystemCronJob {
+  kind: "user" | "system" | "periodic" | string;
+  source: string;
+  file?: string;
+  line?: number;
+  schedule: string;
+  user?: string;
+  command: string;
+}
+
+export interface SystemCronListing {
+  jobs: SystemCronJob[];
+  warnings?: string[];
+  scanned_at: number;
 }
 
 // ─── vault (secrets) ──────────────────────────

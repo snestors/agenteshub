@@ -130,6 +130,15 @@ func (s *Server) handleSystemConnections(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, conns)
 }
 
+func (s *Server) handleSystemCronJobs(w http.ResponseWriter, r *http.Request) {
+	listing, err := s.sysman.CronJobs(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, listing)
+}
+
 func isPermissionDenied(msg string) bool {
 	// systemd / polkit / sudo error strings vary across distros — match the common ones.
 	return contains(msg, "denied") ||

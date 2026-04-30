@@ -4,6 +4,8 @@ import { Topbar } from "@/components/Topbar";
 import { Gauge } from "@/components/Gauge";
 import {
   api,
+  type SystemCronJob,
+  type SystemCronListing,
   type SystemStats,
   type SystemService,
   type SystemProcess,
@@ -13,6 +15,7 @@ import { useTopic } from "@/lib/useTopic";
 import { wsClient } from "@/lib/wsClient";
 
 const SLOW_POLL_MS = 8000; // services / processes / connections
+const CRON_POLL_MS = 30000;
 
 function parseStatsPayload(payload: unknown): SystemStats | null {
   if (!payload) return null;
@@ -48,11 +51,30 @@ function diskColor(pct: number): string {
   return "var(--color-lime)";
 }
 
+function formatStamp(ts?: number): string {
+  if (!ts) return "—";
+  return new Date(ts * 1000).toLocaleString("es-PE", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function cronSourceLabel(source: string): string {
+  if (source === "user crontab") return source;
+  if (source.startsWith("/etc/cron.d/")) return `cron.d/${source.slice("/etc/cron.d/".length)}`;
+  if (source.startsWith("/etc/cron.")) return source.slice("/etc/".length);
+  if (source === "/etc/crontab") return "crontab";
+  return source;
+}
+
 export function System() {
   const [stats, setStats] = React.useState<SystemStats | null>(null);
   const [services, setServices] = React.useState<SystemService[]>([]);
   const [processes, setProcesses] = React.useState<SystemProcess[]>([]);
   const [connections, setConnections] = React.useState<SystemConnections | null>(null);
+  const [cron, setCron] = React.useState<SystemCronListing | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [actionState, setActionState] = React.useState<{
     name: string;
@@ -121,6 +143,20 @@ export function System() {
     return () => window.clearInterval(id);
   }, [refreshSlow]);
 
+  const refreshCronjobs = React.useCallback(async () => {
+    try {
+      setCron(await api.systemCronjobs());
+    } catch {
+      /* keep last-known good */
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void refreshCronjobs();
+    const id = window.setInterval(refreshCronjobs, CRON_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [refreshCronjobs]);
+
   // ─── actions ────────────────────────────────────────────────────
   async function runAction(name: string, action: "start" | "stop" | "restart") {
     setActionState({ name, action, busy: true });
@@ -168,11 +204,17 @@ export function System() {
       : wsStatus === "connecting"
       ? "ws · connecting…"
       : "ws · reconnect…";
+  const cronJobs = cron?.jobs ?? [];
+  const cronWarnings = cron?.warnings ?? [];
+  const cronSources = React.useMemo(
+    () => Array.from(new Set(cronJobs.map((job) => cronSourceLabel(job.source)))).sort(),
+    [cronJobs],
+  );
 
   return (
     <div className="flex flex-col h-full min-h-0">
       <Topbar
-        breadcrumb={[{ label: "AgentHub" }, { label: "System Manager" }]}
+        breadcrumb={[{ label: "AgentHub" }, { label: "Sistema" }]}
         status={{
           label: error
             ? "ERROR"
@@ -345,6 +387,65 @@ export function System() {
             </HudPanel>
           </div>
         )}
+
+        <div className="mt-4" id="cronjobs">
+          <HudPanel
+            title="cronjobs del sistema"
+            sub={
+              cron
+                ? `${cronJobs.length} entradas · ${cronSources.length} fuentes`
+                : "escaneando crontab + /etc/cron.*"
+            }
+            accent="orange"
+          >
+            {cronWarnings.length > 0 && (
+              <div
+                className="mb-3 px-3 py-2 font-mono text-[10px] clip-hud-sm"
+                style={{
+                  background: "rgba(255, 184, 108, 0.08)",
+                  border: "1px solid rgba(255, 184, 108, 0.35)",
+                  color: "var(--color-warn)",
+                }}
+              >
+                {cronWarnings.map((warn) => (
+                  <div key={warn}>⚠ {warn}</div>
+                ))}
+              </div>
+            )}
+
+            {cronSources.length > 0 && (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {cronSources.map((source) => (
+                  <span
+                    key={source}
+                    className="px-2 py-1 clip-tag font-mono text-[9px] tracking-hud-tight uppercase"
+                    style={{
+                      color: "var(--color-orange)",
+                      border: "1px solid rgba(255,159,67,0.35)",
+                      background: "rgba(255,159,67,0.08)",
+                    }}
+                  >
+                    {source}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {cron ? (
+              cronJobs.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center font-mono text-[11px] text-[var(--color-dim)]">
+                  ▸ no encontré cronjobs activos
+                </div>
+              ) : (
+                <CronJobsTable jobs={cronJobs} scannedAt={cron.scanned_at} />
+              )
+            ) : (
+              <div className="flex-1 flex items-center justify-center font-mono text-[11px] text-[var(--color-dim)]">
+                ▸ leyendo cronjobs…
+              </div>
+            )}
+          </HudPanel>
+        </div>
 
         {error && (
           <div
@@ -704,6 +805,70 @@ function DiskRow({
             boxShadow: `0 0 6px ${c}`,
           }}
         />
+      </div>
+    </div>
+  );
+}
+
+function CronJobsTable({
+  jobs,
+  scannedAt,
+}: {
+  jobs: SystemCronJob[];
+  scannedAt?: number;
+}) {
+  return (
+    <div className="flex flex-col min-h-0">
+      <div className="overflow-x-auto">
+        <table className="min-w-[860px] w-full font-mono text-[11px]">
+          <thead>
+            <tr
+              className="text-left text-[9px] uppercase tracking-hud-tight text-[var(--color-dim)] border-b"
+              style={{ borderColor: "var(--color-line)" }}
+            >
+              <th className="px-2 py-1.5">schedule</th>
+              <th className="px-2 py-1.5">user</th>
+              <th className="px-2 py-1.5">source</th>
+              <th className="px-2 py-1.5">command</th>
+            </tr>
+          </thead>
+          <tbody>
+            {jobs.map((job, idx) => (
+              <tr
+                key={`${job.source}:${job.line ?? job.command}:${idx}`}
+                className="align-top border-b"
+                style={{ borderColor: "var(--color-line)" }}
+              >
+                <td className="px-2 py-2">
+                  <span
+                    className="inline-flex px-2 py-1 clip-tag font-display text-[10px] font-semibold tracking-hud-tight"
+                    style={{
+                      color: "var(--color-orange)",
+                      background: "rgba(255,159,67,0.10)",
+                      border: "1px solid rgba(255,159,67,0.28)",
+                    }}
+                  >
+                    {job.schedule}
+                  </span>
+                </td>
+                <td className="px-2 py-2 text-[var(--color-cyan)] whitespace-nowrap">
+                  {job.user || "—"}
+                </td>
+                <td className="px-2 py-2 text-[var(--color-dim)]">
+                  <div>{cronSourceLabel(job.source)}</div>
+                  {job.line ? <div className="mt-1 text-[9px]">línea {job.line}</div> : null}
+                </td>
+                <td className="px-2 py-2 text-[var(--color-fg)] break-all">
+                  {job.command}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] text-[var(--color-dim)]">
+        <span>lectura solamente · alta/edición vendrán por skill dedicado</span>
+        <span>escaneado {formatStamp(scannedAt)}</span>
       </div>
     </div>
   );

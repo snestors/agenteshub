@@ -8,6 +8,17 @@ _(nada pendiente)_
 
 ---
 
+## v0.2.51 — 2026-04-30
+
+### Added
+- **Visor read-only de cronjobs del host**: el backend ahora expone `GET /api/system/cronjobs`, el System Manager lista `crontab -l`, `/etc/crontab`, `/etc/cron.d/*` y los directorios periódicos (`/etc/cron.hourly|daily|weekly|monthly`), y el MCP suma `list_cronjobs` como base para futuras automatizaciones/skills.
+
+### Changed
+- **UI más enfocada en sistema**: el sidebar oculta Mini-agentes, Topics y Sub-agentes; las rutas legacy redirigen a `/system`, y las notificaciones/push de `agent_run` apuntan a esa vista para no mandar a pantallas retiradas.
+- **Cronjobs se muestran como lectura, no edición libre**: la nueva tabla deja explícito que la creación/administración vendrá por un skill dedicado en vez de editar cron desde la UI sin guardrails.
+
+---
+
 ## v0.2.50 — 2026-04-29
 
 ### Fixed

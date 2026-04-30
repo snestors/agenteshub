@@ -2,9 +2,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Login } from "@/pages/Login";
 import { ChatMain } from "@/pages/ChatMain";
 import { Projects } from "@/pages/Projects";
-import { Agents } from "@/pages/Agents";
-import { Topics } from "@/pages/Topics";
-import { Subagents } from "@/pages/Subagents";
 import { System } from "@/pages/System";
 import { Vault } from "@/pages/Vault";
 import { Diagrams } from "@/pages/Diagrams";
@@ -24,14 +21,13 @@ function App() {
           <Route path="projects/:id" element={<Projects />} />
           <Route path="projects/:id/sessions/:sid" element={<Projects />} />
           <Route path="diagrams" element={<Diagrams />} />
-          <Route path="agents" element={<Agents />} />
-          <Route path="agents/:id" element={<Agents />} />
-          <Route path="topics" element={<Topics />} />
-          <Route path="subagents" element={<Subagents />} />
           <Route path="system" element={<System />} />
           <Route path="vault" element={<Vault />} />
           <Route path="skills" element={<Skills />} />
           <Route path="releases" element={<Releases />} />
+          <Route path="agents/*" element={<Navigate to="/system" replace />} />
+          <Route path="topics/*" element={<Navigate to="/system" replace />} />
+          <Route path="subagents/*" element={<Navigate to="/system" replace />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

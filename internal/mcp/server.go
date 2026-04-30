@@ -212,6 +212,10 @@ func (s *Server) registerTools() {
 		mcp.WithDescription("Lists known tunneling daemons (cloudflared, etc.) and their state."),
 	), s.handleListTunnels)
 
+	s.srv.AddTool(mcp.NewTool("list_cronjobs",
+		mcp.WithDescription("Lists system cron jobs from the user crontab, /etc/crontab, /etc/cron.d and periodic cron directories."),
+	), s.handleListCronjobs)
+
 	// ---------- mini-agents ----------
 	s.srv.AddTool(mcp.NewTool("agent_create",
 		mcp.WithDescription("Creates a mini-agent with a system prompt."),
@@ -756,6 +760,17 @@ func (s *Server) handleListTunnels(ctx context.Context, _ mcp.CallToolRequest) (
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	return jsonResult(conns.Tunnels)
+}
+
+func (s *Server) handleListCronjobs(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if s.sysman == nil {
+		return mcp.NewToolResultError("system manager not wired"), nil
+	}
+	listing, err := s.sysman.CronJobs(ctx)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return jsonResult(listing)
 }
 
 // ---------- mini-agent handlers ----------

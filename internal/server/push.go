@@ -196,10 +196,7 @@ func routeForPush(n Notification) string {
 		return "/"
 	}
 	if strings.HasPrefix(n.Kind, "agent_run") {
-		if id, ok := n.Context["agent_id"]; ok {
-			return "/agents/" + fmt.Sprint(id)
-		}
-		return "/agents"
+		return "/system"
 	}
 	if strings.HasPrefix(n.Kind, "project_turn") {
 		pid := fmt.Sprint(n.Context["project_id"])

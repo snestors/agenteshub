@@ -59,8 +59,7 @@ function contextNumber(ctx: Record<string, unknown> | undefined, key: string): n
 function routeForNotification(n: Notification): string | null {
   if (n.kind.startsWith("main_turn")) return "/";
   if (n.kind.startsWith("agent_run")) {
-    const agentID = contextNumber(n.context, "agent_id");
-    return agentID ? `/agents/${agentID}` : "/agents";
+    return "/system";
   }
   if (n.kind.startsWith("project_turn")) {
     const projectID = contextNumber(n.context, "project_id");
