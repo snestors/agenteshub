@@ -2,9 +2,20 @@
 
 Path: `/home/nestor/agenthub`
 
-## Unreleased
+## v0.2.63 — 2026-05-01
 
-_(nada pendiente)_
+### Added
+
+- **AI Usage Tracking — Fase 1**: tracking offline de tokens consumidos por Claude Code y Codex CLI leyendo los JSONL que ya existen en disco. Sin auth tokens, sin red.
+  - `internal/store/migrations/0018_usage_events.sql` — tabla `usage_events` con índices de dedup por `(source, message_id, request_id)` para Claude y `(source, session_id, ts, input_tokens, output_tokens)` para Codex.
+  - `internal/usage/` — parsers `ParseClaudeJSONL` y `ParseCodexJSONL`, tabla de pricing hardcoded (con override via `data/pricing.json`), repo con `UpsertEvent`/`AggregateBy`, worker que escanea `~/.claude/projects` y `~/.codex/sessions` cada 5 minutos idempotentemente.
+  - `GET /api/usage` — endpoint protegido con filtros `since`/`until`/`source`/`model` y `group_by` (`day`|`model`|`source`|`session`). Devuelve `totals` + `buckets`.
+
+### Changed
+
+- **Simplificación de docs del agente principal**: `AGENTS.md`, `CLAUDE.md`, `DESIGN.md` y `SPECS.md` reducidos a esqueleto con TODOs para que el usuario los complete según su stack real.
+- **Retirados `README.md` y `ROADMAP.md`**: estaban duplicando información que debería vivir en los otros docs o en el código mismo.
+- **Retirado `system-prompt.example.md` y `skills-lock.json`**: obsoletos, sin uso activo en el flujo del proyecto.
 
 ---
 

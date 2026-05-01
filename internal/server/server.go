@@ -28,6 +28,7 @@ import (
 	"github.com/snestors/agenteshub/internal/config"
 	"github.com/snestors/agenteshub/internal/store"
 	"github.com/snestors/agenteshub/internal/sysman"
+	"github.com/snestors/agenteshub/internal/usage"
 	"github.com/snestors/agenteshub/internal/ws"
 )
 
@@ -46,6 +47,7 @@ type Server struct {
 	httpSrv        *http.Server
 	waState        waState
 	projectCancels sync.Map // key: project_session id (int64) → context.CancelFunc
+	usageRepo      *usage.UsageRepo
 }
 
 // Hub exposes the WS hub for producers (poller, message handlers).
@@ -55,7 +57,7 @@ func (s *Server) Hub() *ws.Hub { return s.hub }
 func New(cfg *config.Config, repos *store.Repos, engines *cliengine.Manager, sm *sysman.Manager, log *slog.Logger) (*Server, error) {
 	tokens := auth.NewTokenService(cfg, repos.Auth)
 	hub := ws.New(log.With("comp", "ws"))
-	s := &Server{cfg: cfg, repos: repos, tokens: tokens, engines: engines, sysman: sm, hub: hub, runs: NewRunTracker(), log: log}
+	s := &Server{cfg: cfg, repos: repos, tokens: tokens, engines: engines, sysman: sm, hub: hub, runs: NewRunTracker(), log: log, usageRepo: usage.NewUsageRepo(repos.DB())}
 	if repos != nil && repos.ConversationRuns != nil {
 		_ = repos.ConversationRuns.MarkInterruptedOlderThan(context.Background(), time.Now().Unix())
 	}
@@ -237,6 +239,9 @@ func (s *Server) routes() http.Handler {
 		pr.Post("/api/secrets", s.handleSecretsCreate)
 		pr.Get("/api/secrets/{key}/reveal", s.handleSecretReveal)
 		pr.Delete("/api/secrets/{key}", s.handleSecretDelete)
+
+		// Usage tracking
+		pr.Get("/api/usage", s.handleUsageList)
 
 		// System manager
 		pr.Get("/api/system/stats", s.handleSystemStats)

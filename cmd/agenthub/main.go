@@ -27,6 +27,7 @@ import (
 	"github.com/snestors/agenteshub/internal/setup"
 	"github.com/snestors/agenteshub/internal/store"
 	"github.com/snestors/agenteshub/internal/sysman"
+	"github.com/snestors/agenteshub/internal/usage"
 	"github.com/snestors/agenteshub/internal/wa"
 )
 
@@ -119,6 +120,10 @@ func runServe() {
 	defer cronRunner.Stop()
 
 	sched := scheduler.New(repos, engines, logger)
+
+	// Usage tracking worker — imports Claude+Codex JSONL every 5 min, idempotent.
+	usageWorker := usage.NewWorker(usage.NewUsageRepo(db), logger)
+	go usageWorker.Start(ctx)
 
 	srv, err := server.New(cfg, repos, engines, sm, logger)
 	if err != nil {
