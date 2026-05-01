@@ -137,14 +137,10 @@ function WindowBar({
   label,
   pct,
   resetAt,
-  usedTokens,
-  limitTokens,
 }: {
   label: string;
   pct: number;
   resetAt: number;
-  usedTokens: number;
-  limitTokens: number;
 }) {
   const clampedPct = Math.min(100, Math.max(0, pct));
   const color = barColor(clampedPct);
@@ -168,11 +164,8 @@ function WindowBar({
           }}
         />
       </div>
-      <div className="flex items-center justify-between font-mono text-[9px] text-[var(--color-dim)]">
-        <span>
-          {fmtTokensCompact(usedTokens)} / {fmtTokensCompact(limitTokens)} tok
-        </span>
-        <span>{fmtCountdown(resetAt)}</span>
+      <div className="flex items-center justify-end font-mono text-[9px] text-[var(--color-dim)]">
+        <span>resetea {fmtCountdown(resetAt)}</span>
       </div>
     </div>
   );
@@ -306,22 +299,18 @@ function ProviderCard({
         {/* session window */}
         {provider.session && (
           <WindowBar
-            label="session window"
+            label={provider.session.window_mins === 300 ? "session · 5h" : "session window"}
             pct={provider.session.percent_used}
             resetAt={provider.session.reset_at}
-            usedTokens={provider.session.used_tokens}
-            limitTokens={provider.session.limit_tokens}
           />
         )}
 
         {/* weekly window */}
         {provider.weekly && (
           <WindowBar
-            label="weekly limit"
+            label={provider.weekly.window_mins === 10080 ? "weekly · 7d" : "weekly limit"}
             pct={provider.weekly.percent_used}
             resetAt={provider.weekly.reset_at}
-            usedTokens={provider.weekly.used_tokens}
-            limitTokens={provider.weekly.limit_tokens}
           />
         )}
 
@@ -331,26 +320,12 @@ function ProviderCard({
             <div className="flex items-center justify-between font-mono text-[9px] uppercase tracking-hud-tight text-[var(--color-dim)]">
               <span>credits</span>
               <span style={{ color: accent }}>
-                ${provider.credits.balance.toFixed(2)}
+                {provider.credits.unlimited
+                  ? "∞ unlimited"
+                  : provider.credits.has_credits
+                    ? `$${provider.credits.balance ?? "0"}`
+                    : "sin créditos"}
               </span>
-            </div>
-            <div
-              className="h-1.5 overflow-hidden clip-bar"
-              style={{ background: "rgba(255,255,255,0.06)" }}
-            >
-              {provider.credits.total > 0 && (
-                <div
-                  style={{
-                    width: `${Math.min(100, (provider.credits.used / provider.credits.total) * 100)}%`,
-                    height: "100%",
-                    background: `linear-gradient(90deg, ${accent}, ${accentHex}cc)`,
-                    boxShadow: `0 0 6px ${accent}`,
-                  }}
-                />
-              )}
-            </div>
-            <div className="font-mono text-[9px] text-[var(--color-dim)]">
-              {fmtUsd(provider.credits.used)} usado / {fmtUsd(provider.credits.total)} total
             </div>
           </div>
         )}

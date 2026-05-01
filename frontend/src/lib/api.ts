@@ -1092,21 +1092,24 @@ export interface UsageResponse {
 }
 
 export interface RealtimeWindow {
-  used_tokens: number;
-  limit_tokens: number;
+  /** 0..100 — el único valor que la API expone (Anthropic devuelve `utilization`, Codex `usedPercent`). */
   percent_used: number;
+  /** unix epoch — cuándo se resetea esta ventana. */
   reset_at: number;
+  /** Duración de la ventana en minutos (300 = 5h, 10080 = 7d). */
+  window_mins?: number;
 }
 
 export interface RealtimePerModel {
   model: string;
-  used_tokens: number;
+  percent_used?: number;
 }
 
 export interface RealtimeCredits {
-  balance: number;
-  used: number;
-  total: number;
+  /** Codex devuelve balance como string. */
+  balance?: string;
+  has_credits?: boolean;
+  unlimited?: boolean;
 }
 
 export interface RealtimeProvider {
