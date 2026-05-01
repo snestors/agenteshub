@@ -1051,7 +1051,90 @@ export const api = {
   async systemCronjobs(): Promise<SystemCronListing> {
     return request<SystemCronListing>("/api/system/cronjobs");
   },
+
+  // ─── usage tracking ─────────────────────────
+  async getUsage(params?: UsageQueryParams): Promise<UsageResponse> {
+    const qs = new URLSearchParams();
+    if (params?.since !== undefined) qs.set("since", String(params.since));
+    if (params?.until !== undefined) qs.set("until", String(params.until));
+    if (params?.source) qs.set("source", params.source);
+    if (params?.model) qs.set("model", params.model);
+    if (params?.group_by) qs.set("group_by", params.group_by);
+    const path = qs.toString() ? `/api/usage?${qs.toString()}` : "/api/usage";
+    return request<UsageResponse>(path);
+  },
+
+  async getUsageRealtime(): Promise<RealtimeResponse> {
+    return request<RealtimeResponse>("/api/usage/realtime");
+  },
 };
+
+// ─── usage tracking types ─────────────────────
+
+export interface UsageTotals {
+  events: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_create_tokens: number;
+  cache_read_tokens: number;
+  cost_usd: number;
+}
+
+export interface UsageBucket extends UsageTotals {
+  key: string;
+}
+
+export interface UsageResponse {
+  since: number;
+  until: number;
+  totals: UsageTotals;
+  buckets: UsageBucket[];
+}
+
+export interface RealtimeWindow {
+  used_tokens: number;
+  limit_tokens: number;
+  percent_used: number;
+  reset_at: number;
+}
+
+export interface RealtimePerModel {
+  model: string;
+  used_tokens: number;
+}
+
+export interface RealtimeCredits {
+  balance: number;
+  used: number;
+  total: number;
+}
+
+export interface RealtimeProvider {
+  source: string;
+  account?: string;
+  plan?: string;
+  session?: RealtimeWindow;
+  weekly?: RealtimeWindow;
+  per_model?: RealtimePerModel[];
+  credits?: RealtimeCredits;
+  fetched_at: number;
+  stale_after: number;
+  error?: string;
+}
+
+export interface RealtimeResponse {
+  claude?: RealtimeProvider;
+  codex?: RealtimeProvider;
+  fetched_at: number;
+}
+
+export interface UsageQueryParams {
+  since?: string | number;
+  until?: string | number;
+  source?: "claude" | "codex";
+  model?: string;
+  group_by?: "day" | "model" | "source" | "session";
+}
 
 // ─── system manager types ─────────────────────
 export interface SystemDisk {

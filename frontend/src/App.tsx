@@ -7,6 +7,7 @@ import { Vault } from "@/pages/Vault";
 import { Diagrams } from "@/pages/Diagrams";
 import { Skills } from "@/pages/Skills";
 import { Releases } from "@/pages/Releases";
+import { Usage } from "@/pages/Usage";
 import { AppShell } from "@/components/AppShell";
 
 function App() {
@@ -22,6 +23,7 @@ function App() {
           <Route path="projects/:id/sessions/:sid" element={<Projects />} />
           <Route path="diagrams" element={<Diagrams />} />
           <Route path="system" element={<System />} />
+          <Route path="usage" element={<Usage />} />
           <Route path="vault" element={<Vault />} />
           <Route path="skills" element={<Skills />} />
           <Route path="releases" element={<Releases />} />

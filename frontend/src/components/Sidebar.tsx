@@ -9,6 +9,7 @@ import {
   Network,
   Sparkles,
   Tag,
+  TrendingUp,
   X,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -32,6 +33,7 @@ const ITEMS: NavItem[] = [
   { to: "/projects", label: "Proyectos", icon: FolderKanban, accent: "lime", notifPrefix: "project_turn" },
   { to: "/diagrams", label: "Diagramas", icon: Network, accent: "cyan" },
   { to: "/system", label: "Sistema", icon: Activity, accent: "lime" },
+  { to: "/usage", label: "Usage", icon: TrendingUp, accent: "cyan" },
   { to: "/vault", label: "Vault", icon: Lock, accent: "orange" },
   { to: "/skills", label: "Skills", icon: Sparkles, accent: "cyan" },
   { to: "/releases", label: "Releases", icon: Tag, accent: "lime" },
