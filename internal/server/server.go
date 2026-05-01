@@ -242,6 +242,7 @@ func (s *Server) routes() http.Handler {
 
 		// Usage tracking
 		pr.Get("/api/usage", s.handleUsageList)
+		pr.Get("/api/usage/realtime", s.handleUsageRealtime)
 
 		// System manager
 		pr.Get("/api/system/stats", s.handleSystemStats)

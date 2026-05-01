@@ -2,6 +2,17 @@
 
 Path: `/home/nestor/agenthub`
 
+## v0.2.64 — 2026-04-30
+
+### Added
+
+- **AI Usage Tracking — Fase 2**: datos en tiempo real de usage contra la API de Anthropic y el RPC local de Codex CLI.
+  - `internal/usage/realtime/` — paquete con `FetchAnthropicUsage` (OAuth token de `~/.claude/.credentials.json` + `GET api.anthropic.com/api/oauth/usage`) y `FetchCodexUsage` (spawn de `codex app-server`, JSON-RPC 2.0 con `initialize` + `account/read` + `account/rateLimits/read`).
+  - Cache in-memory 60 s por provider; si el fetch falla devuelve el valor anterior + campo `error`.
+  - `GET /api/usage/realtime` — responde ambos providers en paralelo (falla parcial no propaga 500); soporta query param `source=claude|codex`.
+
+---
+
 ## v0.2.63 — 2026-05-01
 
 ### Added
