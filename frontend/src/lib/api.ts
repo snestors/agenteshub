@@ -53,20 +53,21 @@ export interface EngineDef {
 export const FALLBACK_ENGINES: EngineDef[] = [
   {
     engine: "claude",
-    models: ["sonnet", "opus", "haiku"],
-    ctx_windows: { sonnet: 200_000, opus: 200_000, haiku: 200_000 },
+    models: ["sonnet", "opus", "haiku", "opus-1m", "deepseek-v4-pro", "deepseek-v4-flash"],
+    ctx_windows: {
+      sonnet: 200_000,
+      opus: 200_000,
+      haiku: 200_000,
+      "opus-1m": 1_000_000,
+      "deepseek-v4-pro": 128_000,
+      "deepseek-v4-flash": 128_000,
+    },
     reasoning_efforts: ["low", "medium", "high", "xhigh"],
   },
   {
     engine: "codex",
     models: ["gpt-5.5", "gpt-5.4", "glm-5.1"],
     ctx_windows: { "gpt-5.5": 400_000, "gpt-5.4": 400_000, "glm-5.1": 128_000 },
-    reasoning_efforts: ["low", "medium", "high", "xhigh"],
-  },
-  {
-    engine: "ollama",
-    models: ["gemma:2b"],
-    ctx_windows: { "gemma:2b": 8_192 },
     reasoning_efforts: ["low", "medium", "high", "xhigh"],
   },
 ];

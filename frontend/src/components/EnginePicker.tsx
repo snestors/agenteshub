@@ -15,7 +15,7 @@ interface EnginePickerProps {
   /** viewport rect of the badge that opened the picker */
   anchorRect?: DOMRect | null;
   /** invoked after a successful POST /api/agent/engine */
-  onApplied: (engine: string, model: string) => void;
+  onApplied: (engine: string, model: string, ctxWindow?: number) => void;
   /** invoked when the user dismisses the picker (Esc, click outside, Cancel) */
   onClose: () => void;
 }
@@ -107,7 +107,7 @@ export function EnginePicker({
         engine: selectedEngine,
         model: selectedModel,
       });
-      onApplied(selectedEngine, selectedModel);
+      onApplied(selectedEngine, selectedModel, ctxWindows[selectedModel]);
     } catch (err) {
       const msg =
         err instanceof ApiError

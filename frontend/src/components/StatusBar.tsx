@@ -1,5 +1,5 @@
 import * as React from "react";
-import { AGENT_STATUS_FALLBACK, type AgentStatus } from "@/lib/api";
+import { AGENT_STATUS_FALLBACK, api, type AgentStatus } from "@/lib/api";
 import { useTopic } from "@/lib/useTopic";
 import { EnginePicker } from "./EnginePicker";
 
@@ -50,6 +50,12 @@ export function StatusBar({ transportLabel }: StatusBarProps) {
     }
   });
 
+  // Fetch initial status via HTTP so the bar shows real data immediately,
+  // without waiting for the WS connect → subscribe → broadcast round-trip.
+  React.useEffect(() => {
+    api.agentStatus().then(setStatus).catch(() => {});
+  }, []);
+
   // auto-dismiss toast
   React.useEffect(() => {
     if (!toast) return;
@@ -66,12 +72,11 @@ export function StatusBar({ transportLabel }: StatusBarProps) {
   )}`;
   const hasUsage = !!status.usage_calculated_at;
 
-  function handleApplied(engine: string, model: string) {
+  function handleApplied(engine: string, model: string, ctxWindow?: number) {
     setPickerOpen(false);
     setPickerAnchor(null);
     setToast(`engine cambiado a ${engine} · ${model}`);
-    // Optimistic update; the canonical snapshot arrives over WS.
-    setStatus((s) => ({ ...s, engine, model }));
+    setStatus((s) => ({ ...s, engine, model, ctx_window: ctxWindow ?? s.ctx_window }));
   }
 
   function togglePicker() {
