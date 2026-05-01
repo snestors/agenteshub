@@ -1,4 +1,7 @@
 # AgentHub service manifest.
+# Stack del host `agente` (192.168.1.62). Recovery details + diagnose flow viven
+# en .claude/skills/media-stack/SKILL.md (cuando esté autorizado el write) y en
+# engram bajo topic_key `infra/media-stack`.
 services:
   - kind: systemd
     unit: agenthub.service
@@ -9,3 +12,43 @@ services:
   - kind: docker
     container: engram-cloud-postgres
     description: Engram/Postgres dependency container
+
+  # ─── media stack ───────────────────────────────────────────────
+  # Antes de tocar cualquiera de estos, verificar /media/hdd montado rw
+  # (label STORAGE, UUID 61491e9b-6945-4ac1-a856-a6218bb8939f).
+  # Restart order: prowlarr → qbittorrent-nox → sonarr+radarr → bazarr.
+  - kind: systemd
+    unit: prowlarr.service
+    description: Prowlarr · indexer manager (TV/movies search backend)
+    health_url: http://127.0.0.1:9696
+    storage_dependency: /media/hdd
+
+  - kind: systemd
+    unit: qbittorrent-nox.service
+    description: qBittorrent headless · downloader. Bajadas a /home/nestor/downloads (SSD)
+    health_url: http://127.0.0.1:8080
+    storage_dependency: /media/hdd
+
+  - kind: systemd
+    unit: sonarr.service
+    description: Sonarr · TV automation. Library en /media/hdd/series
+    health_url: http://127.0.0.1:8989
+    storage_dependency: /media/hdd
+
+  - kind: systemd
+    unit: radarr.service
+    description: Radarr · movie automation. Library en /media/hdd/peliculas
+    health_url: http://127.0.0.1:7878
+    storage_dependency: /media/hdd
+
+  - kind: systemd
+    unit: bazarr.service
+    description: Bazarr · subtítulos. Depende de Sonarr+Radarr ya corriendo (SignalR poll). Tarda 30-60s en bindear puerto. Puede consumir 8+GB RAM si los providers están throttled.
+    health_url: http://127.0.0.1:6767
+    storage_dependency: /media/hdd
+
+  - kind: systemd
+    unit: emby-server.service
+    description: Emby · media server. Sirve /media/hdd/{peliculas,series}. Independiente del stack arr — no requiere restart aunque el resto se caiga.
+    health_url: http://127.0.0.1:8096
+    storage_dependency: /media/hdd
