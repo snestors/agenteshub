@@ -165,3 +165,26 @@ func (r *UsageRepo) FirstLast(ctx context.Context) (first, last int64, err error
 	err = row.Scan(&first, &last)
 	return
 }
+
+// Summary is a small SUM/COUNT pair used by the budget-alert path. We keep it
+// distinct from AggregateBucketRow because the alert script only needs the
+// totals — no grouping, no per-source breakdown.
+type Summary struct {
+	Events  int64   `json:"events"`
+	CostUSD float64 `json:"cost_usd"`
+}
+
+// SumSince returns COUNT(*) and SUM(cost_usd) for events with ts >= since.
+// Pass since=0 to aggregate the entire table.
+func (r *UsageRepo) SumSince(ctx context.Context, since int64) (Summary, error) {
+	var s Summary
+	err := r.db.QueryRowContext(ctx, `
+		SELECT COALESCE(COUNT(*), 0), COALESCE(SUM(cost_usd), 0)
+		FROM usage_events
+		WHERE ts >= ?
+	`, since).Scan(&s.Events, &s.CostUSD)
+	if err != nil {
+		return Summary{}, fmt.Errorf("usage SumSince: %w", err)
+	}
+	return s, nil
+}

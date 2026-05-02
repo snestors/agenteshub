@@ -124,6 +124,10 @@ func (s *Server) routes() http.Handler {
 	r.Get("/api/runs", s.handleRunsStatus)
 	r.Post("/api/runs/schedule-restart", s.handleScheduleRestart)
 	r.Get("/api/releases", s.handleReleases)
+	// Loopback-only — used by bin/budget-alert.sh + cron. Both handlers enforce
+	// RemoteAddr in 127.0.0.0/8 || ::1; no JWT.
+	r.Get("/api/internal/usage", s.handleInternalUsage)
+	r.Post("/api/internal/notify", s.handleInternalNotify)
 	r.Get("/api/wa/status", s.handleWaStatus)
 	r.Get("/api/wa/qr", s.handleWaQR)
 	r.Post("/api/auth/login", s.handleLogin)

@@ -1,6 +1,8 @@
 package server
 
 import (
+	"context"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -62,6 +64,75 @@ func (s *Server) handleUsageList(w http.ResponseWriter, r *http.Request) {
 		"totals": totals,
 		"buckets": buckets,
 	})
+}
+
+// handleInternalUsage handles GET /api/internal/usage.
+//
+// Public-but-loopback-only endpoint consumed by bin/budget-alert.sh + cron.
+// The script needs to read today/month spend without managing a JWT cookie.
+// Exposing this route requires NO auth, so we gate it on RemoteAddr being
+// loopback in addition to the daemon binding to 127.0.0.1 in prod — defense
+// in depth in case the bind address changes.
+//
+// Response shape:
+//
+//	{
+//	  "ok": true,
+//	  "now":      <unix>,
+//	  "today":    {"events": int, "cost_usd": float},
+//	  "month":    {"events": int, "cost_usd": float},
+//	  "lifetime": {"events": int, "cost_usd": float}
+//	}
+func (s *Server) handleInternalUsage(w http.ResponseWriter, r *http.Request) {
+	if !isLoopbackAddr(r.RemoteAddr) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).Unix()
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).Unix()
+
+	today, err := s.usageRepo.SumSince(ctx, todayStart)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	month, err := s.usageRepo.SumSince(ctx, monthStart)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	life, err := s.usageRepo.SumSince(ctx, 0)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":       true,
+		"now":      now.Unix(),
+		"today":    today,
+		"month":    month,
+		"lifetime": life,
+	})
+}
+
+// isLoopbackAddr returns true when the http.Request RemoteAddr corresponds to
+// 127.0.0.0/8 or ::1. It tolerates inputs without a port.
+func isLoopbackAddr(remoteAddr string) bool {
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		host = remoteAddr
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback()
 }
 
 // parseTimeParam converts a string to unix epoch.
