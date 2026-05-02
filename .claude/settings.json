@@ -1,0 +1,23 @@
+{
+  "$schema": "https://claude.ai/schemas/settings.v1.json",
+  "_comment": "BettaTech harness settings — managed by the agenthub template. Project-specific overrides should go in .claude/settings.local.json (which is gitignored).",
+  "permissions": {
+    "allow": [
+      "Bash(./init.sh)",
+      "Bash(./init.sh:*)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '[harness] turn ended — remember: review against CHECKPOINTS.md before APPROVE.' >&2"
+          }
+        ]
+      }
+    ]
+  }
+}

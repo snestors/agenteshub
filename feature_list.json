@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "updated_at": "2026-05-02T21:15:00Z",
+  "features": [
+    {
+      "id": "f-001",
+      "name": "Ripear OpenSpec del backend, UI, skill y dir",
+      "status": "pending",
+      "description": "Eliminar handlers /api/projects/{id}/openspec/*, vista 'changes' en frontend, skill sdd-workflow y dir openspec/. La vista de changes se reemplaza por una de feature_list.json en 0.5.0."
+    },
+    {
+      "id": "f-002",
+      "name": "Decisión A/B sobre mini-agentes",
+      "status": "blocked",
+      "blocked_reason": "Esperando confirmación del user: (A) sacar solo Ollama y mantener /api/agents/* para agentes Claude programables, o (B) ripear todo el sistema /api/agents/*",
+      "description": "El user pidió 'sacar el concepto mini-agente'. El alcance del ripeo depende de su respuesta."
+    },
+    {
+      "id": "f-003",
+      "name": "WhatsApp gateway: forzar scope=main siempre",
+      "status": "pending",
+      "description": "Cualquier mensaje entrante por WA debe routearse al main-agent (Jarvis personal). Los agentes de proyecto NO son accesibles por WA, solo por web."
+    },
+    {
+      "id": "f-004",
+      "name": "Codex como tool subordinada de Claude (no engine principal)",
+      "status": "pending",
+      "description": "Bloquear setear codex como engine principal en /api/agent/engine y handleSetEngine. Codex queda invocable solo como tool desde Claude. Codex no invoca Claude."
+    },
+    {
+      "id": "f-005",
+      "name": "Skill deploy-safe-restart: actualizar a flujo bin/promote.sh",
+      "status": "blocked",
+      "blocked_reason": "El editor pidió permiso explícito durante 0.3.1 y no se aplicó",
+      "description": "Reemplazar 'mv bin/agenthub.next bin/agenthub && bin/safe-restart.sh' por 'bin/promote.sh' en .claude/skills/deploy-safe-restart/SKILL.md y en .claude/CLAUDE.md."
+    },
+    {
+      "id": "f-006",
+      "name": "Harness Fase 2b: diff/update flow",
+      "status": "pending",
+      "depends_on": ["f-005"],
+      "description": "Endpoints GET /api/projects/{id}/harness/version, GET .../harness/diff, POST .../harness/update. Compara template_version_applied contra el embebido y deja al user aplicar updates respetando archivos owned y edits locales (con flag force)."
+    },
+    {
+      "id": "f-007",
+      "name": "Frontend Fase 3: extraer <ChatShell> compartido",
+      "status": "pending",
+      "description": "Refactor del chat actual a un componente reutilizable parametrizado por gateway (WS topic) + system_prompt + sessionModel (single vs multi-tabs). Migrar /chat y /projects/N/sessions/M para usarlo."
+    },
+    {
+      "id": "f-008",
+      "name": "Frontend Fase 3: aplicar tokens visuales Claude Design",
+      "status": "pending",
+      "depends_on": ["f-007"],
+      "description": "Importar shared.css del handoff: cyber-dark, JetBrains Mono + Oxanium, clip-path HUD, grid + scanline, scrollbar fino. Variables CSS aplicadas globalmente."
+    },
+    {
+      "id": "f-009",
+      "name": "Frontend Fase 3: HUD lateral derecho colapsable",
+      "status": "pending",
+      "depends_on": ["f-007", "f-008"],
+      "description": "Secciones SESSION · ENGINE · FEATURE_LIST · TOKENS · SUBS 5h · AGENTS·RUNTIME · STACK. Persist localStorage. Cascade fade-in. Datos cableados a /api/agent/runtime + /api/usage/realtime + /api/projects/{id}/features."
+    },
+    {
+      "id": "f-010",
+      "name": "Frontend Fase 3: tool-call fly-pill al runtime",
+      "status": "pending",
+      "depends_on": ["f-009"],
+      "description": "Animación de tool-call colapsando hacia el counter SUB-AGENTS del HUD. Click en el counter restaura los tool-calls al feed."
+    },
+    {
+      "id": "f-011",
+      "name": "Frontend Fase 3: sistema de notificaciones",
+      "status": "pending",
+      "depends_on": ["f-008"],
+      "description": "Backend: tabla notifications + WS event. Frontend: campana topbar (shake), badge animado, drawer slide-right, toast top-right con progress bar."
+    },
+    {
+      "id": "f-012",
+      "name": "Frontend Fase 3: BIT pixel-art notif assistant",
+      "status": "pending",
+      "depends_on": ["f-011"],
+      "description": "Componente <Bit> con 4 sprites embebidos (idle/happy/excited/sleep). Reacciona a notifs corriendo a la campana, drag & drop, wander cada 18s, susurros cada 35s."
+    },
+    {
+      "id": "f-013",
+      "name": "Frontend Fase 3: animaciones residuales del handoff",
+      "status": "pending",
+      "depends_on": ["f-008"],
+      "description": "Slide-up mensajes, zip-in tool-calls, bounce topic-pill, heartbeat status, indent hover, glow effort segmented, sub-agent ring magenta pulse 3s, token counter tick streaming, etc."
+    },
+    {
+      "id": "f-014",
+      "name": "MCP tool delegate_to_project",
+      "status": "pending",
+      "description": "Tercera tool del plan original. Permite al main-agent enviar un mensaje al chat de un project_session específico. Diferida hasta cablear WS routing project-side por MCP."
+    }
+  ]
+}
