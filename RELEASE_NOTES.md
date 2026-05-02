@@ -2,6 +2,22 @@
 
 Path: `/home/nestor/agenthub`
 
+## v0.5.2 — 2026-05-02
+
+UI fixes a partir del feedback inmediato post-0.5.1. Frontend-only.
+
+### Fixed
+
+- **HUD derecho no se ocultaba en `/projects/N/sessions/M`** — el botón colapsado de `ChatHUD` perdía ancho cuando vivía dentro del flex-row de `Projects.tsx` porque le faltaba `flexShrink: 0`. En `/chat` funcionaba por accidente (padding distinto). Fix: el botón collapsed ahora declara `flexShrink: 0` explícitamente.
+- **AGENTS · RUNTIME stuck en 0** — el polling de `ChatMain.tsx` y `Projects.tsx` nunca leía `/api/runs`, así que `runningMain`/`runningProject` siempre llegaban como `undefined` → `0`. Agrego `api.getRunsStatus()` (wrapper de `GET /api/runs`) y lo incluyo en `Promise.allSettled` de cada caller. Ambos pasan los contadores al ChatHUD.
+- **FEATURE_LIST poco reactivo** — el polling era cada 6s; bajado a **4s** en ambos callers para que cambios al `feature_list.json` aparezcan en el HUD sin recargar.
+
+### Added
+
+- **Toggle del sidebar izquierdo** (handoff: "el sidebar de la izquierda tamben se debe poder ocultar"). Botón × en el brand para colapsar. Cuando colapsado queda una franja de 28 px con un menú-hamburguesa que muestra el badge de unread y al click expande de nuevo. Persiste en `localStorage('agenthub.sidebar.collapsed')`.
+
+---
+
 ## v0.5.1 — 2026-05-02
 
 UI polish del ChatHUD a partir del feedback inmediato post-0.5.0. Frontend-only.
