@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-05-02T22:35:00Z",
+  "updated_at": "2026-05-02T23:05:00Z",
   "features": [
     {
       "id": "f-001",
@@ -12,8 +12,9 @@
     {
       "id": "f-002",
       "name": "Ripear sistema completo de mini-agentes",
-      "status": "pending",
-      "description": "User confirmó opción B: borrar todo el concepto. Ripear /api/agents/* (handlers handleAgentsList, handleAgentsCreate, handleAgentRunNow, handleAgentSchedulesAdd, etc.), tablas agent_runs/agent_schedules/templates, UI /agents y /subagents, MCP tools agent_create/agent_run_now/agent_schedule/agent_pause/agent_resume/agent_logs, skill agent-management. Ollama también sale del stack."
+      "status": "done",
+      "completed_at": "2026-05-02",
+      "description": "Released en v0.4.3. Removidos ~1142 líneas Go (agents.go, agent_templates.go, store/agents.go, scheduler/), 8 routes /api/agents/*, /healthz scheduler check, systemTick.RunningAgents, Repos.Agents, 7 MCP tools agent_*, frontend Agents.tsx + tipos + 8 funciones api.ts, skill agent-management. Migration 0020 drop tablas agents/agent_schedules/agent_runs. Sobreviven agent_sessions, agent_records, subagent_runs (no son mini-agentes). scope='agent' preserved porque diagrams.go lo usa."
     },
     {
       "id": "f-003",
