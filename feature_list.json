@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-05-02T23:05:00Z",
+  "updated_at": "2026-05-03T00:30:00Z",
   "features": [
     {
       "id": "f-001",
@@ -103,6 +103,30 @@
       "name": "404 explícito en /api/* no registradas (no SPA fallback)",
       "status": "pending",
       "description": "Bug pre-existente detectado durante el smoke de 0.4.1: el catch-all de mountFrontend en server.go atrapa rutas /api/* no registradas y sirve index.html (200 con HTML body) en lugar de 404. Confunde a clientes que parsean JSON. Fix: en el handler de /* del SPA fallback, si req.URL.Path empieza con /api/, devolver http.NotFound."
+    },
+    {
+      "id": "f-016",
+      "name": "/projects/:id (sin sesión) — flow corregido",
+      "status": "pending",
+      "description": "Cuando el usuario entra a /projects/N sin haber elegido sesión, la vista cae en 'creá una sesión para empezar' pero el HUD lateral no se renderiza (el conditional pide tab='chat' && current). Decidir: mostrar el HUD vacío con info del proyecto + lista de sesiones existentes, o esconderlo del todo. Pedido directo del user post-0.5.2."
+    },
+    {
+      "id": "f-017",
+      "name": "Tokens session real-time (no esperar 5min del worker)",
+      "status": "pending",
+      "description": "v0.5.3 ya cambia el porcentaje del HUD a leer de /api/usage/realtime (Anthropic 5h window, live), pero el TOKEN ABSOLUTO sigue viniendo del worker offline (settings.usage_session_tokens) que se actualiza cada 5 min — entre actualizaciones queda congelado y el user piensa que se quemó de golpe. Fix: nuevo endpoint /api/usage/session/live que computa tokens absolutos desde JSONLs en demanda, o un WS stat tick que empuje el delta. Pedido directo del user."
+    },
+    {
+      "id": "f-018",
+      "name": "HUD se actualice via WS stats (no solo polling REST)",
+      "status": "pending",
+      "description": "El HUD lateral hoy hace polling cada 4s a 5 endpoints REST. El daemon ya emite 'stats' por WS topic='system' cada N seg con runs/main, runs/project, ws_clients. El HUD debería suscribirse a ese stream para tener números 'tipo real junto con el stats del pc' como el user pidió. La mitad del polling se elimina. depends_on: f-017."
+    },
+    {
+      "id": "f-019",
+      "name": "Per-session sub-agent counter endpoint",
+      "status": "pending",
+      "description": "v0.5.3 hace AGENTS · RUNTIME scope-aware: en project muestra 'this agent ON/OFF' pero el contador 'sub-agents' es global (todos los proyectos del daemon). Para que sea per-session necesitamos un endpoint que cuente sub-spawn captures (subagent_runs) en estado 'running' filtrados por project_session_id. depends_on: ninguna; nice-to-have."
     }
   ]
 }

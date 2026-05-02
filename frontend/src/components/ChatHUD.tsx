@@ -111,8 +111,14 @@ export function ChatHUD(props: ChatHUDProps) {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto p-3 anim-hud-stagger flex flex-col gap-3">
-        <EngineTokensSection status={props.status ?? null} runtime={props.runtime ?? null} />
+        <EngineTokensSection
+          status={props.status ?? null}
+          runtime={props.runtime ?? null}
+          realtime={props.realtimeUsage ?? null}
+        />
         <AgentsRuntimeSection
+          scope={props.scope}
+          runtime={props.runtime ?? null}
           runningMain={props.runningMain ?? 0}
           runningProject={props.runningProject ?? 0}
         />
@@ -204,16 +210,30 @@ function SessionSection({
   );
 }
 
-// EngineTokensSection — was two separate cards (Engine + Tokens) until the
-// user asked to merge them so the headline "tokens session" number sits next
-// to the engine + model that produced it. Layout: top row engine/model/ctx,
-// then the big number + progress bar.
-function EngineTokensSection({ status, runtime }: { status: AgentStatus | null; runtime: ConversationRuntime | null }) {
+// EngineTokensSection — engine/model/ctx + session usage.
+//
+// El número grande "session" lee del realtime feed (/api/usage/realtime)
+// cuando está disponible, NO del worker local que se actualiza cada 5 min.
+// `status.usage_session_tokens` queda como fallback para mostrar tokens
+// absolutos, pero con un badge "·5min" porque ese valor es cacheado offline.
+function EngineTokensSection({
+  status, runtime, realtime,
+}: {
+  status: AgentStatus | null;
+  runtime: ConversationRuntime | null;
+  realtime: RealtimeResponse | null;
+}) {
   const engine = runtime?.engine ?? status?.engine ?? "—";
   const model = runtime?.model ?? status?.model ?? "—";
   const ctxWindow = status?.ctx_window ?? 0;
-  const tokens = status?.usage_session_tokens ?? 0;
-  const pct = Math.round(((status?.usage_session_pct ?? 0) * 100));
+  // Live percent (5h window de Anthropic). 0..100.
+  const livePct = realtime?.claude?.session?.percent_used;
+  // Worker-cached tokens (cada 5 min). Para mostrar magnitud absoluta.
+  const cachedTokens = status?.usage_session_tokens ?? 0;
+  // Cuándo se calculó el cached number — para que el user sepa que está stale.
+  const calcTs = status?.usage_calculated_at ?? 0;
+  const calcAgo = calcTs > 0 ? relTime(calcTs) : "—";
+  const pct = Math.round(livePct ?? ((status?.usage_session_pct ?? 0) * 100));
   return (
     <HudSection title="Engine · Tokens" accent="cyan">
       <Row label="engine" value={engine} />
@@ -223,8 +243,21 @@ function EngineTokensSection({ status, runtime }: { status: AgentStatus | null; 
         className="mt-3 pt-2"
         style={{ borderTop: "1px solid var(--color-line)" }}
       >
-        <div className="text-[9px] tracking-hud uppercase mb-1" style={{ color: "var(--color-dim)" }}>
-          tokens · session
+        <div className="flex items-center justify-between mb-1">
+          <div className="text-[9px] tracking-hud uppercase" style={{ color: "var(--color-dim)" }}>
+            session · 5h window
+          </div>
+          {livePct !== undefined && (
+            <span
+              className="anim-heartbeat"
+              title="Live desde /api/usage/realtime"
+              style={{
+                width: 6, height: 6, borderRadius: 999,
+                background: "var(--color-lime)",
+                boxShadow: "0 0 6px var(--color-lime)",
+              }}
+            />
+          )}
         </div>
         <div
           className="font-display text-[22px] font-bold leading-none mb-1"
@@ -233,12 +266,12 @@ function EngineTokensSection({ status, runtime }: { status: AgentStatus | null; 
             textShadow: "0 0 8px rgba(94,240,255,0.45)",
           }}
         >
-          {tokens.toLocaleString()}
+          {pct}%
         </div>
         <div className="bar mb-1" style={{ height: 4, background: "rgba(120,255,220,0.08)" }}>
           <span style={{ display: "block", height: "100%", width: `${pct}%`, background: "var(--color-cyan)" }} />
         </div>
-        <Row label="usage" value={`${pct}%`} />
+        <Row label="tokens (5min cache)" value={cachedTokens > 0 ? `${cachedTokens.toLocaleString()} · ${calcAgo}` : "—"} />
       </div>
     </HudSection>
   );
@@ -386,13 +419,86 @@ function RadialPct({ pct }: { pct: number }) {
   );
 }
 
+// AgentsRuntimeSection — scope-aware.
+//
+//   scope=main    → main:N project:N (counters globales del daemon)
+//   scope=project → "este agent" (ON/OFF basado en runtime.status) +
+//                   "sub-agentes" (counter de Task-tool sub-spawns activos
+//                   de ESTA sesión cuando se cablee — por ahora muestra los
+//                   project-running globales como aproximación).
+//
+// El sub-counter por sesión específica requiere un endpoint nuevo
+// (/api/projects/{id}/sessions/{sid}/subagents/active); registrado como
+// f-019 en feature_list mientras tanto.
 function AgentsRuntimeSection({
+  scope,
+  runtime,
   runningMain,
   runningProject,
 }: {
+  scope: "main" | "project";
+  runtime: ConversationRuntime | null;
   runningMain: number;
   runningProject: number;
 }) {
+  if (scope === "project") {
+    const isActive = runtime?.status === "running";
+    return (
+      <HudSection title="Agents · Runtime" accent="magenta">
+        <div className="flex gap-2">
+          <div
+            className="flex-1 clip-hud-sm"
+            style={{
+              padding: "8px 10px",
+              border: `1px solid ${isActive ? "var(--color-orange)" : "var(--color-line)"}`,
+              background: isActive ? "rgba(255,159,67,0.10)" : "rgba(255,255,255,0.02)",
+            }}
+          >
+            <div className="text-[9px] tracking-hud uppercase" style={{ color: "var(--color-dim)" }}>
+              this agent
+            </div>
+            <div
+              className="font-display text-[16px] font-bold flex items-center gap-2"
+              style={{ color: isActive ? "var(--color-orange)" : "var(--color-dim)" }}
+            >
+              {isActive ? (
+                <>
+                  <span
+                    className="anim-heartbeat"
+                    style={{
+                      width: 8, height: 8, borderRadius: 999,
+                      background: "var(--color-orange)",
+                      boxShadow: "0 0 6px var(--color-orange)",
+                    }}
+                  />
+                  RUNNING
+                </>
+              ) : "IDLE"}
+            </div>
+          </div>
+          <div
+            className="flex-1 clip-hud-sm"
+            style={{
+              padding: "8px 10px",
+              border: "1px solid var(--color-magenta)",
+              background: "rgba(255,78,214,0.06)",
+            }}
+            title="project runs activos (todos los proyectos del daemon)"
+          >
+            <div className="text-[9px] tracking-hud uppercase" style={{ color: "var(--color-dim)" }}>
+              sub-agents · global
+            </div>
+            <div className="font-display text-[18px] font-bold" style={{ color: "var(--color-magenta)" }}>
+              {runningProject}
+            </div>
+          </div>
+        </div>
+        <div className="text-[8px] tracking-hud uppercase mt-2" style={{ color: "var(--color-dim)" }}>
+          per-session sub-agent count → f-019 (pending)
+        </div>
+      </HudSection>
+    );
+  }
   return (
     <HudSection title="Agents · Runtime" accent="magenta">
       <div className="flex gap-2">
