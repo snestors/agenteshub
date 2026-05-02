@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // featureListFile is the canonical filename inside a project's repo. The
@@ -131,4 +132,122 @@ func (s *Server) handleProjectFeaturesGet(w http.ResponseWriter, r *http.Request
 		"updated_at": fl.UpdatedAt,
 		"features":   fl.Features,
 	})
+}
+
+// handleProjectFeaturesPut overwrites feature_list.json with the validated
+// payload. Atomic via tmp + rename so a crash mid-write can't corrupt the file.
+//
+//	PUT /api/projects/{id}/features
+//	Content-Type: application/json
+//	{ "version": 1, "features": [...] }
+//
+// updated_at is rewritten server-side regardless of what the client sent —
+// the field is meant to be a "last server write" stamp, not a user-editable
+// metadata field. Validation is the same as the GET parser; an invalid payload
+// returns 400 with the validator error.
+//
+// The response shape mirrors GET so the UI can replace its cached copy with
+// the response without an extra round-trip.
+func (s *Server) handleProjectFeaturesPut(w http.ResponseWriter, r *http.Request) {
+	project, ok := s.projectFromRequest(w, r)
+	if !ok {
+		return
+	}
+
+	raw, err := readLimited(r, 512*1024) // 512 KiB cap — feature_list shouldn't get bigger
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	fl, err := ParseFeatureList(raw)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	fl.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+
+	full := filepath.Join(project.Path, featureListFile)
+	if err := writeFileAtomic(full, fl); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"exists":     true,
+		"path":       featureListFile,
+		"version":    fl.Version,
+		"updated_at": fl.UpdatedAt,
+		"features":   fl.Features,
+	})
+}
+
+// readLimited reads up to maxBytes from r.Body and returns an error if the body
+// exceeds the cap. The error message is generic on purpose — the caller maps
+// it to 413 Request Entity Too Large.
+func readLimited(r *http.Request, maxBytes int64) ([]byte, error) {
+	r.Body = http.MaxBytesReader(nil, r.Body, maxBytes)
+	defer r.Body.Close()
+	buf := make([]byte, 0, 8*1024)
+	tmp := make([]byte, 4*1024)
+	for {
+		n, err := r.Body.Read(tmp)
+		if n > 0 {
+			buf = append(buf, tmp[:n]...)
+		}
+		if err != nil {
+			if errors.Is(err, http.ErrBodyReadAfterClose) || err.Error() == "EOF" {
+				return buf, nil
+			}
+			if err.Error() == "http: request body too large" {
+				return nil, fmt.Errorf("body exceeds %d bytes", maxBytes)
+			}
+			return buf, nil
+		}
+	}
+}
+
+// writeFileAtomic encodes fl as pretty JSON and writes it to dst via a sibling
+// tmp file + rename. The tmp file lives in the same directory so rename is a
+// pure metadata op (no cross-device move). On failure, the tmp file is cleaned
+// up; the original dst is left untouched.
+func writeFileAtomic(dst string, fl FeatureList) error {
+	enc, err := json.MarshalIndent(fl, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode feature_list: %w", err)
+	}
+	enc = append(enc, '\n')
+
+	dir := filepath.Dir(dst)
+	tmp, err := os.CreateTemp(dir, ".feature_list-*.json.tmp")
+	if err != nil {
+		return fmt.Errorf("create tmp: %w", err)
+	}
+	tmpPath := tmp.Name()
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	if _, err := tmp.Write(enc); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("write tmp: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("sync tmp: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close tmp: %w", err)
+	}
+	if err := os.Chmod(tmpPath, 0o644); err != nil {
+		return fmt.Errorf("chmod tmp: %w", err)
+	}
+	if err := os.Rename(tmpPath, dst); err != nil {
+		return fmt.Errorf("rename tmp -> dst: %w", err)
+	}
+	cleanup = false
+	return nil
 }

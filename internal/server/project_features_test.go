@@ -1,6 +1,8 @@
 package server
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -95,5 +97,65 @@ func TestParseFeatureList_Errors(t *testing.T) {
 				t.Errorf("error = %q, want substring %q", err.Error(), tc.wantErrPart)
 			}
 		})
+	}
+}
+
+func TestWriteFileAtomic_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	dst := filepath.Join(dir, "feature_list.json")
+
+	fl := FeatureList{
+		Version:   1,
+		UpdatedAt: "2026-05-02T12:00:00Z",
+		Features: []FeatureItem{
+			{ID: "f-001", Name: "First", Status: "pending"},
+		},
+	}
+	if err := writeFileAtomic(dst, fl); err != nil {
+		t.Fatalf("writeFileAtomic: %v", err)
+	}
+
+	raw, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	parsed, err := ParseFeatureList(raw)
+	if err != nil {
+		t.Fatalf("parse round-trip: %v", err)
+	}
+	if len(parsed.Features) != 1 || parsed.Features[0].ID != "f-001" {
+		t.Errorf("round-trip mismatch: %+v", parsed)
+	}
+
+	// Atomic write should not leave .tmp siblings around on success.
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if strings.Contains(e.Name(), ".tmp") {
+			t.Errorf("leftover tmp file: %s", e.Name())
+		}
+	}
+}
+
+func TestWriteFileAtomic_OverwriteAtomic(t *testing.T) {
+	dir := t.TempDir()
+	dst := filepath.Join(dir, "feature_list.json")
+
+	// Pre-existing content.
+	if err := os.WriteFile(dst, []byte(`{"version":1,"features":[{"id":"old","name":"old","status":"pending"}]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	fl := FeatureList{Version: 1, Features: []FeatureItem{{ID: "new", Name: "new", Status: "done"}}}
+	if err := writeFileAtomic(dst, fl); err != nil {
+		t.Fatalf("writeFileAtomic: %v", err)
+	}
+
+	raw, _ := os.ReadFile(dst)
+	parsed, err := ParseFeatureList(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(parsed.Features) != 1 || parsed.Features[0].ID != "new" {
+		t.Errorf("overwrite did not replace content: %+v", parsed)
 	}
 }
