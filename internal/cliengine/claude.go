@@ -622,12 +622,12 @@ func ensureMCPConfig(cfg *config.Config, opts RunOpts) (string, error) {
 				Command: bin,
 				Args:    []string{"mcp"},
 				Env: map[string]string{
-					"AGENTHUB_DB_PATH":                cfg.DBPath,
+					"AGENTHUB_DB_PATH":                absPathStr(cfg.DBPath),
 					"AGENTHUB_DEV":                    "true", // mcp mode reads same .env, but force minimal
 					"AGENTHUB_SECRET_KEY":             fmt.Sprintf("%x", cfg.SecretKey),
 					"AGENTHUB_JWT_SECRET":             string(cfg.JWTSecret),
-					"AGENTHUB_UPLOAD_DIR":             cfg.UploadDir,
-					"AGENTHUB_WA_MEDIA_DIR":           cfg.WAMediaDir,
+					"AGENTHUB_UPLOAD_DIR":             absPathStr(cfg.UploadDir),
+					"AGENTHUB_WA_MEDIA_DIR":           absPathStr(cfg.WAMediaDir),
 					"AGENTHUB_ACTIVE_CHANNEL":         opts.Channel,
 					"AGENTHUB_ACTIVE_ENGINE":          opts.Engine,
 					"AGENTHUB_ACTIVE_MODEL":           opts.Model,

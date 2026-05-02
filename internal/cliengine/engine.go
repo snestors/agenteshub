@@ -243,3 +243,13 @@ func sqlStr(s string) sql.NullString {
 	}
 	return sql.NullString{String: s, Valid: true}
 }
+
+
+// absPathStr resolves p to an absolute path so MCP subprocesses spawned with
+// a different CWD (e.g. project sessions) always open the correct file.
+func absPathStr(p string) string {
+	if a, err := filepath.Abs(p); err == nil {
+		return a
+	}
+	return p
+}
