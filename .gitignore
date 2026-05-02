@@ -1,5 +1,7 @@
 # Go
-bin/
+bin/agenthub
+bin/agenthub.next
+bin/agenthub.prev
 *.exe
 *.test
 *.out
@@ -39,3 +41,6 @@ systemdegin.tar.gz
 
 # Server preview
 ui/_*.html
+
+# Release script in-flight marker
+.release-in-flight
