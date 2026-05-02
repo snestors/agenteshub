@@ -232,6 +232,9 @@ func (s *Server) routes() http.Handler {
 		pr.Get("/api/projects/{id}/docs", s.handleProjectDocsList)
 		pr.Get("/api/projects/{id}/docs/{doc}", s.handleProjectDocGet)
 
+		// BettaTech harness — feature_list.json sits at the repo root.
+		pr.Get("/api/projects/{id}/features", s.handleProjectFeaturesGet)
+
 		// Topics
 		pr.Get("/api/topics", s.handleTopicsList)
 		pr.Post("/api/topics", s.handleTopicsCreate)
