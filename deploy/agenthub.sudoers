@@ -1,0 +1,25 @@
+# AgentHub — autorizaciones NOPASSWD para comandos que el daemon necesita.
+# El daemon corre como `nestor` (NO root). Estas reglas son granulares por
+# diseño — no expandir a `rm`, `dd`, `bash`, ni `mkfs` sin discusión.
+
+# --- Servicios systemd: lifecycle ---
+nestor ALL=(ALL) NOPASSWD: /usr/bin/systemctl start *
+nestor ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop *
+nestor ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart *
+nestor ALL=(ALL) NOPASSWD: /bin/systemctl start *
+nestor ALL=(ALL) NOPASSWD: /bin/systemctl stop *
+nestor ALL=(ALL) NOPASSWD: /bin/systemctl restart *
+
+# --- Servicios systemd: enable/disable + reload ---
+nestor ALL=(ALL) NOPASSWD: /usr/bin/systemctl enable *
+nestor ALL=(ALL) NOPASSWD: /usr/bin/systemctl disable *
+nestor ALL=(ALL) NOPASSWD: /usr/bin/systemctl daemon-reload
+nestor ALL=(ALL) NOPASSWD: /bin/systemctl enable *
+nestor ALL=(ALL) NOPASSWD: /bin/systemctl disable *
+nestor ALL=(ALL) NOPASSWD: /bin/systemctl daemon-reload
+
+# --- Filesystem: remount /etc (necesario para editar /etc/systemd/system/) ---
+nestor ALL=(ALL) NOPASSWD: /usr/bin/mount -o remount\,rw /etc
+nestor ALL=(ALL) NOPASSWD: /usr/bin/mount -o remount\,ro /etc
+nestor ALL=(ALL) NOPASSWD: /bin/mount -o remount\,rw /etc
+nestor ALL=(ALL) NOPASSWD: /bin/mount -o remount\,ro /etc
