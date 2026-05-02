@@ -4,14 +4,17 @@
 // HUD is presentational so we can mock + test it without spinning up the full
 // conversation graph.
 //
-// Sections, in order:
-//   1. SESSION         — id, scope, started, turns, latency
-//   2. ENGINE          — engine, model, ctx, effort
+// Sections, in order (revised after first user feedback):
+//   1. ENGINE · TOKENS — engine + model + ctx + the big tokens-session number
+//                        and bar (combined; the user wanted the tokens row up
+//                        top alongside the engine info)
+//   2. AGENTS·RUNTIME  — counts for main + project running turns
 //   3. FEATURE_LIST    — only when scope=project; reads feature_list.json
-//   4. TOKENS          — IN / CACHE / OUT bars + 5h window summary
-//   5. SUBS · 5H       — Anthropic subscription window (radial + countdown)
-//   6. AGENTS·RUNTIME  — counts for main + project running turns
-//   7. STACK           — sub-agents seen + topics in context
+//   4. SUBS · 5H       — Anthropic subscription window (radial + countdown)
+//   5. STACK           — tools seen + topic in context
+//   6. SESSION         — id, scope, started, status, ws (kept for forensics
+//                        but moved to the bottom; rarely the first thing the
+//                        user wants to see)
 //
 // Collapsable. Persistence in localStorage(`agenthub.hud.collapsed`). Cascade
 // fade-in via .anim-hud-stagger on the sections wrapper (animations defined
@@ -105,26 +108,25 @@ export function ChatHUD(props: ChatHUDProps) {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto p-3 anim-hud-stagger flex flex-col gap-3">
-        <SessionSection
-          scope={props.scope}
-          scopeKey={props.scopeKey}
-          runtime={props.runtime ?? null}
-          wsConnected={props.wsConnected ?? false}
+        <EngineTokensSection status={props.status ?? null} runtime={props.runtime ?? null} />
+        <AgentsRuntimeSection
+          runningMain={props.runningMain ?? 0}
+          runningProject={props.runningProject ?? 0}
         />
-        <EngineSection status={props.status ?? null} runtime={props.runtime ?? null} />
         {props.scope === "project" && (
           <FeatureListSection
             features={props.projectFeatures ?? null}
             onScaffold={props.onScaffoldHarness}
           />
         )}
-        <TokensSection status={props.status ?? null} />
         <SubsWindowSection realtime={props.realtimeUsage ?? null} />
-        <AgentsRuntimeSection
-          runningMain={props.runningMain ?? 0}
-          runningProject={props.runningProject ?? 0}
-        />
         <StackSection runtime={props.runtime ?? null} />
+        <SessionSection
+          scope={props.scope}
+          scopeKey={props.scopeKey}
+          runtime={props.runtime ?? null}
+          wsConnected={props.wsConnected ?? false}
+        />
       </div>
     </aside>
   );
@@ -199,15 +201,42 @@ function SessionSection({
   );
 }
 
-function EngineSection({ status, runtime }: { status: AgentStatus | null; runtime: ConversationRuntime | null }) {
+// EngineTokensSection — was two separate cards (Engine + Tokens) until the
+// user asked to merge them so the headline "tokens session" number sits next
+// to the engine + model that produced it. Layout: top row engine/model/ctx,
+// then the big number + progress bar.
+function EngineTokensSection({ status, runtime }: { status: AgentStatus | null; runtime: ConversationRuntime | null }) {
   const engine = runtime?.engine ?? status?.engine ?? "—";
   const model = runtime?.model ?? status?.model ?? "—";
   const ctxWindow = status?.ctx_window ?? 0;
+  const tokens = status?.usage_session_tokens ?? 0;
+  const pct = Math.round(((status?.usage_session_pct ?? 0) * 100));
   return (
-    <HudSection title="Engine" accent="magenta">
+    <HudSection title="Engine · Tokens" accent="cyan">
       <Row label="engine" value={engine} />
       <Row label="model" value={model} />
       <Row label="ctx window" value={ctxWindow ? ctxWindow.toLocaleString() : "—"} />
+      <div
+        className="mt-3 pt-2"
+        style={{ borderTop: "1px solid var(--color-line)" }}
+      >
+        <div className="text-[9px] tracking-hud uppercase mb-1" style={{ color: "var(--color-dim)" }}>
+          tokens · session
+        </div>
+        <div
+          className="font-display text-[22px] font-bold leading-none mb-1"
+          style={{
+            color: "var(--color-cyan)",
+            textShadow: "0 0 8px rgba(94,240,255,0.45)",
+          }}
+        >
+          {tokens.toLocaleString()}
+        </div>
+        <div className="bar mb-1" style={{ height: 4, background: "rgba(120,255,220,0.08)" }}>
+          <span style={{ display: "block", height: "100%", width: `${pct}%`, background: "var(--color-cyan)" }} />
+        </div>
+        <Row label="usage" value={`${pct}%`} />
+      </div>
     </HudSection>
   );
 }
@@ -301,24 +330,6 @@ function FeatureRow({ f }: { f: FeatureItem }) {
         {f.name}
       </span>
     </div>
-  );
-}
-
-function TokensSection({ status }: { status: AgentStatus | null }) {
-  const tokens = status?.usage_session_tokens ?? 0;
-  // AgentStatus no expone el limit explícito; usamos usage_session_pct (0..1)
-  // como progreso. Cuando no haya pct, derivamos 0.
-  const pct = Math.round(((status?.usage_session_pct ?? 0) * 100));
-  return (
-    <HudSection title="Tokens · session" accent="cyan">
-      <div className="font-display text-[24px] font-bold mb-1" style={{ color: "var(--color-cyan)", textShadow: "0 0 8px rgba(94,240,255,0.45)" }}>
-        {tokens.toLocaleString()}
-      </div>
-      <div className="bar mb-1" style={{ height: 4, background: "rgba(120,255,220,0.08)" }}>
-        <span style={{ display: "block", height: "100%", width: `${pct}%`, background: "var(--color-cyan)" }} />
-      </div>
-      <Row label="usage" value={`${pct}%`} />
-    </HudSection>
   );
 }
 
