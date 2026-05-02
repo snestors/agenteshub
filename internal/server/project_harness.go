@@ -27,6 +27,26 @@ func (s *Server) handleProjectHarnessState(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, out)
 }
 
+// handleProjectHarnessScaffold materializes the embedded template into a
+// project's repo. Idempotent: re-running on an already-scaffolded project
+// re-applies template-managed files but leaves project-owned and
+// template-seed files alone. The response shape mirrors ScaffoldResult so the
+// UI can render created/skipped lists directly.
+//
+//	POST /api/projects/{id}/harness/scaffold
+func (s *Server) handleProjectHarnessScaffold(w http.ResponseWriter, r *http.Request) {
+	project, ok := s.projectFromRequest(w, r)
+	if !ok {
+		return
+	}
+	res, err := harness.Scaffold(project.Path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
 // handleProjectHarnessInit runs init.sh in the project's repo synchronously.
 //
 //	POST /api/projects/{id}/harness/init?timeout_s=120
