@@ -2,6 +2,26 @@
 
 Path: `/home/nestor/agenthub`
 
+## v0.5.3 — 2026-05-02
+
+UI fixes a partir del review del user en prod sobre 0.5.2. Frontend-only.
+
+### Fixed
+
+- **AGENTS · RUNTIME en project ahora es scope-aware.** Antes mostraba siempre los contadores globales del daemon (main + project) sin importar la ruta. El user pidió que en project el HUD muestre si **ESTE** agent del proyecto está activo y cuántos sub-agentes están corriendo. Solución: cuando `scope === "project"`, la card muestra:
+  - `THIS AGENT` con estado **RUNNING** (badge pulsante naranja con `.anim-heartbeat`) o **IDLE** según `runtime.status === "running"`.
+  - `SUB-AGENTS · GLOBAL` con el contador de project-running del daemon como aproximación. El contador per-session real queda como pendiente (f-019).
+- **TOKENS · session "1499 que no se mueve".** El headline grande venía de `status.usage_session_tokens`, que es un valor cacheado que el worker actualiza solo **cada 5 min** escaneando los JSONLs locales. El user vio que el número se quedaba parado. Fix: el headline grande ahora es el **% live de la ventana de 5h** (`/api/usage/realtime` `claude.session.percent_used`), refrescado cada 4s con el resto del HUD. Los tokens absolutos cacheados siguen abajo como `tokens (5min cache)` con timestamp relativo para dejar claro que ese dato es stale by design. Un live-dot lime pulsa junto al título cuando el realtime feed está al aire.
+
+### Added (al feature_list, no implementadas)
+
+- **f-016** — `/projects/:id` sin sesión: el HUD lateral hoy no se monta porque pide `tab="chat" && current`. Decidir UX cuando no hay sesión seleccionada.
+- **f-017** — Tokens absolutos en tiempo real: hoy son cacheados cada 5 min via worker offline; agregar endpoint o WS tick que los empuje live.
+- **f-018** — HUD via WS stats stream: el daemon ya emite `stats` por WS topic="system"; el HUD debería suscribirse en lugar de polling REST cada 4s. Depende de f-017.
+- **f-019** — Per-session sub-agent counter endpoint: para que la card AGENTS·RUNTIME en project muestre sub-spawns DE ESA SESIÓN en lugar del contador global.
+
+---
+
 ## v0.5.2 — 2026-05-02
 
 UI fixes a partir del feedback inmediato post-0.5.1. Frontend-only.
