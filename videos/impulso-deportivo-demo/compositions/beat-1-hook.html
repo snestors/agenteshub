@@ -1,0 +1,138 @@
+<template id="beat-1-template">
+  <div data-composition-id="beat-1" data-width="1920" data-height="1080" data-start="0" data-duration="4.14">
+    <div class="b1-root">
+      <div class="b1-rule b1-rule-top"></div>
+      <div class="b1-rule b1-rule-bottom"></div>
+
+      <div class="b1-meta b1-meta-left">IMPULSO · DEPORTIVO · DEMO</div>
+      <div class="b1-meta b1-meta-right">2026.05</div>
+
+      <div class="b1-stage">
+        <div class="b1-line b1-l1"><span class="b1-text-cap">UNA</span></div>
+        <div class="b1-line b1-l2"><span class="b1-text-cap">ACADEMIA DEPORTIVA</span></div>
+        <div class="b1-line b1-l3"><span class="b1-text-cap">NO SE GESTIONA EN UN</span></div>
+        <div class="b1-line b1-l4">
+          <span class="b1-text-italic">cuaderno.</span>
+          <svg class="b1-underline" viewBox="0 0 480 12" preserveAspectRatio="none">
+            <path d="M 4 8 Q 120 2 240 7 T 476 6" fill="none" stroke="#0F1213" stroke-width="2.5" stroke-linecap="round" />
+          </svg>
+        </div>
+      </div>
+
+      <img class="b1-logo" src="../capture/assets/impulso-logo-black.png" alt="Impulso Deportivo" />
+    </div>
+
+    <style>
+      [data-composition-id="beat-1"] {
+        position: absolute;
+        inset: 0;
+        background: #FFFFFF;
+        font-family: 'Saira Condensed', 'Impact', sans-serif;
+        color: #0F1213;
+        overflow: hidden;
+      }
+      [data-composition-id="beat-1"] .b1-root {
+        position: absolute;
+        inset: 0;
+      }
+      [data-composition-id="beat-1"] .b1-rule {
+        position: absolute;
+        left: 80px;
+        right: 80px;
+        height: 1px;
+        background: #DBDFE0;
+        transform-origin: left center;
+        transform: scaleX(0);
+      }
+      [data-composition-id="beat-1"] .b1-rule-top { top: 80px; }
+      [data-composition-id="beat-1"] .b1-rule-bottom { bottom: 80px; }
+      [data-composition-id="beat-1"] .b1-meta {
+        position: absolute;
+        top: 60px;
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 12px;
+        font-weight: 500;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #6C6F71;
+        opacity: 0;
+      }
+      [data-composition-id="beat-1"] .b1-meta-left { left: 80px; }
+      [data-composition-id="beat-1"] .b1-meta-right { right: 80px; }
+      [data-composition-id="beat-1"] .b1-stage {
+        position: absolute;
+        left: 0; right: 0; top: 0; bottom: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 0 160px;
+        gap: 0;
+      }
+      [data-composition-id="beat-1"] .b1-line {
+        font-family: 'Saira Condensed', 'Impact', sans-serif;
+        font-weight: 800;
+        font-size: 124px;
+        line-height: 1.0;
+        letter-spacing: -0.01em;
+        color: #0F1213;
+        position: relative;
+      }
+      [data-composition-id="beat-1"] .b1-l1 { font-size: 88px; opacity: 0; }
+      [data-composition-id="beat-1"] .b1-l2 { font-size: 124px; opacity: 0; }
+      [data-composition-id="beat-1"] .b1-l3 { font-size: 96px; opacity: 0; }
+      [data-composition-id="beat-1"] .b1-l4 {
+        font-size: 124px;
+        font-weight: 600;
+        font-style: italic;
+        text-transform: lowercase;
+        color: #35393A;
+        opacity: 0;
+        position: relative;
+        display: inline-flex;
+        align-items: flex-end;
+        width: 480px;
+      }
+      [data-composition-id="beat-1"] .b1-text-cap { text-transform: uppercase; }
+      [data-composition-id="beat-1"] .b1-underline {
+        position: absolute;
+        bottom: 6px;
+        left: 0;
+        width: 480px;
+        height: 12px;
+      }
+      [data-composition-id="beat-1"] .b1-underline path {
+        stroke-dasharray: 600;
+        stroke-dashoffset: 600;
+      }
+      [data-composition-id="beat-1"] .b1-logo {
+        position: absolute;
+        top: 56px;
+        right: 80px;
+        height: 28px;
+        opacity: 0;
+        object-fit: contain;
+      }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      tl.to('[data-composition-id="beat-1"] .b1-rule-top', { scaleX: 1, duration: 0.5, ease: 'power2.out' }, 0.05)
+        .to('[data-composition-id="beat-1"] .b1-rule-bottom', { scaleX: 1, duration: 0.5, ease: 'power2.out' }, 0.15)
+        .to('[data-composition-id="beat-1"] .b1-meta-left', { opacity: 1, duration: 0.4, ease: 'power2.out' }, 0.25)
+        .to('[data-composition-id="beat-1"] .b1-meta-right', { opacity: 1, duration: 0.4, ease: 'power2.out' }, 0.3)
+        .fromTo('[data-composition-id="beat-1"] .b1-l1', { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: 'power3.out' }, 0.35)
+        .fromTo('[data-composition-id="beat-1"] .b1-l2', { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, ease: 'power3.out' }, 0.7)
+        .fromTo('[data-composition-id="beat-1"] .b1-l3', { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55, ease: 'power3.out' }, 1.25)
+        .fromTo('[data-composition-id="beat-1"] .b1-l4',
+          { x: -30, opacity: 0, rotation: -1.5 },
+          { x: 0, opacity: 1, rotation: 0, duration: 0.7, ease: 'power2.out' }, 1.95)
+        .to('[data-composition-id="beat-1"] .b1-underline path', { strokeDashoffset: 0, duration: 0.6, ease: 'power2.out' }, 2.5)
+        .to('[data-composition-id="beat-1"] .b1-logo', { opacity: 1, duration: 0.5, ease: 'power2.out' }, 3.4);
+
+      window.__timelines["beat-1"] = tl;
+    </script>
+  </div>
+</template>

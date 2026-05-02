@@ -1,0 +1,86 @@
+[span] shaiAcademy
+[a] Features
+[a] Contacto
+[button] Iniciar sesión
+[button] Solicitar demo
+[a] Features
+[a] Pricing
+[a] Contacto
+[a] Iniciar sesión
+[div] Plataforma · Academias deportivas
+[h1] La plataforma para gestionar tu
+[em] academia
+[h1] sin vueltas.
+[p] Impulso reúne alumnos, asistencia, pagos y reportes en un solo lugar. Pensado para academias deportivas que quieren dejar las planillas atrás y enfocarse en entrenar.
+[li] Alta de alumnos en minutos, no en tardes
+[li] Pagos y comprobantes automáticos
+[li] Reportes listos para directores y apoderados
+[button] Empezar
+[button] Ver features
+[span] Operación diaria
+[strong] +120h
+[span] ahorradas al mes por academia según pilotos internos.
+[span] 01 · Features
+[h2] Todo lo que necesita tu
+[em] academia
+[div] Alumnos unificados
+[p] Ficha integral por alumno: datos, apoderados, cuotas, asistencia y disciplinas en un solo lugar.
+[div] Asistencia + calendario
+[p] Tomá lista desde el celular, programá clases recurrentes y detectá ausencias repetidas sin planillas.
+[div] Pagos y comprobantes
+[p] Cuotas, vencimientos y recibos automáticos. Cada apoderado ve al instante el estado de cuenta.
+[div] Reportes para el director
+[p] Indicadores de cobranza, asistencia por disciplina y retención mensual, listos para decidir.
+[span] 02 · Para quién
+[h2] Una sola plataforma,
+[em] tres miradas
+[div] Directores y dueños
+[p] Control total de la academia: ocupación, cobranza y rendimiento operativo sin planillas dispersas.
+[div] Profesores
+[p] Tomá asistencia, observá progreso y comunicate con apoderados sin salir de la app.
+[div] Apoderados y alumnos
+[p] Accedé al calendario, historial de pagos y notificaciones desde el celular, sin instalar nada.
+[span] 03 · Pricing
+[h2] Planes
+[em] simples
+[div] Básico
+[div] Academias que recién arrancan
+[span] USD / mes
+[span] Hasta 50 alumnos
+[span] Asistencia y calendario
+[span] Pagos manuales
+[span] Soporte por email
+[button] Solicitar demo
+[span] Recomendado
+[div] Estándar
+[div] La mayoría de academias
+[span] USD / mes
+[span] Hasta 250 alumnos
+[span] Pagos + comprobantes automáticos
+[span] Reportes para director
+[span] Usuarios ilimitados (profes)
+[span] Soporte prioritario
+[button] Solicitar demo
+[div] Pro
+[div] Federaciones y multi-sede
+[span] USD / mes
+[span] Alumnos ilimitados
+[span] Multi-sede y multi-disciplina
+[span] API y exportaciones
+[span] Integraciones de pago
+[span] Onboarding asistido
+[button] Solicitar demo
+[p] Precios referenciales en USD. Facturación mensual, sin permanencia.
+[div] 04 · Contacto
+[h2] Coordinemos una
+[em] demo
+[p] Mostrámos la plataforma en vivo con datos reales de academias deportivas. Agendamos 30 minutos, sin compromiso.
+[span] Email
+[span] info@impulso.deportes
+[span] Teléfono
+[span] +51 999 000 111
+[span] shaiAcademy
+[span] Impulso Deportivo. Todos los derechos reservados.
+[a] Features
+[a] Contacto
+[a] Iniciar sesión

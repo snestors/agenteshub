@@ -1,0 +1,452 @@
+<template id="beat-5-template">
+  <div data-composition-id="beat-5" data-width="1920" data-height="1080" data-start="0" data-duration="7.01">
+    <div class="b5-root">
+      <div class="b5-divider"></div>
+      <div class="b5-meta b5-meta-left">APODERADO</div>
+      <div class="b5-meta b5-meta-right">OWNER</div>
+
+      <!-- Lado izquierdo: estado de cuenta + modal pago -->
+      <div class="b5-left">
+        <div class="b5-card b5-cuenta">
+          <div class="b5-card-label">ESTADO DE CUENTA · DIEGO H.</div>
+          <div class="b5-saldo">
+            <div class="b5-saldo-num">S/ 150</div>
+            <div class="b5-saldo-tag">ADEUDADO</div>
+          </div>
+          <div class="b5-row-line">
+            <span class="b5-period">2026-04 · MENSUALIDAD</span>
+            <span class="b5-mens-badge b5-mens-pendiente">PENDIENTE</span>
+            <span class="b5-mens-badge b5-mens-pagada">PAGADA ✓</span>
+          </div>
+          <div class="b5-row-line b5-row-secondary">
+            <span class="b5-period">2026-03 · MENSUALIDAD</span>
+            <span class="b5-mens-badge b5-mens-pagada-static">PAGADA ✓</span>
+          </div>
+        </div>
+
+        <div class="b5-modal">
+          <div class="b5-modal-title">REGISTRAR PAGO</div>
+          <div class="b5-modal-row">
+            <span class="b5-modal-label">Mensualidad</span>
+            <span class="b5-modal-value">2026-04</span>
+          </div>
+          <div class="b5-modal-row">
+            <span class="b5-modal-label">Monto</span>
+            <span class="b5-modal-value">S/ 150.00</span>
+          </div>
+          <div class="b5-modal-row">
+            <span class="b5-modal-label">Medio</span>
+            <span class="b5-modal-value">YAPE</span>
+          </div>
+          <div class="b5-comp-thumb">
+            <div class="b5-comp-icon">📷</div>
+            <div class="b5-comp-meta">yape-screenshot.jpg<br>· 245 KB</div>
+          </div>
+          <div class="b5-modal-cta">ENVIAR</div>
+        </div>
+      </div>
+
+      <!-- Lado derecho: tabla cobros owner -->
+      <div class="b5-right">
+        <div class="b5-card b5-cobros">
+          <div class="b5-card-label">HISTORIAL DE COBROS · DIEGO H.</div>
+          <div class="b5-table">
+            <div class="b5-trow b5-trow-1">
+              <span class="b5-tcol-fecha">2026-04-29</span>
+              <span class="b5-tcol-monto">S/ 150.00</span>
+              <span class="b5-tcol-status">
+                <span class="b5-cobro-badge b5-cobro-pending">PENDIENTE</span>
+                <span class="b5-cobro-badge b5-cobro-confirmed">CONFIRMADO ✓</span>
+              </span>
+              <span class="b5-tcol-action">CONFIRMAR</span>
+            </div>
+            <div class="b5-trow b5-trow-2">
+              <span class="b5-tcol-fecha">2026-03-28</span>
+              <span class="b5-tcol-monto">S/ 150.00</span>
+              <span class="b5-tcol-status">
+                <span class="b5-cobro-badge b5-cobro-confirmed-static">CONFIRMADO</span>
+              </span>
+              <span class="b5-tcol-action b5-tcol-action-disabled">—</span>
+            </div>
+            <div class="b5-trow b5-trow-3">
+              <span class="b5-tcol-fecha">2026-02-25</span>
+              <span class="b5-tcol-monto">S/ 150.00</span>
+              <span class="b5-tcol-status">
+                <span class="b5-cobro-badge b5-cobro-confirmed-static">CONFIRMADO</span>
+              </span>
+              <span class="b5-tcol-action b5-tcol-action-disabled">—</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="b5-cursor"></div>
+      </div>
+    </div>
+
+    <style>
+      [data-composition-id="beat-5"] {
+        position: absolute; inset: 0;
+        background: #F9FAFB;
+        font-family: 'Space Grotesk', system-ui, sans-serif;
+        color: #0F1213;
+        overflow: hidden;
+      }
+      [data-composition-id="beat-5"] .b5-root { position: absolute; inset: 0; }
+      [data-composition-id="beat-5"] .b5-divider {
+        position: absolute;
+        left: 50%;
+        top: 60px;
+        bottom: 60px;
+        width: 1px;
+        background: #DBDFE0;
+        transform-origin: top center;
+        transform: scaleY(0);
+      }
+      [data-composition-id="beat-5"] .b5-meta {
+        position: absolute;
+        top: 50px;
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #6C6F71;
+        opacity: 0;
+      }
+      [data-composition-id="beat-5"] .b5-meta-left { left: 80px; }
+      [data-composition-id="beat-5"] .b5-meta-right { right: 80px; }
+
+      /* IZQ */
+      [data-composition-id="beat-5"] .b5-left {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 50%;
+        height: 100%;
+      }
+      [data-composition-id="beat-5"] .b5-card {
+        background: #FFFFFF;
+        border: 1px solid #DBDFE0;
+        border-radius: 12px;
+        padding: 32px 36px;
+      }
+      [data-composition-id="beat-5"] .b5-card-label {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.16em;
+        color: #6C6F71;
+        text-transform: uppercase;
+        margin-bottom: 18px;
+      }
+      [data-composition-id="beat-5"] .b5-cuenta {
+        position: absolute;
+        left: 80px;
+        top: 110px;
+        width: 720px;
+        opacity: 0;
+      }
+      [data-composition-id="beat-5"] .b5-saldo {
+        display: flex;
+        align-items: baseline;
+        gap: 18px;
+        margin-bottom: 26px;
+      }
+      [data-composition-id="beat-5"] .b5-saldo-num {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 64px;
+        font-weight: 700;
+        color: #225656;
+        font-feature-settings: "tnum" 1, "zero" 0;
+        line-height: 1.0;
+      }
+      [data-composition-id="beat-5"] .b5-saldo-tag {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        color: #6C6F71;
+        text-transform: uppercase;
+      }
+      [data-composition-id="beat-5"] .b5-row-line {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 16px 0;
+        border-top: 1px solid #DBDFE0;
+        position: relative;
+      }
+      [data-composition-id="beat-5"] .b5-period {
+        font-family: 'Saira Condensed', sans-serif;
+        font-weight: 600;
+        font-size: 18px;
+        color: #0F1213;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+        flex: 1;
+      }
+      [data-composition-id="beat-5"] .b5-mens-badge {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        padding: 6px 12px;
+        border-radius: 999px;
+        text-transform: uppercase;
+      }
+      [data-composition-id="beat-5"] .b5-mens-pendiente {
+        background: #FFF6E5;
+        color: #9F7849;
+        border: 1px solid #9F7849;
+      }
+      [data-composition-id="beat-5"] .b5-mens-pagada {
+        background: #E7F6ED;
+        color: #308639;
+        border: 1px solid #308639;
+        position: absolute;
+        right: 0;
+        opacity: 0;
+      }
+      [data-composition-id="beat-5"] .b5-mens-pagada-static {
+        background: #E7F6ED;
+        color: #308639;
+        border: 1px solid #308639;
+      }
+      [data-composition-id="beat-5"] .b5-row-secondary { opacity: 0.5; }
+
+      [data-composition-id="beat-5"] .b5-modal {
+        position: absolute;
+        left: 100px;
+        top: 470px;
+        width: 600px;
+        background: #FFFFFF;
+        border: 1px solid #DBDFE0;
+        border-radius: 12px;
+        padding: 28px 32px;
+        box-shadow: 0 12px 40px rgba(15,18,19,0.12);
+        opacity: 0;
+        transform: scale(0.92);
+      }
+      [data-composition-id="beat-5"] .b5-modal-title {
+        font-family: 'Saira Condensed', sans-serif;
+        font-weight: 800;
+        font-size: 28px;
+        text-transform: uppercase;
+        margin-bottom: 22px;
+        color: #0F1213;
+        letter-spacing: -0.005em;
+      }
+      [data-composition-id="beat-5"] .b5-modal-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid #DBDFE0;
+      }
+      [data-composition-id="beat-5"] .b5-modal-label {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        color: #6C6F71;
+        text-transform: uppercase;
+      }
+      [data-composition-id="beat-5"] .b5-modal-value {
+        font-family: 'Saira Condensed', sans-serif;
+        font-weight: 700;
+        font-size: 18px;
+        color: #0F1213;
+      }
+      [data-composition-id="beat-5"] .b5-comp-thumb {
+        margin-top: 18px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 14px;
+        background: #F9FAFB;
+        border: 2px solid #225656;
+        border-radius: 10px;
+        outline: 0px solid rgba(34,86,86,0.0);
+      }
+      [data-composition-id="beat-5"] .b5-comp-icon {
+        width: 56px;
+        height: 70px;
+        background: #FFFFFF;
+        border: 1px solid #DBDFE0;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+      }
+      [data-composition-id="beat-5"] .b5-comp-meta {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        color: #6C6F71;
+      }
+      [data-composition-id="beat-5"] .b5-modal-cta {
+        margin-top: 18px;
+        background: #225656;
+        color: #FFFFFF;
+        text-align: center;
+        padding: 14px;
+        border-radius: 6px;
+        font-family: 'Saira Condensed', sans-serif;
+        font-weight: 700;
+        font-size: 16px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      /* DER */
+      [data-composition-id="beat-5"] .b5-right {
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: 50%;
+        height: 100%;
+        opacity: 0;
+      }
+      [data-composition-id="beat-5"] .b5-cobros {
+        position: absolute;
+        right: 80px;
+        top: 110px;
+        width: 720px;
+      }
+      [data-composition-id="beat-5"] .b5-table { display: flex; flex-direction: column; }
+      [data-composition-id="beat-5"] .b5-trow {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1.4fr 0.8fr;
+        align-items: center;
+        gap: 14px;
+        padding: 18px 0;
+        border-top: 1px solid #DBDFE0;
+        font-size: 14px;
+      }
+      [data-composition-id="beat-5"] .b5-tcol-fecha,
+      [data-composition-id="beat-5"] .b5-tcol-monto {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 14px;
+        color: #0F1213;
+        font-feature-settings: "tnum" 1;
+      }
+      [data-composition-id="beat-5"] .b5-tcol-status { position: relative; }
+      [data-composition-id="beat-5"] .b5-cobro-badge {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        padding: 6px 12px;
+        border-radius: 999px;
+        text-transform: uppercase;
+      }
+      [data-composition-id="beat-5"] .b5-cobro-pending {
+        background: #FFF6E5;
+        color: #9F7849;
+        border: 1px solid #9F7849;
+      }
+      [data-composition-id="beat-5"] .b5-cobro-confirmed {
+        background: #E7F6ED;
+        color: #308639;
+        border: 1px solid #308639;
+        position: absolute;
+        left: 0;
+        opacity: 0;
+      }
+      [data-composition-id="beat-5"] .b5-cobro-confirmed-static {
+        background: #E7F6ED;
+        color: #308639;
+        border: 1px solid #308639;
+      }
+      [data-composition-id="beat-5"] .b5-tcol-action {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        color: #FFFFFF;
+        background: #225656;
+        padding: 8px 14px;
+        border-radius: 6px;
+        text-align: center;
+        text-transform: uppercase;
+      }
+      [data-composition-id="beat-5"] .b5-tcol-action-disabled {
+        background: transparent;
+        color: #BBBEBF;
+        text-align: right;
+      }
+
+      [data-composition-id="beat-5"] .b5-cursor {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 18px;
+        height: 24px;
+        background: #0F1213;
+        clip-path: polygon(0 0, 0 100%, 36% 75%, 60% 100%, 75% 95%, 50% 60%, 100% 60%);
+        opacity: 0;
+        pointer-events: none;
+      }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      // Frame in
+      tl.to('[data-composition-id="beat-5"] .b5-divider',
+        { scaleY: 1, duration: 0.5, ease: 'power2.out' }, 0.1);
+      tl.fromTo('[data-composition-id="beat-5"] .b5-meta-left',
+        { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.2);
+      tl.fromTo('[data-composition-id="beat-5"] .b5-meta-right',
+        { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.25);
+
+      // 5a: estado de cuenta in
+      tl.fromTo('[data-composition-id="beat-5"] .b5-cuenta',
+        { x: -40, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.6, ease: 'power3.out' }, 0.3);
+
+      // 5b: modal pago in (~3s)
+      tl.fromTo('[data-composition-id="beat-5"] .b5-modal',
+        { y: 30, opacity: 0, scale: 0.92 },
+        { y: 0, opacity: 1, scale: 1, duration: 0.55, ease: 'back.out(1.5)' }, 2.6);
+      // Pulse en thumb comprobante
+      tl.fromTo('[data-composition-id="beat-5"] .b5-comp-thumb',
+        { boxShadow: '0 0 0 0 rgba(34,86,86,0.0)' },
+        { boxShadow: '0 0 0 12px rgba(34,86,86,0.18)', duration: 0.5, yoyo: true, repeat: 2, ease: 'sine.inOut' }, 3.2);
+
+      // 5c: side derecho in (~4.2s)
+      tl.fromTo('[data-composition-id="beat-5"] .b5-right',
+        { x: 40, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.6, ease: 'power3.out' }, 4.2);
+
+      // Cursor synth move + click confirma (5.0–5.6s)
+      tl.fromTo('[data-composition-id="beat-5"] .b5-cursor',
+        { left: '70%', top: '60%', opacity: 0 },
+        { left: '78%', top: '34%', opacity: 1, duration: 0.4, ease: 'power2.out' }, 5.0);
+      tl.to('[data-composition-id="beat-5"] .b5-cursor',
+        { scale: 0.85, duration: 0.1, yoyo: true, repeat: 1, ease: 'power2.inOut' }, 5.45);
+
+      // Badge change pendiente → confirmado (5.6s)
+      tl.to('[data-composition-id="beat-5"] .b5-cobro-pending',
+        { opacity: 0, duration: 0.3, ease: 'power2.in' }, 5.55);
+      tl.fromTo('[data-composition-id="beat-5"] .b5-cobro-confirmed',
+        { opacity: 0, scale: 0.85 },
+        { opacity: 1, scale: 1, duration: 0.4, ease: 'back.out(1.6)' }, 5.7);
+
+      // Mensualidad mirror change
+      tl.to('[data-composition-id="beat-5"] .b5-mens-pendiente',
+        { opacity: 0, duration: 0.3, ease: 'power2.in' }, 5.55);
+      tl.fromTo('[data-composition-id="beat-5"] .b5-mens-pagada',
+        { opacity: 0, scale: 0.85 },
+        { opacity: 1, scale: 1, duration: 0.4, ease: 'back.out(1.6)' }, 5.7);
+
+      // Cursor fade
+      tl.to('[data-composition-id="beat-5"] .b5-cursor',
+        { opacity: 0, duration: 0.3, ease: 'power2.in' }, 6.2);
+
+      window.__timelines["beat-5"] = tl;
+    </script>
+  </div>
+</template>

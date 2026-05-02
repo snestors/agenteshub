@@ -1,0 +1,207 @@
+<template id="beat-6-template">
+  <div data-composition-id="beat-6" data-width="1920" data-height="1080" data-start="0" data-duration="14.58">
+    <div class="b6-root">
+      <div class="b6-rule b6-rule-top"></div>
+      <div class="b6-rule b6-rule-bottom"></div>
+
+      <div class="b6-meta b6-meta-left">IMPULSO · DEPORTIVO</div>
+      <div class="b6-meta b6-meta-right">2026.05</div>
+
+      <!-- Sub-beat 6a: chips tachados -->
+      <div class="b6-strikes">
+        <div class="b6-strike b6-strike-1">
+          <span class="b6-strike-text">EXCEL SUELTOS</span>
+          <svg class="b6-line" viewBox="0 0 320 40" preserveAspectRatio="none">
+            <path d="M 12 32 L 308 8" fill="none" stroke="#9F7849" stroke-width="3" stroke-linecap="round" />
+          </svg>
+        </div>
+        <div class="b6-strike b6-strike-2">
+          <span class="b6-strike-text">CAPTURAS WHATSAPP</span>
+          <svg class="b6-line" viewBox="0 0 360 40" preserveAspectRatio="none">
+            <path d="M 12 32 L 348 8" fill="none" stroke="#9F7849" stroke-width="3" stroke-linecap="round" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- Sub-beat 6b: logo + tagline -->
+      <div class="b6-final">
+        <img class="b6-logo" src="../capture/assets/impulso-logo-black.png" alt="Impulso Deportivo" />
+        <div class="b6-tagline-1">TODA TU ACADEMIA,</div>
+        <div class="b6-tagline-2">EN UN SOLO <span class="b6-italic">panel.</span></div>
+        <div class="b6-url">IMPULSODEPORTIVO.COM</div>
+      </div>
+    </div>
+
+    <style>
+      [data-composition-id="beat-6"] {
+        position: absolute; inset: 0;
+        background: #FFFFFF;
+        font-family: 'Saira Condensed', 'Impact', sans-serif;
+        color: #0F1213;
+        overflow: hidden;
+      }
+      [data-composition-id="beat-6"] .b6-root { position: absolute; inset: 0; }
+      [data-composition-id="beat-6"] .b6-rule {
+        position: absolute;
+        left: 80px;
+        right: 80px;
+        height: 1px;
+        background: #DBDFE0;
+        transform-origin: left center;
+        transform: scaleX(0);
+      }
+      [data-composition-id="beat-6"] .b6-rule-top { top: 80px; }
+      [data-composition-id="beat-6"] .b6-rule-bottom { bottom: 80px; }
+      [data-composition-id="beat-6"] .b6-meta {
+        position: absolute;
+        top: 60px;
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 12px;
+        font-weight: 500;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #6C6F71;
+        opacity: 0;
+      }
+      [data-composition-id="beat-6"] .b6-meta-left { left: 80px; }
+      [data-composition-id="beat-6"] .b6-meta-right { right: 80px; }
+
+      /* Strikes */
+      [data-composition-id="beat-6"] .b6-strikes {
+        position: absolute;
+        left: 0; right: 0; top: 0; bottom: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 28px;
+      }
+      [data-composition-id="beat-6"] .b6-strike {
+        position: relative;
+        font-family: 'Saira Condensed', sans-serif;
+        font-weight: 800;
+        font-size: 92px;
+        text-transform: uppercase;
+        color: #6C6F71;
+        opacity: 0;
+        padding: 0 24px;
+        letter-spacing: -0.005em;
+      }
+      [data-composition-id="beat-6"] .b6-line {
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 100%;
+        height: 40px;
+        pointer-events: none;
+      }
+      [data-composition-id="beat-6"] .b6-line path {
+        stroke-dasharray: 600;
+        stroke-dashoffset: 600;
+      }
+
+      /* Final */
+      [data-composition-id="beat-6"] .b6-final {
+        position: absolute;
+        left: 0; right: 0; top: 0; bottom: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 28px;
+        opacity: 0;
+      }
+      [data-composition-id="beat-6"] .b6-logo {
+        height: 76px;
+        opacity: 0;
+        object-fit: contain;
+      }
+      [data-composition-id="beat-6"] .b6-tagline-1,
+      [data-composition-id="beat-6"] .b6-tagline-2 {
+        font-family: 'Saira Condensed', sans-serif;
+        font-weight: 700;
+        font-size: 56px;
+        text-transform: uppercase;
+        color: #0F1213;
+        line-height: 1.05;
+        opacity: 0;
+        letter-spacing: -0.005em;
+      }
+      [data-composition-id="beat-6"] .b6-italic {
+        font-style: italic;
+        font-weight: 600;
+        text-transform: lowercase;
+        color: #225656;
+      }
+      [data-composition-id="beat-6"] .b6-url {
+        margin-top: 12px;
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 16px;
+        font-weight: 500;
+        letter-spacing: 0.18em;
+        color: #6C6F71;
+        text-transform: uppercase;
+        opacity: 0;
+      }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      // Frame
+      tl.to('[data-composition-id="beat-6"] .b6-rule-top',
+        { scaleX: 1, duration: 0.5, ease: 'power2.out' }, 0.1);
+      tl.to('[data-composition-id="beat-6"] .b6-rule-bottom',
+        { scaleX: 1, duration: 0.5, ease: 'power2.out' }, 0.2);
+      tl.fromTo('[data-composition-id="beat-6"] .b6-meta-left',
+        { opacity: 0 }, { opacity: 1, duration: 0.4 }, 0.3);
+      tl.fromTo('[data-composition-id="beat-6"] .b6-meta-right',
+        { opacity: 0 }, { opacity: 1, duration: 0.4 }, 0.35);
+
+      // Sub-beat 6a: strikes
+      tl.fromTo('[data-composition-id="beat-6"] .b6-strike-1',
+        { y: 20, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.5, ease: 'power3.out' }, 0.5);
+      tl.to('[data-composition-id="beat-6"] .b6-strike-1 path',
+        { strokeDashoffset: 0, duration: 0.45, ease: 'power2.out' }, 1.2);
+
+      tl.fromTo('[data-composition-id="beat-6"] .b6-strike-2',
+        { y: 20, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.5, ease: 'power3.out' }, 1.6);
+      tl.to('[data-composition-id="beat-6"] .b6-strike-2 path',
+        { strokeDashoffset: 0, duration: 0.45, ease: 'power2.out' }, 2.3);
+
+      // Strikes fade out
+      tl.to('[data-composition-id="beat-6"] .b6-strikes',
+        { opacity: 0, y: -30, duration: 0.5, ease: 'power2.in' }, 4.6);
+      tl.set('[data-composition-id="beat-6"] .b6-strikes',
+        { visibility: 'hidden' }, 5.15);
+
+      // Sub-beat 6b: logo + tagline
+      tl.fromTo('[data-composition-id="beat-6"] .b6-final',
+        { opacity: 0 },
+        { opacity: 1, duration: 0.5, ease: 'power2.out' }, 5.0);
+      tl.fromTo('[data-composition-id="beat-6"] .b6-logo',
+        { y: 30, opacity: 0, scale: 0.95 },
+        { y: 0, opacity: 1, scale: 1, duration: 0.7, ease: 'power3.out' }, 5.2);
+      tl.fromTo('[data-composition-id="beat-6"] .b6-tagline-1',
+        { y: 24, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.5, ease: 'power3.out' }, 5.9);
+      tl.fromTo('[data-composition-id="beat-6"] .b6-tagline-2',
+        { y: 24, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.5, ease: 'power3.out' }, 6.3);
+      tl.fromTo('[data-composition-id="beat-6"] .b6-url',
+        { opacity: 0 },
+        { opacity: 1, duration: 0.5, ease: 'power2.out' }, 7.0);
+
+      // Subtle logo breath until end
+      tl.to('[data-composition-id="beat-6"] .b6-logo',
+        { scale: 1.02, duration: 1.5, yoyo: true, repeat: 3, ease: 'sine.inOut' }, 8.0);
+
+      window.__timelines["beat-6"] = tl;
+    </script>
+  </div>
+</template>

@@ -1,0 +1,56 @@
+{
+  "summary": {
+    "webAnimations": 1,
+    "cssDeclarations": 11,
+    "scrollTargets": 0,
+    "cdpAnimations": 1,
+    "canvases": 0
+  },
+  "namedAnimations": [
+    "lp-fade-up"
+  ],
+  "scrollTriggeredElements": 0,
+  "representativeAnimations": [
+    {
+      "type": "CSSAnimation",
+      "playState": "finished",
+      "animationName": "lp-fade-up",
+      "targetSelector": "section.lp-section.lp-fade",
+      "targetRect": {
+        "x": 360,
+        "y": 61,
+        "width": 1200,
+        "height": 871.171875,
+        "top": 61,
+        "right": 1560,
+        "bottom": 932.171875,
+        "left": 360
+      },
+      "keyframes": [
+        {
+          "offset": 0,
+          "easing": "ease-out",
+          "composite": "auto",
+          "opacity": "0",
+          "transform": "translateY(8px)",
+          "computedOffset": 0
+        },
+        {
+          "offset": 1,
+          "easing": "ease-out",
+          "composite": "auto",
+          "opacity": "1",
+          "transform": "translateY(0px)",
+          "computedOffset": 1
+        }
+      ],
+      "timing": {
+        "duration": 500,
+        "delay": 0,
+        "iterations": 1,
+        "easing": "linear",
+        "direction": "normal"
+      }
+    }
+  ]
+}

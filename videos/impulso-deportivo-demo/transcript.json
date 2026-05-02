@@ -1,0 +1,557 @@
+[
+  {
+    "text": "Una",
+    "start": 0.15,
+    "end": 0.22
+  },
+  {
+    "text": "cadaemia",
+    "start": 0.22,
+    "end": 0.82
+  },
+  {
+    "text": "de",
+    "start": 0.82,
+    "end": 0.97
+  },
+  {
+    "text": "portiva",
+    "start": 0.97,
+    "end": 1.5
+  },
+  {
+    "text": "no",
+    "start": 1.5,
+    "end": 1.6
+  },
+  {
+    "text": "se",
+    "start": 1.68,
+    "end": 1.8
+  },
+  {
+    "text": "hestiona",
+    "start": 1.8,
+    "end": 2.4
+  },
+  {
+    "text": "en",
+    "start": 2.4,
+    "end": 2.55
+  },
+  {
+    "text": "un",
+    "start": 2.55,
+    "end": 2.7
+  },
+  {
+    "text": "cuaderno.",
+    "start": 2.7,
+    "end": 3.64
+  },
+  {
+    "text": "Impulso",
+    "start": 3.8,
+    "end": 4.05
+  },
+  {
+    "text": "de",
+    "start": 4.08,
+    "end": 4.18
+  },
+  {
+    "text": "portivo",
+    "start": 4.18,
+    "end": 4.6
+  },
+  {
+    "text": "es",
+    "start": 4.6,
+    "end": 4.66
+  },
+  {
+    "text": "la",
+    "start": 4.75,
+    "end": 4.84
+  },
+  {
+    "text": "platforma",
+    "start": 4.84,
+    "end": 5.44
+  },
+  {
+    "text": "que",
+    "start": 5.44,
+    "end": 5.66
+  },
+  {
+    "text": "re",
+    "start": 5.66,
+    "end": 5.81
+  },
+  {
+    "text": "una",
+    "start": 5.81,
+    "end": 6.03
+  },
+  {
+    "text": "todo",
+    "start": 6.03,
+    "end": 6.33
+  },
+  {
+    "text": "en",
+    "start": 6.33,
+    "end": 6.48
+  },
+  {
+    "text": "un",
+    "start": 6.48,
+    "end": 6.57
+  },
+  {
+    "text": "solo",
+    "start": 6.57,
+    "end": 6.93
+  },
+  {
+    "text": "lugar,",
+    "start": 6.93,
+    "end": 7.34
+  },
+  {
+    "text": "aluminos,",
+    "start": 7.47,
+    "end": 7.99
+  },
+  {
+    "text": "assistencia,",
+    "start": 7.99,
+    "end": 8.84
+  },
+  {
+    "text": "pagos",
+    "start": 8.84,
+    "end": 9.42
+  },
+  {
+    "text": "tí",
+    "start": 9.42,
+    "end": 9.76
+  },
+  {
+    "text": "reportes.",
+    "start": 9.76,
+    "end": 11.1
+  },
+  {
+    "text": "Desde",
+    "start": 11.26,
+    "end": 11.4
+  },
+  {
+    "text": "el",
+    "start": 11.4,
+    "end": 11.45
+  },
+  {
+    "text": "panel",
+    "start": 11.54,
+    "end": 11.82
+  },
+  {
+    "text": "del",
+    "start": 11.82,
+    "end": 11.95
+  },
+  {
+    "text": "doño,",
+    "start": 12.04,
+    "end": 12.46
+  },
+  {
+    "text": "inditas",
+    "start": 12.46,
+    "end": 12.92
+  },
+  {
+    "text": "a",
+    "start": 12.92,
+    "end": 13.02
+  },
+  {
+    "text": "tus",
+    "start": 13.02,
+    "end": 13.18
+  },
+  {
+    "text": "profesiar",
+    "start": 13.18,
+    "end": 13.84
+  },
+  {
+    "text": "más",
+    "start": 13.84,
+    "end": 14.01
+  },
+  {
+    "text": "tus",
+    "start": 14.1,
+    "end": 14.22
+  },
+  {
+    "text": "groupos",
+    "start": 14.47,
+    "end": 14.58
+  },
+  {
+    "text": "con",
+    "start": 14.58,
+    "end": 14.94
+  },
+  {
+    "text": "un",
+    "start": 14.94,
+    "end": 15.04
+  },
+  {
+    "text": "arios",
+    "start": 15.1,
+    "end": 15.55
+  },
+  {
+    "text": "reales.",
+    "start": 15.56,
+    "end": 16.48
+  },
+  {
+    "text": "Tus",
+    "start": 16.48,
+    "end": 16.49
+  },
+  {
+    "text": "profisció",
+    "start": 16.51,
+    "end": 16.8
+  },
+  {
+    "text": "man",
+    "start": 16.8,
+    "end": 16.98
+  },
+  {
+    "text": "assistencia",
+    "start": 16.99,
+    "end": 17.7
+  },
+  {
+    "text": "de",
+    "start": 17.7,
+    "end": 17.83
+  },
+  {
+    "text": "es",
+    "start": 17.83,
+    "end": 17.95
+  },
+  {
+    "text": "del",
+    "start": 17.95,
+    "end": 18.08
+  },
+  {
+    "text": "cellular",
+    "start": 18.17,
+    "end": 18.68
+  },
+  {
+    "text": "y",
+    "start": 18.68,
+    "end": 18.74
+  },
+  {
+    "text": "que",
+    "start": 18.74,
+    "end": 18.92
+  },
+  {
+    "text": "da",
+    "start": 18.99,
+    "end": 19.05
+  },
+  {
+    "text": "registrado",
+    "start": 19.05,
+    "end": 19.8
+  },
+  {
+    "text": "a",
+    "start": 19.8,
+    "end": 19.91
+  },
+  {
+    "text": "linstante.",
+    "start": 19.91,
+    "end": 21.26
+  },
+  {
+    "text": "Los",
+    "start": 21.42,
+    "end": 21.46
+  },
+  {
+    "text": "a",
+    "start": 21.46,
+    "end": 21.52
+  },
+  {
+    "text": "poderados",
+    "start": 21.52,
+    "end": 22.11
+  },
+  {
+    "text": "ven",
+    "start": 22.11,
+    "end": 22.28
+  },
+  {
+    "text": "el",
+    "start": 22.37,
+    "end": 22.45
+  },
+  {
+    "text": "estado",
+    "start": 22.45,
+    "end": 22.85
+  },
+  {
+    "text": "de",
+    "start": 22.85,
+    "end": 22.98
+  },
+  {
+    "text": "cuenta",
+    "start": 22.98,
+    "end": 23.38
+  },
+  {
+    "text": "de",
+    "start": 23.38,
+    "end": 23.51
+  },
+  {
+    "text": "sus",
+    "start": 23.51,
+    "end": 23.7
+  },
+  {
+    "text": "hijos,",
+    "start": 23.77,
+    "end": 24.16
+  },
+  {
+    "text": "pagan",
+    "start": 24.22,
+    "end": 24.46
+  },
+  {
+    "text": "con",
+    "start": 24.46,
+    "end": 24.64
+  },
+  {
+    "text": "photo",
+    "start": 24.64,
+    "end": 24.95
+  },
+  {
+    "text": "del",
+    "start": 24.95,
+    "end": 25.13
+  },
+  {
+    "text": "con",
+    "start": 25.13,
+    "end": 25.31
+  },
+  {
+    "text": "provante,",
+    "start": 25.31,
+    "end": 25.96
+  },
+  {
+    "text": "y",
+    "start": 25.96,
+    "end": 25.98
+  },
+  {
+    "text": "boz",
+    "start": 26.08,
+    "end": 26.29
+  },
+  {
+    "text": "confirmas",
+    "start": 26.29,
+    "end": 27.07
+  },
+  {
+    "text": "de",
+    "start": 27.07,
+    "end": 27.09
+  },
+  {
+    "text": "un",
+    "start": 27.09,
+    "end": 27.42
+  },
+  {
+    "text": "clique.",
+    "start": 27.42,
+    "end": 28.28
+  },
+  {
+    "text": "Sin",
+    "start": 28.44,
+    "end": 28.54
+  },
+  {
+    "text": "excel",
+    "start": 28.54,
+    "end": 28.98
+  },
+  {
+    "text": "sueltos,",
+    "start": 28.98,
+    "end": 29.75
+  },
+  {
+    "text": "sin",
+    "start": 29.75,
+    "end": 30.01
+  },
+  {
+    "text": "capturas",
+    "start": 30.01,
+    "end": 30.71
+  },
+  {
+    "text": "perdidas",
+    "start": 30.71,
+    "end": 31.2
+  },
+  {
+    "text": "en",
+    "start": 31.2,
+    "end": 32.01
+  },
+  {
+    "text": "whatsapp.",
+    "start": 32.01,
+    "end": 33.08
+  },
+  {
+    "text": "Todato",
+    "start": 33.24,
+    "end": 35.38
+  },
+  {
+    "text": "a",
+    "start": 35.38,
+    "end": 35.4
+  },
+  {
+    "text": "cadaemia",
+    "start": 35.4,
+    "end": 35.52
+  },
+  {
+    "text": "en",
+    "start": 35.59,
+    "end": 35.61
+  },
+  {
+    "text": "un",
+    "start": 35.61,
+    "end": 35.65
+  },
+  {
+    "text": "solo",
+    "start": 35.65,
+    "end": 35.74
+  },
+  {
+    "text": "panel.",
+    "start": 35.74,
+    "end": 35.98
+  },
+  {
+    "text": "Impulso",
+    "start": 36.14,
+    "end": 36.82
+  },
+  {
+    "text": "de",
+    "start": 36.82,
+    "end": 37
+  },
+  {
+    "text": "portivo,",
+    "start": 37.09,
+    "end": 38.16
+  },
+  {
+    "text": "la",
+    "start": 38.16,
+    "end": 38.29
+  },
+  {
+    "text": "platforma",
+    "start": 38.29,
+    "end": 38.89
+  },
+  {
+    "text": "para",
+    "start": 38.89,
+    "end": 38.91
+  },
+  {
+    "text": "a",
+    "start": 38.91,
+    "end": 39.22
+  },
+  {
+    "text": "cadaemia",
+    "start": 39.22,
+    "end": 39.8
+  },
+  {
+    "text": "es",
+    "start": 39.82,
+    "end": 39.9
+  },
+  {
+    "text": "que",
+    "start": 39.9,
+    "end": 40.05
+  },
+  {
+    "text": "quieren",
+    "start": 40.05,
+    "end": 40.4
+  },
+  {
+    "text": "dejar",
+    "start": 40.4,
+    "end": 40.64
+  },
+  {
+    "text": "de",
+    "start": 40.65,
+    "end": 40.75
+  },
+  {
+    "text": "improvisar.",
+    "start": 40.75,
+    "end": 41.48
+  }
+]

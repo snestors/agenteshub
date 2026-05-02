@@ -1,0 +1,266 @@
+<template id="beat-3-template">
+  <div data-composition-id="beat-3" data-width="1920" data-height="1080" data-start="0" data-duration="5.30">
+    <div class="b3-root">
+      <div class="b3-meta">PANEL ACADEMIA · OWNER</div>
+
+      <!-- Sub-beat 3a: Modal invitar profe -->
+      <div class="b3-3a">
+        <img class="b3-modal" src="../capture/screenshots/auth/panel-profesores-invitar-modal.png" alt="Modal invitar profe" />
+        <img class="b3-cameo b3-cameo-l" src="../capture/screenshots/auth/panel-academia-dashboard.png" alt="" />
+        <img class="b3-cameo b3-cameo-r" src="../capture/screenshots/auth/panel-academia-alumnos.png" alt="" />
+        <div class="b3-tag b3-tag-1">+ INVITAR</div>
+        <div class="b3-tag b3-tag-2">LINK GENERADO</div>
+      </div>
+
+      <!-- Sub-beat 3b: grupo + horarios -->
+      <div class="b3-3b">
+        <div class="b3-grid-wrap">
+          <div class="b3-grid-title">VÓLEY M-15 · HORARIOS</div>
+          <div class="b3-grid">
+            <div class="b3-day">LUN</div>
+            <div class="b3-day">MAR</div>
+            <div class="b3-day">MIÉ</div>
+            <div class="b3-day">JUE</div>
+            <div class="b3-day">VIE</div>
+            <div class="b3-day">SÁB</div>
+            <div class="b3-day">DOM</div>
+
+            <div class="b3-cell"></div>
+            <div class="b3-cell b3-cell-active b3-cell-1">19:00<br>20:30</div>
+            <div class="b3-cell"></div>
+            <div class="b3-cell b3-cell-active b3-cell-2">19:00<br>20:30</div>
+            <div class="b3-cell"></div>
+            <div class="b3-cell b3-cell-active b3-cell-3">10:00<br>11:30</div>
+            <div class="b3-cell"></div>
+
+            <div class="b3-cell"></div>
+            <div class="b3-cell"></div>
+            <div class="b3-cell b3-cell-active b3-cell-4">19:00<br>20:30</div>
+            <div class="b3-cell"></div>
+            <div class="b3-cell"></div>
+            <div class="b3-cell"></div>
+            <div class="b3-cell"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="b3-headline">INVITÁ. ARMÁ. <span class="b3-italic">listo.</span></div>
+    </div>
+
+    <style>
+      [data-composition-id="beat-3"] {
+        position: absolute; inset: 0;
+        background: #F9FAFB;
+        font-family: 'Space Grotesk', system-ui, sans-serif;
+        color: #0F1213;
+        overflow: hidden;
+      }
+      [data-composition-id="beat-3"] .b3-root { position: absolute; inset: 0; }
+      [data-composition-id="beat-3"] .b3-meta {
+        position: absolute;
+        top: 56px;
+        left: 120px;
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 12px;
+        font-weight: 500;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #6C6F71;
+        opacity: 0;
+      }
+      [data-composition-id="beat-3"] .b3-headline {
+        position: absolute;
+        top: 110px;
+        left: 120px;
+        font-family: 'Saira Condensed', 'Impact', sans-serif;
+        font-weight: 800;
+        font-size: 88px;
+        line-height: 1.0;
+        text-transform: uppercase;
+        color: #0F1213;
+        opacity: 0;
+      }
+      [data-composition-id="beat-3"] .b3-italic {
+        font-style: italic;
+        font-weight: 600;
+        text-transform: lowercase;
+        color: #225656;
+      }
+
+      /* 3a — modal centrado */
+      [data-composition-id="beat-3"] .b3-3a {
+        position: absolute;
+        inset: 0;
+      }
+      [data-composition-id="beat-3"] .b3-modal {
+        position: absolute;
+        left: 50%;
+        top: 320px;
+        margin-left: -460px;
+        width: 920px;
+        border: 1px solid #DBDFE0;
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(15,18,19,0.08);
+        opacity: 0;
+        background: #FFFFFF;
+      }
+      [data-composition-id="beat-3"] .b3-cameo {
+        position: absolute;
+        width: 280px;
+        border: 1px solid #DBDFE0;
+        border-radius: 8px;
+        opacity: 0;
+        background: #FFFFFF;
+      }
+      [data-composition-id="beat-3"] .b3-cameo-l {
+        left: 60px;
+        top: 380px;
+        transform: rotate(-4deg);
+      }
+      [data-composition-id="beat-3"] .b3-cameo-r {
+        right: 60px;
+        top: 380px;
+        transform: rotate(3deg);
+      }
+      [data-composition-id="beat-3"] .b3-tag {
+        position: absolute;
+        background: #225656;
+        color: #FFFFFF;
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        padding: 8px 16px;
+        border-radius: 4px;
+        opacity: 0;
+        text-transform: uppercase;
+      }
+      [data-composition-id="beat-3"] .b3-tag-1 {
+        left: 50%;
+        top: 280px;
+        margin-left: -80px;
+      }
+      [data-composition-id="beat-3"] .b3-tag-2 {
+        left: 50%;
+        bottom: 220px;
+        margin-left: -100px;
+      }
+
+      /* 3b — schedule grid */
+      [data-composition-id="beat-3"] .b3-3b {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+      }
+      [data-composition-id="beat-3"] .b3-grid-wrap {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        background: #FFFFFF;
+        border: 1px solid #DBDFE0;
+        border-radius: 12px;
+        padding: 56px 64px;
+        width: 1200px;
+      }
+      [data-composition-id="beat-3"] .b3-grid-title {
+        font-family: 'Saira Condensed', 'Impact', sans-serif;
+        font-weight: 700;
+        font-size: 36px;
+        text-transform: uppercase;
+        margin-bottom: 36px;
+        color: #0F1213;
+        text-align: center;
+      }
+      [data-composition-id="beat-3"] .b3-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 12px;
+      }
+      [data-composition-id="beat-3"] .b3-day {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        color: #6C6F71;
+        text-transform: uppercase;
+        text-align: center;
+        padding: 10px 0;
+        border-bottom: 1px solid #DBDFE0;
+      }
+      [data-composition-id="beat-3"] .b3-cell {
+        height: 90px;
+        background: #F0F2F3;
+        border-radius: 6px;
+      }
+      [data-composition-id="beat-3"] .b3-cell-active {
+        background: #225656;
+        color: #FFFFFF;
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.2;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        opacity: 0;
+        transform: scale(0.7);
+      }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      tl.fromTo('[data-composition-id="beat-3"] .b3-meta',
+        { y: 10, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.4, ease: 'power2.out' }, 0.05);
+      tl.fromTo('[data-composition-id="beat-3"] .b3-headline',
+        { y: 30, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.6, ease: 'power3.out' }, 0.15);
+
+      // 3a appears
+      tl.fromTo('[data-composition-id="beat-3"] .b3-modal',
+        { y: 40, opacity: 0, scale: 0.95 },
+        { y: 0, opacity: 1, scale: 1, duration: 0.6, ease: 'power2.out' }, 0.4);
+      tl.fromTo('[data-composition-id="beat-3"] .b3-cameo-l',
+        { x: -40, opacity: 0, rotation: -4 },
+        { x: 0, opacity: 0.5, rotation: -4, duration: 0.7, ease: 'power2.out' }, 0.55);
+      tl.fromTo('[data-composition-id="beat-3"] .b3-cameo-r',
+        { x: 40, opacity: 0, rotation: 3 },
+        { x: 0, opacity: 0.5, rotation: 3, duration: 0.7, ease: 'power2.out' }, 0.7);
+
+      tl.fromTo('[data-composition-id="beat-3"] .b3-tag-1',
+        { y: 10, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.4, ease: 'back.out(1.4)' }, 1.1);
+      tl.fromTo('[data-composition-id="beat-3"] .b3-tag-2',
+        { y: 10, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.4, ease: 'back.out(1.4)' }, 1.6);
+
+      // 3a fade out + 3b enters at ~2.6s
+      tl.to('[data-composition-id="beat-3"] .b3-3a',
+        { opacity: 0, duration: 0.35, ease: 'power2.in' }, 2.6);
+      tl.set('[data-composition-id="beat-3"] .b3-3a',
+        { visibility: 'hidden' }, 2.95);
+
+      tl.fromTo('[data-composition-id="beat-3"] .b3-3b',
+        { opacity: 0 },
+        { opacity: 1, duration: 0.4, ease: 'power2.out' }, 2.85);
+      tl.fromTo('[data-composition-id="beat-3"] .b3-grid-wrap',
+        { y: 30, scale: 0.95 },
+        { y: 0, scale: 1, duration: 0.6, ease: 'power3.out' }, 2.9);
+
+      // Cells cascade
+      const cells = ['b3-cell-1', 'b3-cell-2', 'b3-cell-3', 'b3-cell-4'];
+      cells.forEach((c, i) => {
+        tl.fromTo(`[data-composition-id="beat-3"] .${c}`,
+          { scale: 0.7, opacity: 0 },
+          { scale: 1, opacity: 1, duration: 0.4, ease: 'back.out(1.5)' }, 3.5 + i * 0.18);
+      });
+
+      window.__timelines["beat-3"] = tl;
+    </script>
+  </div>
+</template>

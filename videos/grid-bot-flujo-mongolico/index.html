@@ -1,0 +1,871 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      :root {
+        --bg: #0b0d10;
+        --bg2: #14171c;
+        --panel: #1a1d23;
+        --panel2: #22262e;
+        --fg: #f5f7fa;
+        --dim: #9aa3b2;
+        --muted: #5a6473;
+        --green: #22c55e;
+        --green-bright: #4ade80;
+        --red: #ef4444;
+        --red-bright: #f87171;
+        --yellow: #facc15;
+        --grid-line: rgba(255, 255, 255, 0.04);
+        --grid-line-strong: rgba(255, 255, 255, 0.08);
+      }
+      html, body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 20% 20%, rgba(34, 197, 94, 0.08), transparent 40%),
+          radial-gradient(circle at 80% 80%, rgba(239, 68, 68, 0.06), transparent 40%),
+          linear-gradient(180deg, #14171c 0%, #0b0d10 100%);
+        color: var(--fg);
+        font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+      }
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image:
+          linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+          linear-gradient(0deg, var(--grid-line) 1px, transparent 1px);
+        background-size: 80px 80px;
+        opacity: 0.5;
+        pointer-events: none;
+      }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; }
+      .scene {
+        position: absolute; inset: 0; width: 100%; height: 100%;
+        padding: 80px 100px;
+        opacity: 0;
+        overflow: hidden;
+        display: flex; flex-direction: column; justify-content: center;
+      }
+      #scene-1 { opacity: 1; }
+      .topbar {
+        position: absolute; left: 80px; right: 80px; top: 40px;
+        display: flex; align-items: center; justify-content: space-between;
+        color: var(--muted); font-size: 18px; letter-spacing: 0.3em;
+        text-transform: uppercase; font-weight: 700;
+      }
+      .brand { color: var(--fg); font-weight: 900; letter-spacing: 0.4em; }
+      .brand span { color: var(--green); }
+      .status {
+        color: var(--green-bright);
+        padding: 6px 14px;
+        border: 1px solid rgba(34, 197, 94, 0.5);
+        background: rgba(34, 197, 94, 0.08);
+        font-size: 16px; letter-spacing: 0.2em;
+      }
+      .status.red {
+        color: var(--red-bright);
+        border-color: rgba(239, 68, 68, 0.5);
+        background: rgba(239, 68, 68, 0.08);
+      }
+      .footer {
+        position: absolute; left: 80px; right: 80px; bottom: 40px;
+        display: flex; justify-content: space-between;
+        color: var(--muted); font-size: 16px; letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+      .tag {
+        font-size: 22px; letter-spacing: 0.32em; text-transform: uppercase;
+        color: var(--green-bright); font-weight: 800;
+      }
+      .tag.red { color: var(--red-bright); }
+      .title {
+        font-size: 96px; line-height: 0.96; font-weight: 900;
+        letter-spacing: -0.035em; max-width: 1500px; color: var(--fg);
+      }
+      .title .green { color: var(--green-bright); }
+      .title .red { color: var(--red-bright); }
+      .subtitle {
+        margin-top: 32px; max-width: 1400px;
+        font-size: 38px; line-height: 1.35; color: var(--dim);
+      }
+      .big-text {
+        font-size: 72px; font-weight: 900; line-height: 1.05;
+        letter-spacing: -0.03em; color: var(--fg);
+      }
+      .big-text .green { color: var(--green-bright); }
+      .big-text .red { color: var(--red-bright); }
+      .center { text-align: center; align-items: center; }
+
+      /* ---- Scene 1: Problem — price oscillating ---- */
+      .price-chart {
+        position: relative; width: 100%; height: 540px;
+        background: var(--panel);
+        border: 1px solid rgba(255,255,255,0.05);
+        border-radius: 14px;
+        margin-top: 40px;
+        overflow: hidden;
+      }
+      .price-chart svg { width: 100%; height: 100%; }
+      .axis-line { stroke: rgba(255,255,255,0.06); stroke-width: 1; }
+      .price-line {
+        stroke: var(--fg); stroke-width: 4; fill: none;
+        filter: drop-shadow(0 0 10px rgba(245,247,250,0.25));
+      }
+      .price-dot { fill: var(--fg); }
+      .question {
+        position: absolute; left: 50%; top: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 56px; font-weight: 900; color: var(--fg);
+        text-align: center; opacity: 0;
+        background: rgba(11,13,16,0.92);
+        padding: 30px 60px;
+        border: 2px solid var(--yellow);
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+      }
+
+      /* ---- Scene 2: Grid lines ---- */
+      .grid-chart {
+        position: relative; width: 100%; height: 600px;
+        background: var(--panel);
+        border: 1px solid rgba(255,255,255,0.05);
+        border-radius: 14px;
+        margin-top: 30px;
+        overflow: hidden;
+      }
+      .grid-chart svg { width: 100%; height: 100%; }
+      .grid-line-buy {
+        stroke: var(--green); stroke-width: 3; stroke-dasharray: 14 10;
+        filter: drop-shadow(0 0 10px rgba(34,197,94,0.55));
+      }
+      .grid-line-sell {
+        stroke: var(--red); stroke-width: 3; stroke-dasharray: 14 10;
+        filter: drop-shadow(0 0 10px rgba(239,68,68,0.55));
+      }
+      .label-buy { fill: var(--green-bright); font-size: 24px; font-weight: 800; letter-spacing: 0.1em; }
+      .label-sell { fill: var(--red-bright); font-size: 24px; font-weight: 800; letter-spacing: 0.1em; }
+      .net-icon { font-size: 96px; }
+
+      /* ---- Scene 3: Cycle steps ---- */
+      .cycle-stage {
+        position: relative; width: 100%; height: 600px;
+        background: var(--panel);
+        border: 1px solid rgba(255,255,255,0.05);
+        border-radius: 14px;
+        margin-top: 24px;
+        overflow: hidden;
+      }
+      .cycle-stage svg { width: 100%; height: 100%; }
+      .step-banner {
+        position: absolute; left: 50%; transform: translateX(-50%);
+        bottom: 28px;
+        font-size: 36px; font-weight: 900;
+        padding: 20px 36px;
+        background: rgba(11,13,16,0.92);
+        border: 2px solid var(--green);
+        color: var(--green-bright);
+        border-radius: 10px;
+        opacity: 0;
+        white-space: nowrap;
+      }
+      .step-banner.red { border-color: var(--red); color: var(--red-bright); }
+      .flash-rect {
+        opacity: 0;
+      }
+      .cycle-counter {
+        position: absolute; right: 30px; top: 30px;
+        background: rgba(11,13,16,0.85);
+        border: 1px solid rgba(255,255,255,0.1);
+        padding: 14px 22px;
+        font-size: 28px; font-weight: 800;
+        color: var(--fg);
+        border-radius: 8px;
+      }
+      .cycle-counter .num { color: var(--green-bright); }
+
+      /* ---- Scene 4: Hedge mode ---- */
+      .hedge-grid {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 30px;
+        margin-top: 30px; height: 580px;
+      }
+      .hedge-side {
+        background: var(--panel);
+        border: 1px solid rgba(255,255,255,0.05);
+        border-radius: 14px;
+        position: relative;
+        overflow: hidden;
+        padding: 30px;
+        display: flex; flex-direction: column;
+      }
+      .hedge-side.long { border-color: rgba(34, 197, 94, 0.3); }
+      .hedge-side.short { border-color: rgba(239, 68, 68, 0.3); }
+      .hedge-title {
+        font-size: 38px; font-weight: 900;
+        letter-spacing: 0.1em; text-transform: uppercase;
+        margin-bottom: 16px;
+      }
+      .hedge-side.long .hedge-title { color: var(--green-bright); }
+      .hedge-side.short .hedge-title { color: var(--red-bright); }
+      .hedge-side svg { flex: 1; width: 100%; }
+      .hedge-result {
+        margin-top: 12px;
+        font-size: 32px; font-weight: 800;
+        text-align: center;
+        opacity: 0;
+      }
+      .hedge-side.long .hedge-result { color: var(--green-bright); }
+      .hedge-side.short .hedge-result { color: var(--red-bright); }
+
+      /* ---- Scene 5: TP defense phases ---- */
+      .phases-row {
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px;
+        margin-top: 40px;
+      }
+      .phase-card {
+        background: var(--panel);
+        border: 2px solid rgba(255,255,255,0.06);
+        border-radius: 14px;
+        padding: 50px 36px;
+        text-align: center;
+        position: relative;
+        height: 480px;
+        display: flex; flex-direction: column; justify-content: center;
+        align-items: center;
+        gap: 22px;
+      }
+      .phase-card.f1 { border-color: rgba(34, 197, 94, 0.4); }
+      .phase-card.f2 { border-color: rgba(250, 204, 21, 0.4); }
+      .phase-card.f3 { border-color: rgba(239, 68, 68, 0.4); }
+      .phase-circle {
+        width: 140px; height: 140px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 64px; font-weight: 900; color: #0b0d10;
+      }
+      .phase-card.f1 .phase-circle { background: var(--green-bright); box-shadow: 0 0 50px rgba(34,197,94,0.6); }
+      .phase-card.f2 .phase-circle { background: var(--yellow); box-shadow: 0 0 50px rgba(250,204,21,0.6); }
+      .phase-card.f3 .phase-circle { background: var(--red-bright); box-shadow: 0 0 50px rgba(239,68,68,0.6); }
+      .phase-time {
+        font-size: 22px; font-weight: 700; letter-spacing: 0.18em;
+        text-transform: uppercase; color: var(--dim);
+      }
+      .phase-name {
+        font-size: 32px; font-weight: 900; line-height: 1.18;
+        color: var(--fg);
+      }
+      .phase-card.f1 .phase-name { color: var(--green-bright); }
+      .phase-card.f2 .phase-name { color: var(--yellow); }
+      .phase-card.f3 .phase-name { color: var(--red-bright); }
+      .phase-desc {
+        font-size: 22px; color: var(--dim); line-height: 1.35;
+      }
+
+      /* ---- Scene 6: Supervisor ---- */
+      .super-layout {
+        display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 50px;
+        margin-top: 30px; height: 600px;
+      }
+      .brain-panel {
+        background: var(--panel);
+        border: 1px solid rgba(255,255,255,0.05);
+        border-radius: 14px;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        gap: 24px;
+        padding: 40px;
+      }
+      .brain-icon {
+        font-size: 200px; line-height: 1;
+      }
+      .brain-label {
+        font-size: 28px; font-weight: 800;
+        color: var(--green-bright); letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+      .super-feed {
+        display: flex; flex-direction: column; gap: 16px;
+      }
+      .feed-row {
+        background: var(--panel);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 10px;
+        padding: 22px 28px;
+        font-size: 26px;
+        display: flex; align-items: center; gap: 18px;
+        opacity: 0;
+      }
+      .feed-row .dot {
+        width: 14px; height: 14px; border-radius: 50%;
+        background: var(--yellow); flex-shrink: 0;
+      }
+      .feed-row.warn .dot { background: var(--red-bright); }
+      .feed-row.ok .dot { background: var(--green-bright); }
+      .feed-row b { color: var(--fg); font-weight: 800; }
+      .feed-row .desc { color: var(--dim); }
+      .super-callout {
+        margin-top: 20px;
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.18), rgba(34, 197, 94, 0.04));
+        border: 2px solid var(--green);
+        border-radius: 12px;
+        padding: 26px 32px;
+        font-size: 32px; font-weight: 800;
+        color: var(--fg);
+        text-align: center;
+      }
+      .super-callout span { color: var(--green-bright); }
+
+      /* ---- Scene 7: Dashboard ---- */
+      .dashboard {
+        display: grid; grid-template-columns: 1.4fr 1fr; gap: 30px;
+        margin-top: 30px; height: 620px;
+      }
+      .dash-left, .dash-right {
+        display: flex; flex-direction: column; gap: 22px;
+      }
+      .pairs-card {
+        background: var(--panel);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 14px;
+        padding: 36px 40px;
+        flex: 1;
+      }
+      .pairs-title {
+        font-size: 24px; letter-spacing: 0.2em; text-transform: uppercase;
+        color: var(--dim); font-weight: 700; margin-bottom: 20px;
+      }
+      .pairs-list {
+        display: flex; flex-wrap: wrap; gap: 18px;
+      }
+      .pair-pill {
+        font-size: 36px; font-weight: 900; padding: 18px 26px;
+        background: rgba(34, 197, 94, 0.1);
+        border: 2px solid rgba(34, 197, 94, 0.4);
+        color: var(--green-bright);
+        border-radius: 12px;
+        letter-spacing: 0.06em;
+      }
+      .stat-card {
+        background: var(--panel);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 14px;
+        padding: 30px 36px;
+      }
+      .stat-card.green { border-color: rgba(34, 197, 94, 0.35); }
+      .stat-label {
+        font-size: 20px; letter-spacing: 0.2em; text-transform: uppercase;
+        color: var(--dim); font-weight: 700; margin-bottom: 8px;
+      }
+      .stat-value {
+        font-size: 64px; font-weight: 900; color: var(--fg);
+        line-height: 1; letter-spacing: -0.02em;
+      }
+      .stat-value.green { color: var(--green-bright); }
+      .stat-sub {
+        font-size: 22px; color: var(--dim); margin-top: 6px;
+      }
+      .online-row {
+        display: flex; align-items: center; gap: 16px;
+        margin-top: 14px;
+      }
+      .pulse-dot {
+        width: 18px; height: 18px; border-radius: 50%;
+        background: var(--green-bright);
+        box-shadow: 0 0 14px var(--green-bright);
+      }
+      .online-text {
+        font-size: 26px; font-weight: 800;
+        color: var(--green-bright); letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      /* ---- Scene 8: Outro ---- */
+      .outro-logo {
+        font-size: 200px; font-weight: 900;
+        letter-spacing: -0.04em; line-height: 0.9;
+        background: linear-gradient(135deg, var(--green-bright), var(--green));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        text-align: center;
+      }
+      .outro-tag {
+        margin-top: 30px; text-align: center;
+        font-size: 64px; font-weight: 900; color: var(--fg);
+      }
+      .outro-pills {
+        margin-top: 50px;
+        display: flex; gap: 24px; justify-content: center;
+      }
+      .outro-pill {
+        font-size: 26px; font-weight: 800; padding: 16px 28px;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.12);
+        color: var(--dim);
+        border-radius: 10px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="root" data-composition-id="main" data-start="0" data-duration="160" data-width="1920" data-height="1080">
+
+      <!-- ============================================ -->
+      <!-- ESCENA 1: El problema (0-10s)                -->
+      <!-- ============================================ -->
+      <section id="scene-1" class="scene clip" data-start="0" data-duration="10" data-track-index="1">
+        <div class="topbar">
+          <div class="brand">GRID<span>BOT</span></div>
+          <div class="status">EL PROBLEMA</div>
+        </div>
+        <div>
+          <div class="tag s1-tag">situación</div>
+          <h1 class="title s1-title">El precio del Bitcoin <span class="green">sube</span> y <span class="red">baja</span> todo el día.</h1>
+          <div class="price-chart s1-chart">
+            <svg viewBox="0 0 1700 540" preserveAspectRatio="none">
+              <line class="axis-line" x1="0" y1="270" x2="1700" y2="270" />
+              <line class="axis-line" x1="0" y1="135" x2="1700" y2="135" />
+              <line class="axis-line" x1="0" y1="405" x2="1700" y2="405" />
+              <path class="price-line s1-price" d="M 0 270 Q 100 130 200 200 T 400 280 T 600 130 T 800 320 T 1000 180 T 1200 350 T 1400 200 T 1600 280 T 1700 240" />
+            </svg>
+            <div class="question s1-question">¿Cómo ganás plata sin mirar la pantalla?</div>
+          </div>
+        </div>
+        <div class="footer"><span>grid bot · explicado simple</span><span>escena 1 · el problema</span></div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- ESCENA 2: La idea de grid (10-30s)           -->
+      <!-- ============================================ -->
+      <section id="scene-2" class="scene clip" data-start="10" data-duration="20" data-track-index="1">
+        <div class="topbar">
+          <div class="brand">GRID<span>BOT</span></div>
+          <div class="status">LA IDEA</div>
+        </div>
+        <div>
+          <div class="tag s2-tag">solución</div>
+          <h1 class="title s2-title">Ponés una <span class="green">grilla</span> de órdenes.</h1>
+          <p class="subtitle s2-sub">Comprás barato cada vez que baja, vendés caro cada vez que sube. <b style="color:var(--fg)">Como una red de pesca.</b></p>
+          <div class="grid-chart s2-chart">
+            <svg viewBox="0 0 1700 600" preserveAspectRatio="none">
+              <!-- price line center -->
+              <line class="axis-line" x1="0" y1="300" x2="1700" y2="300" stroke-width="2" />
+              <!-- buy lines (below) -->
+              <g class="s2-buys">
+                <line class="grid-line-buy" x1="0" y1="380" x2="1700" y2="380" />
+                <line class="grid-line-buy" x1="0" y1="450" x2="1700" y2="450" />
+                <line class="grid-line-buy" x1="0" y1="520" x2="1700" y2="520" />
+              </g>
+              <!-- sell lines (above) -->
+              <g class="s2-sells">
+                <line class="grid-line-sell" x1="0" y1="220" x2="1700" y2="220" />
+                <line class="grid-line-sell" x1="0" y1="150" x2="1700" y2="150" />
+                <line class="grid-line-sell" x1="0" y1="80" x2="1700" y2="80" />
+              </g>
+              <!-- price wavy line -->
+              <path class="price-line s2-price" d="M 0 300 Q 200 220 400 300 T 800 300 T 1200 300 T 1700 300" />
+              <!-- labels -->
+              <text class="label-sell" x="40" y="72">VENDER</text>
+              <text class="label-sell" x="40" y="142">VENDER</text>
+              <text class="label-sell" x="40" y="212">VENDER</text>
+              <text class="label-buy" x="40" y="372">COMPRAR</text>
+              <text class="label-buy" x="40" y="442">COMPRAR</text>
+              <text class="label-buy" x="40" y="512">COMPRAR</text>
+            </svg>
+          </div>
+        </div>
+        <div class="footer"><span>compras abajo · ventas arriba</span><span>escena 2 · la idea</span></div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- ESCENA 3: Un ciclo paso a paso (30-60s)      -->
+      <!-- ============================================ -->
+      <section id="scene-3" class="scene clip" data-start="30" data-duration="30" data-track-index="1">
+        <div class="topbar">
+          <div class="brand">GRID<span>BOT</span></div>
+          <div class="status">UN CICLO</div>
+        </div>
+        <div>
+          <div class="tag s3-tag">paso a paso</div>
+          <h1 class="title s3-title" style="font-size:78px">Mirá <span class="green">un nivel</span> en acción.</h1>
+          <div class="cycle-stage s3-stage">
+            <svg viewBox="0 0 1700 600" preserveAspectRatio="none">
+              <!-- background grid lines -->
+              <line class="axis-line" x1="0" y1="150" x2="1700" y2="150" />
+              <line class="axis-line" x1="0" y1="450" x2="1700" y2="450" />
+              <!-- buy line $0.20 -->
+              <line class="grid-line-buy s3-buy-line" x1="60" y1="430" x2="1640" y2="430" />
+              <text class="label-buy s3-buy-lbl" x="60" y="420">BUY · $0.20</text>
+              <!-- sell line $0.2034 -->
+              <line class="grid-line-sell s3-sell-line" x1="60" y1="280" x2="1640" y2="280" opacity="0" />
+              <text class="label-sell s3-sell-lbl" x="60" y="270" opacity="0">SELL · $0.2034 · TP +0.8%</text>
+              <!-- price path: starts top, dips down crossing buy, oscillates, then rises crossing sell -->
+              <path class="price-line s3-price" d="M 0 200 Q 200 170 400 280 T 700 430 T 1000 360 T 1300 280 T 1700 220" />
+              <!-- moving dot -->
+              <circle class="price-dot s3-dot" cx="0" cy="200" r="14" />
+              <!-- flash overlays -->
+              <rect class="flash-rect s3-flash-buy" x="0" y="0" width="1700" height="600" fill="rgba(34,197,94,0.35)" />
+              <rect class="flash-rect s3-flash-sell" x="0" y="0" width="1700" height="600" fill="rgba(34,197,94,0.35)" />
+            </svg>
+            <div class="cycle-counter s3-counter">Ciclos: <span class="num s3-counter-num">0</span></div>
+            <div class="step-banner s3-step1">1. Compró 84 FET a $0.20</div>
+            <div class="step-banner s3-step2">2. Take Profit en $0.2034 (+0.8%)</div>
+            <div class="step-banner s3-step3">3. Vendido — ganancia asegurada</div>
+            <div class="step-banner s3-step4">Eso es 1 CICLO. Y vuelve a empezar.</div>
+          </div>
+        </div>
+        <div class="footer"><span>compra · pone TP · vende · repite</span><span>escena 3 · el ciclo</span></div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- ESCENA 4: Hedge mode (60-80s)                -->
+      <!-- ============================================ -->
+      <section id="scene-4" class="scene clip" data-start="60" data-duration="20" data-track-index="1">
+        <div class="topbar">
+          <div class="brand">GRID<span>BOT</span></div>
+          <div class="status">HEDGE MODE</div>
+        </div>
+        <div>
+          <div class="tag s4-tag">las dos cosas a la vez</div>
+          <h1 class="title s4-title" style="font-size:80px">Tu bot <span class="green">compra</span> y <span class="red">vende</span> al mismo tiempo.</h1>
+          <div class="hedge-grid">
+            <div class="hedge-side long s4-long">
+              <div class="hedge-title">LONG — gana si sube</div>
+              <svg viewBox="0 0 700 380" preserveAspectRatio="none">
+                <line class="axis-line" x1="0" y1="190" x2="700" y2="190" />
+                <line class="grid-line-buy" x1="40" y1="260" x2="660" y2="260" />
+                <line class="grid-line-buy" x1="40" y1="310" x2="660" y2="310" />
+                <line class="grid-line-buy" x1="40" y1="360" x2="660" y2="360" />
+                <text class="label-buy" x="40" y="252">BUY</text>
+                <text class="label-buy" x="40" y="302">BUY</text>
+                <text class="label-buy" x="40" y="352">BUY</text>
+                <path class="price-line s4-long-price" d="M 0 100 Q 200 280 400 320 T 700 350" />
+                <circle class="price-dot s4-long-dot" cx="0" cy="100" r="10" />
+              </svg>
+              <div class="hedge-result s4-long-result">+ Ganancia</div>
+            </div>
+            <div class="hedge-side short s4-short">
+              <div class="hedge-title">SHORT — gana si baja</div>
+              <svg viewBox="0 0 700 380" preserveAspectRatio="none">
+                <line class="axis-line" x1="0" y1="190" x2="700" y2="190" />
+                <line class="grid-line-sell" x1="40" y1="20" x2="660" y2="20" />
+                <line class="grid-line-sell" x1="40" y1="70" x2="660" y2="70" />
+                <line class="grid-line-sell" x1="40" y1="120" x2="660" y2="120" />
+                <text class="label-sell" x="40" y="14">SELL</text>
+                <text class="label-sell" x="40" y="64">SELL</text>
+                <text class="label-sell" x="40" y="114">SELL</text>
+                <path class="price-line s4-short-price" d="M 0 280 Q 200 100 400 60 T 700 30" />
+                <circle class="price-dot s4-short-dot" cx="0" cy="280" r="10" />
+              </svg>
+              <div class="hedge-result s4-short-result">+ Ganancia</div>
+            </div>
+          </div>
+        </div>
+        <div class="footer"><span>gana en ambas direcciones</span><span>escena 4 · hedge</span></div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- ESCENA 5: Defensa TP fallido (80-110s)       -->
+      <!-- ============================================ -->
+      <section id="scene-5" class="scene clip" data-start="80" data-duration="30" data-track-index="1">
+        <div class="topbar">
+          <div class="brand">GRID<span>BOT</span></div>
+          <div class="status red">DEFENSA</div>
+        </div>
+        <div>
+          <div class="tag red s5-tag">qué pasa si el TP no llena</div>
+          <h1 class="title s5-title" style="font-size:80px">El bot tiene <span class="green">3 fases</span> de defensa.</h1>
+          <p class="subtitle s5-sub">Si el Take Profit se queda colgado, el bot escala. <b style="color:var(--fg)">Nunca te deja una posición sin protección.</b></p>
+          <div class="phases-row">
+            <div class="phase-card f1 s5-p1">
+              <div class="phase-circle">1</div>
+              <div class="phase-time">0 — 30 min</div>
+              <div class="phase-name">Reintenta tranqui</div>
+              <div class="phase-desc">Reposiciona en post_only,<br/>como manda el plan.</div>
+            </div>
+            <div class="phase-card f2 s5-p2">
+              <div class="phase-circle">2</div>
+              <div class="phase-time">30 — 60 min</div>
+              <div class="phase-name">Ajusta el precio</div>
+              <div class="phase-desc">Mueve el TP un toque para<br/>que entre seguro.</div>
+            </div>
+            <div class="phase-card f3 s5-p3">
+              <div class="phase-circle">3</div>
+              <div class="phase-time">+60 min</div>
+              <div class="phase-name">Fuerza la salida</div>
+              <div class="phase-desc">Cierra sí o sí.<br/>Anti-orphan: no queda nada solo.</div>
+            </div>
+          </div>
+        </div>
+        <div class="footer"><span>tres fases · cero orphans</span><span>escena 5 · defensa</span></div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- ESCENA 6: El supervisor (110-130s)           -->
+      <!-- ============================================ -->
+      <section id="scene-6" class="scene clip" data-start="110" data-duration="20" data-track-index="1">
+        <div class="topbar">
+          <div class="brand">GRID<span>BOT</span></div>
+          <div class="status">SUPERVISOR</div>
+        </div>
+        <div>
+          <div class="tag s6-tag">cada 2 horas</div>
+          <h1 class="title s6-title" style="font-size:80px">Un <span class="green">Claude</span> revisa todo.</h1>
+          <div class="super-layout">
+            <div class="brain-panel s6-brain">
+              <div class="brain-icon">&#129504;</div>
+              <div class="brain-label">SUPERVISOR LLM</div>
+            </div>
+            <div>
+              <div class="super-feed">
+                <div class="feed-row warn s6-feed-1">
+                  <div class="dot"></div>
+                  <div><b>ZEC:</b> <span class="desc">0 ciclos en 12h</span></div>
+                </div>
+                <div class="feed-row s6-feed-2">
+                  <div class="dot"></div>
+                  <div><b>SUI:</b> <span class="desc">spacing demasiado angosto</span></div>
+                </div>
+                <div class="feed-row ok s6-feed-3">
+                  <div class="dot"></div>
+                  <div><b>FET:</b> <span class="desc">8 ciclos OK</span></div>
+                </div>
+              </div>
+              <div class="super-callout s6-callout">Solo <span>RECOMIENDA</span>. No toca nada solo. <br/>El humano decide.</div>
+            </div>
+          </div>
+        </div>
+        <div class="footer"><span>análisis cada 2h · acciones pendientes</span><span>escena 6 · supervisor</span></div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- ESCENA 7: Estado actual (130-150s)           -->
+      <!-- ============================================ -->
+      <section id="scene-7" class="scene clip" data-start="130" data-duration="20" data-track-index="1">
+        <div class="topbar">
+          <div class="brand">GRID<span>BOT</span></div>
+          <div class="status">ESTADO ACTUAL</div>
+        </div>
+        <div>
+          <div class="tag s7-tag">en vivo</div>
+          <h1 class="title s7-title" style="font-size:80px">Así está el bot <span class="green">ahora</span>.</h1>
+          <div class="dashboard">
+            <div class="dash-left">
+              <div class="pairs-card s7-pairs">
+                <div class="pairs-title">5 pares activos</div>
+                <div class="pairs-list">
+                  <div class="pair-pill s7-pair">FET</div>
+                  <div class="pair-pill s7-pair">AAVE</div>
+                  <div class="pair-pill s7-pair">SUI</div>
+                  <div class="pair-pill s7-pair">ZEC</div>
+                  <div class="pair-pill s7-pair">SOL</div>
+                </div>
+              </div>
+            </div>
+            <div class="dash-right">
+              <div class="stat-card s7-equity">
+                <div class="stat-label">Equity</div>
+                <div class="stat-value">$<span class="s7-equity-num">57.66</span></div>
+                <div class="stat-sub">USDT-FUTURES · hedge mode</div>
+              </div>
+              <div class="stat-card green s7-pnl">
+                <div class="stat-label">PnL hoy</div>
+                <div class="stat-value green">+$<span class="s7-pnl-num">2.33</span></div>
+                <div class="online-row">
+                  <div class="pulse-dot s7-pulse"></div>
+                  <div class="online-text">Operando 24/7</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="footer"><span>números reales · bitget usdt-futures</span><span>escena 7 · estado</span></div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- ESCENA 8: Cierre (150-160s)                  -->
+      <!-- ============================================ -->
+      <section id="scene-8" class="scene clip center" data-start="150" data-duration="10" data-track-index="1">
+        <div class="topbar">
+          <div class="brand">GRID<span>BOT</span></div>
+          <div class="status">FIN</div>
+        </div>
+        <div style="text-align:center; width: 100%;">
+          <div class="outro-logo s8-logo">grid-bot</div>
+          <div class="outro-tag s8-tag">Trading mientras dormís.</div>
+          <div class="outro-pills">
+            <div class="outro-pill s8-pill">Hedge mode</div>
+            <div class="outro-pill s8-pill">Maker-only</div>
+            <div class="outro-pill s8-pill">Anti-orphan</div>
+          </div>
+        </div>
+        <div class="footer"><span>bitget perpetuals · python + ccxt</span><span>fin</span></div>
+      </section>
+
+    </main>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      // ---------------- Scene fades ----------------
+      // Each scene crossfades into the next at scene boundary.
+      const sceneStarts = [0, 10, 30, 60, 80, 110, 130, 150];
+      const sceneDurations = [10, 20, 30, 20, 30, 20, 20, 10];
+      sceneStarts.forEach((start, i) => {
+        const sel = `#scene-${i + 1}`;
+        if (i > 0) {
+          tl.to(sel, { opacity: 1, duration: 0.4, ease: "power2.out" }, start);
+        }
+        if (i < sceneStarts.length - 1) {
+          tl.to(sel, { opacity: 0, duration: 0.4, ease: "power2.in" }, start + sceneDurations[i] - 0.4);
+        }
+      });
+
+      // ---------------- Scene 1 (0-10s) ----------------
+      tl.from(".s1-tag", { y: 20, opacity: 0, duration: 0.5, ease: "power3.out" }, 0.3)
+        .from(".s1-title", { y: 40, opacity: 0, duration: 0.7, ease: "power3.out" }, 0.5)
+        .from(".s1-chart", { y: 40, opacity: 0, duration: 0.7, ease: "power3.out" }, 1.0)
+        .from(".s1-price", { drawSVG: 0, opacity: 0, duration: 2.5, ease: "power2.inOut" }, 1.4)
+        .to(".s1-question", { opacity: 1, scale: 1, duration: 0.6, ease: "back.out(1.6)" }, 6.2)
+        .from(".s1-question", { scale: 0.85, duration: 0.6, ease: "back.out(1.6)" }, 6.2);
+
+      // ---------------- Scene 2 (10-30s) ----------------
+      tl.from(".s2-tag", { y: 20, opacity: 0, duration: 0.5, ease: "power3.out" }, 10.3)
+        .from(".s2-title", { y: 40, opacity: 0, duration: 0.7, ease: "power3.out" }, 10.5)
+        .from(".s2-sub", { y: 30, opacity: 0, duration: 0.6, ease: "power3.out" }, 11.0)
+        .from(".s2-chart", { y: 40, opacity: 0, duration: 0.7, ease: "power3.out" }, 11.6)
+        .from(".s2-price", { opacity: 0, duration: 0.8, ease: "power2.out" }, 12.4)
+        // buy lines appear from below, staggered
+        .from(".s2-buys line", { scaleX: 0, transformOrigin: "left center", opacity: 0, duration: 0.55, stagger: 0.15, ease: "power3.out" }, 13.0)
+        .from(".s2-chart .label-buy", { x: -40, opacity: 0, stagger: 0.15, duration: 0.5, ease: "power3.out" }, 13.2)
+        // sell lines appear from above, staggered
+        .from(".s2-sells line", { scaleX: 0, transformOrigin: "left center", opacity: 0, duration: 0.55, stagger: 0.15, ease: "power3.out" }, 14.0)
+        .from(".s2-chart .label-sell", { x: -40, opacity: 0, stagger: 0.15, duration: 0.5, ease: "power3.out" }, 14.2)
+        // gentle pulse on lines
+        .to(".s2-buys line", { strokeWidth: 4, repeat: 3, yoyo: true, duration: 1.2, ease: "sine.inOut" }, 16.0);
+
+      // ---------------- Scene 3 (30-60s) ----------------
+      // Phase A (30-35s): setup
+      tl.from(".s3-tag", { y: 20, opacity: 0, duration: 0.5, ease: "power3.out" }, 30.3)
+        .from(".s3-title", { y: 40, opacity: 0, duration: 0.7, ease: "power3.out" }, 30.5)
+        .from(".s3-stage", { y: 40, opacity: 0, duration: 0.7, ease: "power3.out" }, 31.0)
+        .from(".s3-buy-line, .s3-buy-lbl", { opacity: 0, x: -50, duration: 0.6, ease: "power3.out" }, 31.7)
+        .from(".s3-counter", { opacity: 0, scale: 0.8, duration: 0.5, ease: "back.out(1.6)" }, 32.0);
+
+      // Phase B (33-40s): price moves down, crosses buy → COMPRADO
+      tl.fromTo(".s3-dot",
+        { attr: { cx: 0, cy: 200 } },
+        { attr: { cx: 700, cy: 430 }, duration: 5, ease: "power1.inOut" }, 33.0)
+        // flash green on buy fill
+        .to(".s3-flash-buy", { opacity: 1, duration: 0.18, ease: "power2.out" }, 38.0)
+        .to(".s3-flash-buy", { opacity: 0, duration: 0.45, ease: "power2.in" }, 38.18)
+        // banner step1
+        .to(".s3-step1", { opacity: 1, y: -10, duration: 0.5, ease: "power3.out" }, 38.0)
+        .to(".s3-step1", { opacity: 0, duration: 0.4, ease: "power3.in" }, 41.5);
+
+      // Phase C (41-44s): show TP line appearing
+      tl.to(".s3-sell-line, .s3-sell-lbl", { opacity: 1, duration: 0.6, ease: "power3.out" }, 41.6)
+        .to(".s3-step2", { opacity: 1, duration: 0.5, ease: "power3.out" }, 41.8)
+        .to(".s3-step2", { opacity: 0, duration: 0.4, ease: "power3.in" }, 45.5);
+
+      // Phase D (44-52s): price oscillates and rises, crosses sell → VENDIDO
+      tl.to(".s3-dot",
+        { attr: { cx: 1000, cy: 360 }, duration: 2.5, ease: "sine.inOut" }, 44.0)
+        .to(".s3-dot",
+        { attr: { cx: 1300, cy: 280 }, duration: 2.5, ease: "sine.inOut" }, 46.5)
+        .to(".s3-dot",
+        { attr: { cx: 1700, cy: 220 }, duration: 2.0, ease: "power1.inOut" }, 49.0)
+        // flash green on sell fill at ~50.5
+        .to(".s3-flash-sell", { opacity: 1, duration: 0.18, ease: "power2.out" }, 50.0)
+        .to(".s3-flash-sell", { opacity: 0, duration: 0.45, ease: "power2.in" }, 50.18)
+        .to(".s3-step3", { opacity: 1, duration: 0.5, ease: "power3.out" }, 50.0)
+        // counter increment
+        .to(".s3-counter-num", { textContent: "1", duration: 0.3, ease: "none", snap: { textContent: 1 } }, 50.0)
+        .to(".s3-step3", { opacity: 0, duration: 0.4, ease: "power3.in" }, 53.5);
+
+      // Phase E (54-60s): rapid cycle counter increments
+      tl.to(".s3-step4", { opacity: 1, scale: 1, duration: 0.6, ease: "back.out(1.6)" }, 54.0)
+        .from(".s3-step4", { scale: 0.85, duration: 0.6, ease: "back.out(1.6)" }, 54.0)
+        .to(".s3-counter-num", { textContent: "2", duration: 0.2, ease: "none", snap: { textContent: 1 } }, 55.5)
+        .to(".s3-counter-num", { textContent: "3", duration: 0.2, ease: "none", snap: { textContent: 1 } }, 56.3)
+        .to(".s3-counter-num", { textContent: "4", duration: 0.2, ease: "none", snap: { textContent: 1 } }, 57.1)
+        .to(".s3-counter-num", { textContent: "5", duration: 0.2, ease: "none", snap: { textContent: 1 } }, 57.9)
+        .to(".s3-counter", { scale: 1.12, duration: 0.3, yoyo: true, repeat: 1, ease: "power2.inOut" }, 56.3);
+
+      // ---------------- Scene 4 (60-80s) ----------------
+      tl.from(".s4-tag", { y: 20, opacity: 0, duration: 0.5, ease: "power3.out" }, 60.3)
+        .from(".s4-title", { y: 40, opacity: 0, duration: 0.7, ease: "power3.out" }, 60.5)
+        .from(".s4-long", { x: -60, opacity: 0, duration: 0.7, ease: "power3.out" }, 61.2)
+        .from(".s4-short", { x: 60, opacity: 0, duration: 0.7, ease: "power3.out" }, 61.2)
+        // long: price rises through sells (here drawn moving DOWN visually because SVG y = lower)
+        // longs benefit when price rises -> dot moves to lower y values? In our SVG: top is y=0, so price up = lower y
+        // But our long SVG actually shows price climbing visually. Let's keep semantics: dot follows.
+        .to(".s4-long-dot", { attr: { cx: 700, cy: 350 }, duration: 6, ease: "power1.inOut" }, 63.0)
+        .to(".s4-long-result", { opacity: 1, scale: 1, duration: 0.6, ease: "back.out(1.6)" }, 69.0)
+        .from(".s4-long-result", { scale: 0.7, duration: 0.6, ease: "back.out(1.6)" }, 69.0)
+        // short: price falls (visually moves up in SVG since high y = bottom)
+        .to(".s4-short-dot", { attr: { cx: 700, cy: 30 }, duration: 6, ease: "power1.inOut" }, 71.0)
+        .to(".s4-short-result", { opacity: 1, scale: 1, duration: 0.6, ease: "back.out(1.6)" }, 77.0)
+        .from(".s4-short-result", { scale: 0.7, duration: 0.6, ease: "back.out(1.6)" }, 77.0);
+
+      // ---------------- Scene 5 (80-110s) ----------------
+      tl.from(".s5-tag", { y: 20, opacity: 0, duration: 0.5, ease: "power3.out" }, 80.3)
+        .from(".s5-title", { y: 40, opacity: 0, duration: 0.7, ease: "power3.out" }, 80.5)
+        .from(".s5-sub", { y: 30, opacity: 0, duration: 0.6, ease: "power3.out" }, 81.0)
+        // phase 1 appears at 82s, phase 2 at 90s, phase 3 at 99s
+        .from(".s5-p1", { y: 50, opacity: 0, duration: 0.7, ease: "power3.out" }, 82.0)
+        .from(".s5-p1 .phase-circle", { scale: 0, duration: 0.6, ease: "back.out(1.7)" }, 82.4)
+        .to(".s5-p1", { scale: 1.04, duration: 0.4, yoyo: true, repeat: 1, ease: "sine.inOut" }, 84.0)
+        .from(".s5-p2", { y: 50, opacity: 0, duration: 0.7, ease: "power3.out" }, 90.0)
+        .from(".s5-p2 .phase-circle", { scale: 0, duration: 0.6, ease: "back.out(1.7)" }, 90.4)
+        .to(".s5-p2", { scale: 1.04, duration: 0.4, yoyo: true, repeat: 1, ease: "sine.inOut" }, 92.0)
+        .from(".s5-p3", { y: 50, opacity: 0, duration: 0.7, ease: "power3.out" }, 99.0)
+        .from(".s5-p3 .phase-circle", { scale: 0, duration: 0.6, ease: "back.out(1.7)" }, 99.4)
+        .to(".s5-p3", { scale: 1.04, duration: 0.4, yoyo: true, repeat: 1, ease: "sine.inOut" }, 101.0)
+        // final emphasis
+        .to(".s5-sub b", { color: "#4ade80", duration: 0.5, ease: "power2.out" }, 106.0);
+
+      // ---------------- Scene 6 (110-130s) ----------------
+      tl.from(".s6-tag", { y: 20, opacity: 0, duration: 0.5, ease: "power3.out" }, 110.3)
+        .from(".s6-title", { y: 40, opacity: 0, duration: 0.7, ease: "power3.out" }, 110.5)
+        .from(".s6-brain", { x: -60, opacity: 0, duration: 0.7, ease: "power3.out" }, 111.2)
+        .to(".s6-brain .brain-icon", { scale: 1.08, duration: 1.5, yoyo: true, repeat: 5, ease: "sine.inOut" }, 112.0)
+        .to(".s6-feed-1", { opacity: 1, x: 0, duration: 0.5, ease: "power3.out" }, 113.0)
+        .from(".s6-feed-1", { x: 40, duration: 0.5, ease: "power3.out" }, 113.0)
+        .to(".s6-feed-2", { opacity: 1, x: 0, duration: 0.5, ease: "power3.out" }, 114.5)
+        .from(".s6-feed-2", { x: 40, duration: 0.5, ease: "power3.out" }, 114.5)
+        .to(".s6-feed-3", { opacity: 1, x: 0, duration: 0.5, ease: "power3.out" }, 116.0)
+        .from(".s6-feed-3", { x: 40, duration: 0.5, ease: "power3.out" }, 116.0)
+        .from(".s6-callout", { y: 30, opacity: 0, duration: 0.7, ease: "power3.out" }, 119.0)
+        .to(".s6-callout", { scale: 1.06, duration: 0.5, yoyo: true, repeat: 1, ease: "sine.inOut" }, 122.0);
+
+      // ---------------- Scene 7 (130-150s) ----------------
+      tl.from(".s7-tag", { y: 20, opacity: 0, duration: 0.5, ease: "power3.out" }, 130.3)
+        .from(".s7-title", { y: 40, opacity: 0, duration: 0.7, ease: "power3.out" }, 130.5)
+        .from(".s7-pairs", { x: -60, opacity: 0, duration: 0.7, ease: "power3.out" }, 131.2)
+        .from(".s7-pair", { y: 30, opacity: 0, scale: 0.7, stagger: 0.1, duration: 0.5, ease: "back.out(1.5)" }, 131.6)
+        .from(".s7-equity", { y: 40, opacity: 0, duration: 0.7, ease: "power3.out" }, 132.5)
+        .from(".s7-equity-num", { textContent: 0, duration: 1.4, ease: "power2.out", snap: { textContent: 0.01 } }, 133.0)
+        .from(".s7-pnl", { y: 40, opacity: 0, duration: 0.7, ease: "power3.out" }, 134.5)
+        .from(".s7-pnl-num", { textContent: 0, duration: 1.2, ease: "power2.out", snap: { textContent: 0.01 } }, 135.0)
+        // pulse the online dot
+        .to(".s7-pulse", { scale: 1.6, opacity: 0.6, duration: 0.7, yoyo: true, repeat: 16, ease: "sine.inOut" }, 137.0);
+
+      // ---------------- Scene 8 (150-160s) ----------------
+      tl.from(".s8-logo", { y: 60, opacity: 0, scale: 0.7, duration: 1.0, ease: "power3.out" }, 150.3)
+        .from(".s8-tag", { y: 30, opacity: 0, duration: 0.7, ease: "power3.out" }, 151.2)
+        .from(".s8-pill", { y: 30, opacity: 0, scale: 0.8, stagger: 0.18, duration: 0.6, ease: "back.out(1.5)" }, 152.0)
+        .to(".s8-logo", { scale: 1.04, duration: 1.5, yoyo: true, repeat: 2, ease: "sine.inOut" }, 153.0)
+        // soft fade out at the very end
+        .to("#scene-8", { opacity: 0.95, duration: 0.6, ease: "power2.in" }, 159.0);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

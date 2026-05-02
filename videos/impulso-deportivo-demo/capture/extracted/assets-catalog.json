@@ -1,0 +1,21 @@
+[
+  {
+    "url": "https://app-dev.kyn3d.com/assets/impulso-logo-black.png",
+    "type": "Image",
+    "contexts": [
+      "img[src]"
+    ],
+    "notes": "Impulso Deportivo",
+    "description": "Impulso Deportivo",
+    "sectionClasses": "lp-header",
+    "aboveFold": true
+  },
+  {
+    "url": "https://fonts.googleapis.com/css2?family=Saira+Condensed:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500;1,600;1,700&family=Space+Grotesk:wght@300;400;500;600;700&family=Fjalla+One&family=Oswald:wght@400;500;600;700&family=Bebas+Neue&family=Anton&family=Inter+Tight:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap",
+    "type": "Other",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  }
+]

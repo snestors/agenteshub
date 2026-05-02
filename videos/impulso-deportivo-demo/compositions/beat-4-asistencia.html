@@ -1,0 +1,323 @@
+<template id="beat-4-template">
+  <div data-composition-id="beat-4" data-width="1920" data-height="1080" data-start="0" data-duration="4.85">
+    <div class="b4-root">
+      <div class="b4-bg-text">EN VIVO.</div>
+      <div class="b4-meta">PANEL PROFESOR · ASISTENCIA</div>
+
+      <div class="b4-phone-frame">
+        <div class="b4-phone-screen">
+          <div class="b4-phone-header">
+            <div class="b4-phone-time">19:00 · VÓLEY M-15</div>
+            <div class="b4-class-badge b4-class-programada">PROGRAMADA</div>
+            <div class="b4-class-badge b4-class-realizada">REALIZADA ✓</div>
+          </div>
+          <div class="b4-phone-body">
+            <div class="b4-row b4-row-1">
+              <div class="b4-avatar" style="background:#225656">M</div>
+              <div class="b4-name">MATEO P.</div>
+              <div class="b4-action">PRESENTE</div>
+            </div>
+            <div class="b4-row b4-row-2">
+              <div class="b4-avatar" style="background:#003131">S</div>
+              <div class="b4-name">SOFÍA L.</div>
+              <div class="b4-action">PRESENTE</div>
+            </div>
+            <div class="b4-row b4-row-3">
+              <div class="b4-avatar" style="background:#225656">D</div>
+              <div class="b4-name">DIEGO H.</div>
+              <div class="b4-action">PRESENTE</div>
+            </div>
+            <div class="b4-row b4-row-4">
+              <div class="b4-avatar" style="background:#003131">L</div>
+              <div class="b4-name">LUCÍA R.</div>
+              <div class="b4-action">PRESENTE</div>
+            </div>
+            <div class="b4-row b4-row-5">
+              <div class="b4-avatar" style="background:#225656">N</div>
+              <div class="b4-name">NICOLÁS V.</div>
+              <div class="b4-action">PRESENTE</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="b4-side">
+        <div class="b4-headline">UN TAP. <span class="b4-italic">listo.</span></div>
+        <div class="b4-foot">REGISTRADO AL INSTANTE</div>
+      </div>
+    </div>
+
+    <style>
+      [data-composition-id="beat-4"] {
+        position: absolute; inset: 0;
+        background: #FFFFFF;
+        font-family: 'Space Grotesk', system-ui, sans-serif;
+        color: #0F1213;
+        overflow: hidden;
+      }
+      [data-composition-id="beat-4"] .b4-root { position: absolute; inset: 0; }
+      [data-composition-id="beat-4"] .b4-bg-text {
+        position: absolute;
+        right: 60px;
+        bottom: 40px;
+        font-family: 'Saira Condensed', 'Impact', sans-serif;
+        font-weight: 800;
+        font-style: italic;
+        font-size: 280px;
+        line-height: 0.9;
+        color: #F0F2F3;
+        text-transform: uppercase;
+        opacity: 0;
+        letter-spacing: -0.02em;
+      }
+      [data-composition-id="beat-4"] .b4-meta {
+        position: absolute;
+        top: 56px;
+        left: 120px;
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 12px;
+        font-weight: 500;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #6C6F71;
+        opacity: 0;
+      }
+
+      [data-composition-id="beat-4"] .b4-phone-frame {
+        position: absolute;
+        left: 220px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 440px;
+        height: 920px;
+        background: #0F1213;
+        border-radius: 56px;
+        padding: 24px 18px;
+        box-shadow: 0 12px 48px rgba(15,18,19,0.12);
+        opacity: 0;
+      }
+      [data-composition-id="beat-4"] .b4-phone-screen {
+        width: 100%;
+        height: 100%;
+        background: #FFFFFF;
+        border-radius: 36px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      [data-composition-id="beat-4"] .b4-phone-header {
+        background: #F9FAFB;
+        border-bottom: 1px solid #DBDFE0;
+        padding: 24px 24px 18px;
+        position: relative;
+      }
+      [data-composition-id="beat-4"] .b4-phone-time {
+        font-family: 'Saira Condensed', 'Impact', sans-serif;
+        font-weight: 700;
+        font-size: 22px;
+        text-transform: uppercase;
+        color: #0F1213;
+        margin-bottom: 10px;
+      }
+      [data-composition-id="beat-4"] .b4-class-badge {
+        display: inline-block;
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        padding: 5px 12px;
+        border-radius: 999px;
+        text-transform: uppercase;
+      }
+      [data-composition-id="beat-4"] .b4-class-programada {
+        background: #F0F2F3;
+        color: #6C6F71;
+        border: 1px solid #DBDFE0;
+      }
+      [data-composition-id="beat-4"] .b4-class-realizada {
+        background: #E7F6ED;
+        color: #308639;
+        border: 1px solid #308639;
+        position: absolute;
+        top: 60px;
+        left: 24px;
+        opacity: 0;
+      }
+      [data-composition-id="beat-4"] .b4-phone-body {
+        flex: 1;
+        padding: 20px 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      [data-composition-id="beat-4"] .b4-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 14px 16px;
+        background: #F9FAFB;
+        border: 1px solid #DBDFE0;
+        border-radius: 10px;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      [data-composition-id="beat-4"] .b4-avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: #225656;
+        color: #FFFFFF;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Saira Condensed', sans-serif;
+        font-weight: 700;
+        font-size: 16px;
+        flex-shrink: 0;
+      }
+      [data-composition-id="beat-4"] .b4-name {
+        font-family: 'Saira Condensed', sans-serif;
+        font-weight: 600;
+        font-size: 18px;
+        color: #0F1213;
+        flex: 1;
+        text-transform: uppercase;
+        letter-spacing: 0.01em;
+      }
+      [data-composition-id="beat-4"] .b4-action {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        padding: 6px 14px;
+        border-radius: 999px;
+        background: #F0F2F3;
+        color: #6C6F71;
+        border: 1px solid #DBDFE0;
+        text-transform: uppercase;
+        flex-shrink: 0;
+      }
+      [data-composition-id="beat-4"] .b4-row.is-presente .b4-action {
+        background: #225656;
+        color: #FFFFFF;
+        border-color: #225656;
+      }
+
+      [data-composition-id="beat-4"] .b4-side {
+        position: absolute;
+        right: 120px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 720px;
+      }
+      [data-composition-id="beat-4"] .b4-headline {
+        font-family: 'Saira Condensed', 'Impact', sans-serif;
+        font-weight: 800;
+        font-size: 140px;
+        line-height: 0.95;
+        text-transform: uppercase;
+        color: #0F1213;
+        opacity: 0;
+        letter-spacing: -0.01em;
+      }
+      [data-composition-id="beat-4"] .b4-italic {
+        font-style: italic;
+        font-weight: 600;
+        text-transform: lowercase;
+        color: #225656;
+      }
+      [data-composition-id="beat-4"] .b4-foot {
+        margin-top: 36px;
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 16px;
+        font-weight: 500;
+        letter-spacing: 0.16em;
+        color: #6C6F71;
+        text-transform: uppercase;
+        opacity: 0;
+      }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      tl.to('[data-composition-id="beat-4"] .b4-bg-text',
+        { opacity: 1, duration: 0.8, ease: 'power2.out' }, 0.1);
+      tl.fromTo('[data-composition-id="beat-4"] .b4-meta',
+        { y: 10, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.4, ease: 'power2.out' }, 0.1);
+
+      // Phone in
+      tl.fromTo('[data-composition-id="beat-4"] .b4-phone-frame',
+        { y: 60, opacity: 0, scale: 0.92 },
+        { y: 0, opacity: 1, scale: 1, duration: 0.7, ease: 'power3.out' }, 0.2);
+
+      // Headline + foot
+      tl.fromTo('[data-composition-id="beat-4"] .b4-headline',
+        { x: 40, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.6, ease: 'power3.out' }, 0.5);
+      tl.fromTo('[data-composition-id="beat-4"] .b4-foot',
+        { x: 40, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.5, ease: 'power2.out' }, 0.85);
+
+      // Rows cascade
+      tl.fromTo('[data-composition-id="beat-4"] .b4-row-1',
+        { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, ease: 'power2.out' }, 1.0);
+      tl.fromTo('[data-composition-id="beat-4"] .b4-row-2',
+        { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, ease: 'power2.out' }, 1.12);
+      tl.fromTo('[data-composition-id="beat-4"] .b4-row-3',
+        { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, ease: 'power2.out' }, 1.24);
+      tl.fromTo('[data-composition-id="beat-4"] .b4-row-4',
+        { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, ease: 'power2.out' }, 1.36);
+      tl.fromTo('[data-composition-id="beat-4"] .b4-row-5',
+        { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, ease: 'power2.out' }, 1.48);
+
+      // PRESENTE buttons activate cascade
+      tl.add(() => {
+        const el = document.querySelector('[data-composition-id="beat-4"] .b4-row-1');
+        if (el) el.classList.add('is-presente');
+      }, 2.2);
+      tl.fromTo('[data-composition-id="beat-4"] .b4-row-1 .b4-action',
+        { scale: 1 }, { scale: 1.08, duration: 0.15, yoyo: true, repeat: 1, ease: 'power2.inOut' }, 2.2);
+
+      tl.add(() => {
+        const el = document.querySelector('[data-composition-id="beat-4"] .b4-row-2');
+        if (el) el.classList.add('is-presente');
+      }, 2.38);
+      tl.fromTo('[data-composition-id="beat-4"] .b4-row-2 .b4-action',
+        { scale: 1 }, { scale: 1.08, duration: 0.15, yoyo: true, repeat: 1, ease: 'power2.inOut' }, 2.38);
+
+      tl.add(() => {
+        const el = document.querySelector('[data-composition-id="beat-4"] .b4-row-3');
+        if (el) el.classList.add('is-presente');
+      }, 2.56);
+      tl.fromTo('[data-composition-id="beat-4"] .b4-row-3 .b4-action',
+        { scale: 1 }, { scale: 1.08, duration: 0.15, yoyo: true, repeat: 1, ease: 'power2.inOut' }, 2.56);
+
+      tl.add(() => {
+        const el = document.querySelector('[data-composition-id="beat-4"] .b4-row-4');
+        if (el) el.classList.add('is-presente');
+      }, 2.74);
+      tl.fromTo('[data-composition-id="beat-4"] .b4-row-4 .b4-action',
+        { scale: 1 }, { scale: 1.08, duration: 0.15, yoyo: true, repeat: 1, ease: 'power2.inOut' }, 2.74);
+
+      tl.add(() => {
+        const el = document.querySelector('[data-composition-id="beat-4"] .b4-row-5');
+        if (el) el.classList.add('is-presente');
+      }, 2.92);
+      tl.fromTo('[data-composition-id="beat-4"] .b4-row-5 .b4-action',
+        { scale: 1 }, { scale: 1.08, duration: 0.15, yoyo: true, repeat: 1, ease: 'power2.inOut' }, 2.92);
+
+      // Class badge changes from programada to realizada
+      tl.to('[data-composition-id="beat-4"] .b4-class-programada',
+        { opacity: 0, duration: 0.3, ease: 'power2.in' }, 3.7);
+      tl.fromTo('[data-composition-id="beat-4"] .b4-class-realizada',
+        { opacity: 0, scale: 0.85 },
+        { opacity: 1, scale: 1, duration: 0.4, ease: 'back.out(1.6)' }, 3.85);
+
+      window.__timelines["beat-4"] = tl;
+    </script>
+  </div>
+</template>
