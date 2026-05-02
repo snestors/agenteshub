@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# commit-msg — enforce conventional commits and reject AI attribution.
+#
+# Activate once per clone:
+#   bin/setup-githooks.sh
+#
+# Rules:
+#   1. First line must match: type(scope?): description (≤72 chars)
+#      Allowed types: feat, fix, chore, docs, refactor, test, style,
+#                     perf, ci, build, revert
+#   2. No AI attribution lines anywhere in the body:
+#      - "Co-Authored-By:" / "Co-authored-by:" with AI/Claude/Anthropic/Codex
+#      - "Generated with Claude Code" or similar
+#      - 🤖 emoji
+#
+# Exit non-zero with a clear message to abort the commit.
+
+MSG_FILE="$1"
+FIRST_LINE="$(head -1 "$MSG_FILE")"
+
+# Allow merge / revert / fixup / rebase auto-generated messages
+case "$FIRST_LINE" in
+  Merge\ *|Revert\ *|fixup!\ *|squash!\ *|amend!\ *) exit 0 ;;
+esac
+
+# 1. Conventional Commits format
+RE='^(feat|fix|chore|docs|refactor|test|style|perf|ci|build|revert)(\([a-z0-9._-]+\))?(!)?: .{1,72}$'
+if ! [[ "$FIRST_LINE" =~ $RE ]]; then
+  cat >&2 <<EOF
+✗ Commit rechazado — formato no es Conventional Commits.
+
+Recibí:
+  $FIRST_LINE
+
+Esperado:
+  type(scope): description    (description ≤ 72 chars)
+  type: description           (scope opcional)
+
+Tipos permitidos:
+  feat, fix, chore, docs, refactor, test, style, perf, ci, build, revert
+
+Ejemplos:
+  feat(mcp): add secret_set and secret_delete tools to vault
+  fix(usage): handle nil cursor in realtime fetch
+  chore(release): v0.3.0
+  docs: explain blue/green smoke flow
+EOF
+  exit 1
+fi
+
+# 2. Block AI attribution
+BODY="$(cat "$MSG_FILE")"
+
+if echo "$BODY" | grep -iE "Co-Authored-By:.*(claude|anthropic|codex|gpt|ai|copilot|gentleman)" > /dev/null; then
+  echo "✗ Commit rechazado — 'Co-Authored-By' con atribución a un AI no se permite." >&2
+  exit 1
+fi
+
+if echo "$BODY" | grep -iE "Generated with .*(Claude Code|Cursor|Codex|Copilot|GPT)" > /dev/null; then
+  echo "✗ Commit rechazado — frase 'Generated with <AI tool>' no se permite." >&2
+  exit 1
+fi
+
+if echo "$BODY" | grep -E "🤖" > /dev/null; then
+  echo "✗ Commit rechazado — emoji 🤖 indica atribución AI, no se permite." >&2
+  exit 1
+fi
+
+exit 0
