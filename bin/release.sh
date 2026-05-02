@@ -87,8 +87,8 @@ if [ -f "$IN_FLIGHT" ]; then
   err "ya hay un release in-flight para v$(cat "$IN_FLIGHT") — corré 'continue' o 'abort'"
 fi
 
-if [ -n "$(git status --porcelain)" ]; then
-  err "working tree con cambios sin commitear — commit o stash primero"
+if ! git diff-index --quiet HEAD -- ; then
+  err "hay cambios tracked sin commitear — commit o stash primero"
 fi
 
 CUR_VERSION="$(cat VERSION)"
