@@ -2,6 +2,53 @@
 
 Path: `/home/nestor/agenthub`
 
+## v0.4.0 — 2026-05-02
+
+Primera fase del **harness BettaTech**: API + plumbing necesario para que cada proyecto registrado en agenthub adopte un loop de trabajo disciplinado (leader → implementer → reviewer + `feature_list.json` + `init.sh` + `CHECKPOINTS.md`). El backend ya está completo y se puede ejercer hoy desde MCP. La parte visual (chat unificado `<ChatShell>` con HUD lateral, sistema de notificaciones y BIT pixel-art) queda para 0.5.0 frontend-only.
+
+### Added
+
+- **Endpoints HTTP del harness** bajo `/api/projects/{id}/...`:
+  - `GET /features` — lee `feature_list.json` del cwd. Schema: `{version, updated_at, features:[{id,name,status,description?,depends_on?,blocked_reason?,completed_at?}]}` con `status ∈ pending|in_progress|done|blocked`. File missing → 200 `{exists:false}`. JSON inválido → 502 con error del validador.
+  - `PUT /features` — sobrescribe `feature_list.json` con escritura atómica (tmp + rename en el mismo dir). Body cap 512 KiB. `updated_at` se reescribe server-side.
+  - `GET /harness/state` — un round-trip que devuelve `progress/current.md` + `progress/history.md` + `CHECKPOINTS.md` con cap por archivo de 256 KiB y flag `truncated`.
+  - `POST /harness/init` — corre `init.sh` en el cwd. Síncrono. Default 5 min, ceiling 30. Devuelve `{exit_code, combined, truncated, duration_ms, timeout}`. Sentinels `-1` (spawn fail) / `-2` (timeout).
+  - `POST /harness/scaffold` — materializa el template embebido en el repo del proyecto. Idempotente: respeta `owner` de cada archivo (managed sobrescribe siempre, seed solo en primer scaffold, project nunca). Crea/actualiza `.harness/manifest.json` con `template_version_applied`, `scaffolded_at`, `last_update_at` y `sha256` por archivo.
+
+- **Tools MCP nuevas** (servidor `agenthub`):
+  - `query_project_state(project)` — snapshot read-only que junta `feature_list.json` + harness state + flags de docs canónicos. Acepta numeric id o name.
+  - `run_project_init(project, timeout_s?)` — espejo MCP de `POST /harness/init`.
+  - `delegate_to_project` queda **diferida** hasta que cableamos WS routing project-side por MCP.
+
+- **Template BettaTech embebido** (`template_version 0.1.0`) con 13 archivos compilados al binario via `embed.FS`:
+  - `AGENTS.md` (template-seed) — punto de entrada del proyecto.
+  - `init.sh` (template-managed, +x) — validador stack-detecting: detecta `go.mod`/`package.json`/`pyproject.toml`/`Cargo.toml` y corre los chequeos apropiados.
+  - `feature_list.json` (project-owned) — vacío inicial, `version:1`.
+  - `CHECKPOINTS.md` (template-managed) — criterios objetivos del reviewer (init.sh verde, scope respetado, tests, convenciones, docs, reversibilidad).
+  - `progress/current.md` + `progress/history.md` (project-owned) — bitácora de sesión + append-only.
+  - `docs/{architecture,conventions,verification}.md` (seed/seed/managed).
+  - `.claude/agents/{leader,implementer,reviewer}.md` (template-managed) — los 3 prompts del loop.
+  - `.claude/settings.json` (template-managed) — permisos y hook Stop.
+  - Truco de embed: el template usa `dot_claude/` en disco (Go `embed` excluye paths que empiezan con `.`); el rename a `.claude/` ocurre en `Scaffold`.
+
+- **Owner-manifest model** (`internal/harness/manifest.go`): tres categorías (`template-managed` | `template-seed` | `project`) con clasificación por path. `.harness/manifest.json` por proyecto guarda `template_version_applied` + `sha256` por archivo, lo cual habilita el flujo update/diff de la futura **Fase 2b**.
+
+- **`internal/harness` — paquete neutral** con `ParseFeatureList`, `WriteFeatureListAtomic`, `ReadStateFile`/`ReadAllState`, `RunInit`, `Scaffold`, `LoadManifest`/`SaveManifest`, `TemplateFiles`, `TemplateVersion`. Server y MCP comparten esta capa para que la lectura/escritura del harness no haga loopback HTTP.
+
+- **~25 tests nuevos** (`internal/harness/*_test.go`) cubren: parser válido + 6 errores; round-trip de WriteFeatureListAtomic + overwrite + ausencia de tmp huérfano; ReadStateFile missing/small/truncated + ReadAllState; RunInit success/exit-7/timeout/truncation; TemplateVersion/TemplateFiles/dot-rename/init.sh ejecutable; Scaffold fresh + project-owned-no-overwrite + template-seed-no-overwrite + template-managed-overwrite + idempotencia + manifest hashes.
+
+### Changed
+
+- **`internal/harness` extraído desde `internal/server`** — los handlers HTTP del harness se adelgazaron a wrappers finos; toda la lógica de archivos del harness vive en el paquete neutral.
+
+### Notas
+
+- Pendiente para 0.4.x: ripeo de OpenSpec (handlers + UI + skill + dir), WA solo main, Codex como tool de Claude (no engine principal directo), decisión A/B sobre mini-agentes.
+- Pendiente para 0.5.0: extracción del componente `<ChatShell>` para unificar el chat de main-agent y el de proyectos, HUD lateral derecho con secciones SESSION · ENGINE · FEATURE_LIST · TOKENS · SUBS 5h · AGENTS·RUNTIME · STACK, sistema de notificaciones (campana + drawer + toast), BIT pixel-art como asistente de notificaciones, rebrand visual cyberpunk del handoff de Claude Design.
+- La skill `.claude/skills/deploy-safe-restart` y la receta de `.claude/CLAUDE.md` siguen mencionando `mv bin/agenthub.next bin/agenthub` en lugar de `bin/promote.sh`. La actualización pidió permiso explícito durante 0.3.1 y aún no se aplicó.
+
+---
+
 ## v0.3.1 — 2026-05-02
 
 Quick-fix release on top of 0.3.0: closes two ciclos abiertos del release pipeline (annotated tags, real binary backup) y suma el alert mensual de budget de Anthropic via WhatsApp.
