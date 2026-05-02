@@ -92,7 +92,9 @@ func (s *Server) handleSetEngine(w http.ResponseWriter, r *http.Request) {
 var errInvalidEngineModel = errors.New("engine/model not in supported list")
 
 func (s *Server) setEngine(ctx context.Context, req engineSetReq) (map[string]any, error) {
-	if !validEngineModel(req.Engine, req.Model) {
+	// f-004: main-agent's primary engine has to be Claude. Codex is a tool, not
+	// a session engine.
+	if !validPrimaryEngineModel(req.Engine, req.Model) {
 		return nil, errInvalidEngineModel
 	}
 	if err := s.repos.Settings.Set(ctx, "engine", req.Engine); err != nil {
@@ -155,4 +157,33 @@ func validEngine(engine string) bool {
 		}
 	}
 	return false
+}
+
+// primaryEngines lists the engines that can act as a session's primary
+// (top-level) engine. f-004 limits this to Claude — Codex is intentionally
+// excluded because it can only be invoked AS A TOOL from inside a Claude
+// session (delegate_to_codex), never as the standalone engine of a session.
+//
+// staticEngines still advertises Codex via /api/agent/engines so the frontend
+// can describe it; only the setters (set-engine, project-create,
+// project-session-create, project-session-set-engine) gate on this list.
+var primaryEngines = map[string]struct{}{
+	"claude": {},
+}
+
+// validPrimaryEngine reports whether engine may be used as a session's
+// top-level engine. See primaryEngines for the rationale.
+func validPrimaryEngine(engine string) bool {
+	_, ok := primaryEngines[engine]
+	return ok
+}
+
+// validPrimaryEngineModel is validEngineModel restricted to primary engines —
+// the model still has to be one of the catalogue entries, but the engine has
+// to be in primaryEngines.
+func validPrimaryEngineModel(engine, model string) bool {
+	if !validPrimaryEngine(engine) {
+		return false
+	}
+	return validEngineModel(engine, model)
 }

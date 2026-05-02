@@ -110,8 +110,11 @@ func (s *Server) handleProjectsCreate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name and path required", http.StatusBadRequest)
 		return
 	}
-	if !validEngine(req.DefaultEngine) {
-		http.Error(w, "default_engine not supported", http.StatusBadRequest)
+	// f-004: a project's default engine is the primary engine of every new
+	// session created inside it; Codex is invokable only as a tool from a
+	// Claude session, so it can't be the default.
+	if !validPrimaryEngine(req.DefaultEngine) {
+		http.Error(w, "default_engine not supported (primary engine must be claude)", http.StatusBadRequest)
 		return
 	}
 	info, err := os.Stat(req.Path)
@@ -203,15 +206,16 @@ func (s *Server) handleProjectSessionsCreate(w http.ResponseWriter, r *http.Requ
 	if engine == "" {
 		engine = project.DefaultEngine
 	}
-	if !validEngine(engine) {
-		http.Error(w, "engine not supported", http.StatusBadRequest)
+	// f-004: project sessions only run Claude as their primary engine.
+	if !validPrimaryEngine(engine) {
+		http.Error(w, "engine not supported (primary engine must be claude)", http.StatusBadRequest)
 		return
 	}
 	model := strings.TrimSpace(req.Model)
 	if model == "" {
 		model = defaultModelForEngine(engine)
 	}
-	if !validEngineModel(engine, model) {
+	if !validPrimaryEngineModel(engine, model) {
 		http.Error(w, "model not supported for engine", http.StatusBadRequest)
 		return
 	}
@@ -535,8 +539,12 @@ func (s *Server) handleProjectSessionSetEngine(w http.ResponseWriter, r *http.Re
 		return
 	}
 	req.Engine = strings.TrimSpace(req.Engine)
-	if !validEngine(req.Engine) {
-		http.Error(w, "engine not supported", http.StatusBadRequest)
+	// f-004: a session's primary engine has to be Claude. Codex is a tool,
+	// not a session engine. (Existing sessions with engine=codex from before
+	// this gate are left untouched — they survive because the immutability
+	// check below would block any attempt to "fix" them anyway.)
+	if !validPrimaryEngine(req.Engine) {
+		http.Error(w, "engine not supported (primary engine must be claude)", http.StatusBadRequest)
 		return
 	}
 	if req.Engine != sess.Engine {
