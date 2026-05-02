@@ -3,6 +3,7 @@ import { ChevronRight, Menu } from "lucide-react";
 import { Link } from "react-router-dom";
 import { openMobileNav } from "@/lib/mobileNav";
 import { useNotifications } from "@/lib/notifications";
+import { NotifBell } from "@/components/NotifCenter";
 
 interface TopbarProps {
   breadcrumb: Array<{ label: string; href?: string }>;
@@ -81,6 +82,7 @@ export function Topbar({ breadcrumb, status, right }: TopbarProps) {
 
       <div className="flex w-full min-w-0 items-center justify-between gap-2 sm:w-auto sm:justify-end sm:gap-4">
         {right}
+        <NotifBell />
         {status && (
           <div
             className="shrink-0 px-2 py-1 clip-tag font-mono text-[9px] tracking-hud font-semibold flex items-center gap-2 sm:px-3 sm:text-[10px]"

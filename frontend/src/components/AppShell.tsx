@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { MobileNav, Sidebar } from "@/components/Sidebar";
+import { NotifProvider } from "@/components/NotifCenter";
 import { api, ApiError, type Me } from "@/lib/api";
 import { NotificationProvider } from "@/lib/notifications";
 import { StreamsProvider } from "@/lib/streamsStore";
@@ -73,17 +74,19 @@ export function AppShell() {
 
   return (
     <NotificationProvider>
-      <StreamsProvider>
-        <div className="flex h-screen w-screen overflow-hidden">
-          <div className="hud-grid" />
-          <div className="hud-scan" />
-          <Sidebar username={auth.me?.username} />
-          <main className="flex-1 flex flex-col min-w-0 relative z-10">
-            <Outlet />
-          </main>
-          <MobileNav username={auth.me?.username} />
-        </div>
-      </StreamsProvider>
+      <NotifProvider>
+        <StreamsProvider>
+          <div className="flex h-screen w-screen overflow-hidden">
+            <div className="hud-grid" />
+            <div className="hud-scan" />
+            <Sidebar username={auth.me?.username} />
+            <main className="flex-1 flex flex-col min-w-0 relative z-10">
+              <Outlet />
+            </main>
+            <MobileNav username={auth.me?.username} />
+          </div>
+        </StreamsProvider>
+      </NotifProvider>
     </NotificationProvider>
   );
 }

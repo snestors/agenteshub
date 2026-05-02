@@ -210,6 +210,11 @@ func (s *Server) routes() http.Handler {
 		pr.Get("/api/projects/{id}/docs", s.handleProjectDocsList)
 		pr.Get("/api/projects/{id}/docs/{doc}", s.handleProjectDocGet)
 
+		// Notifications — bell + drawer + toast (0.5.0).
+		pr.Get("/api/notifications", s.handleNotificationsList)
+		pr.Post("/api/notifications/read-all", s.handleNotificationsReadAll)
+		pr.Post("/api/notifications/{id}/read", s.handleNotificationRead)
+
 		// BettaTech harness — feature_list.json sits at the repo root.
 		pr.Get("/api/projects/{id}/features", s.handleProjectFeaturesGet)
 		pr.Put("/api/projects/{id}/features", s.handleProjectFeaturesPut)
