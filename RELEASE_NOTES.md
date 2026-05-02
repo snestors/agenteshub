@@ -2,6 +2,32 @@
 
 Path: `/home/nestor/agenthub`
 
+## v0.4.1 — 2026-05-02
+
+Removal-only release. Closes **f-001 (rip OpenSpec)** y **f-005 (skill + CLAUDE.md actualizados a promote.sh)** del feature_list de agenthub. La SDD-style proposal-design-tasks-apply-verify se reemplaza por la disciplina del harness BettaTech (loop leader/implementer/reviewer + feature_list.json + CHECKPOINTS.md) que llegó en 0.4.0.
+
+### Removed
+
+- **OpenSpec backend** — `internal/server/openspec.go` (824 líneas, 8 handlers), `internal/projects/openspec.go` (210), `internal/projects/openspec_test.go` (181), `internal/store/openspec.go` (145). Las 8 routes `/api/projects/{id}/openspec/*` salieron de `server.go`. `Repos.OpenSpec` field + `NewOpenSpecChangesRepo` también quitados.
+- **OpenSpec frontend** — types `OpenSpecState/Change/ChangeDetail/Spec` y 6 métodos API en `frontend/src/lib/api.ts`. En `Projects.tsx` el tab "changes", el componente `ProjectChanges` y todos sus auxiliares (`OpenSpecCreateModal`, `GateActions`, `MarkdownDoc`, `SpecsView`, `InnerTab`, `StateBadge`, `contentForTab`, `tabForState`) — ~263 líneas. Imports inused (`GitBranch`, `FileText`, `Pencil`, `Check`, `Loader2`) podados.
+- **Skill `.claude/skills/sdd-workflow/`** y **dir `openspec/`** completos (cambios in-flight `fix-codex-engine-killed-tasks` y `stream-codex-engine-events` se descartan).
+- **Cleanup de comentarios** — referencias a "openspec" eliminadas de `runtracker.go`, `long_running.go`, `scheduler.go`, `canon.go` (este último ya no llamaba `EnsureOpenSpecLayout` al canonicalizar proyectos).
+
+### Database
+
+- **Migration 0019** — `DROP TABLE openspec_changes` + `DROP INDEX idx_openspec_state`. `conversation_runs` rebuilded sin `'openspec'` en su `CHECK(scope IN ...)` enum (SQLite no permite ALTER de CHECK in place); rows con scope='openspec' se descartan porque su productor desapareció.
+
+### Changed
+
+- **`.claude/skills/deploy-safe-restart/SKILL.md`** ahora apunta a `bin/promote.sh` en todas las referencias de promote (version 2.1). Anti-pattern documentado: `mv bin/agenthub.next bin/agenthub && bin/safe-restart.sh` deja `bin/agenthub.prev` igual al binario nuevo y pierde el rollback.
+- **`.claude/CLAUDE.md`** receta exacta paso 6 colapsado a un solo `bin/promote.sh`. Reglas no negociables actualizadas.
+
+### Breaking
+
+- Cualquier consumer de `/api/projects/{id}/openspec/*` ahora recibe **404**. Reemplazo: la vista de `feature_list.json` (HUD lateral) que llega en 0.5.0 con la Fase 3 frontend.
+
+---
+
 ## v0.4.0 — 2026-05-02
 
 Primera fase del **harness BettaTech**: API + plumbing necesario para que cada proyecto registrado en agenthub adopte un loop de trabajo disciplinado (leader → implementer → reviewer + `feature_list.json` + `init.sh` + `CHECKPOINTS.md`). El backend ya está completo y se puede ejercer hoy desde MCP. La parte visual (chat unificado `<ChatShell>` con HUD lateral, sistema de notificaciones y BIT pixel-art) queda para 0.5.0 frontend-only.
