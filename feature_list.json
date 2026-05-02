@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-05-02T22:10:00Z",
+  "updated_at": "2026-05-02T22:35:00Z",
   "features": [
     {
       "id": "f-001",
@@ -18,14 +18,16 @@
     {
       "id": "f-003",
       "name": "WhatsApp gateway: forzar scope=main siempre",
-      "status": "pending",
-      "description": "Cualquier mensaje entrante por WA debe routearse al main-agent (Jarvis personal). Los agentes de proyecto NO son accesibles por WA, solo por web."
+      "status": "done",
+      "completed_at": "2026-05-02",
+      "description": "Released en v0.4.2 (commit 10d4709). El invariante ya valía por construcción: routeConversationInput hardcodea Scope:\"main\" y conversationInput no tiene un campo Scope. Esta entry agrega comentarios explícitos en conversation.go y wa_consumer.go citando f-003 para que un refactor futuro no rompa el invariante en silencio."
     },
     {
       "id": "f-004",
       "name": "Codex como tool subordinada de Claude (no engine principal)",
-      "status": "pending",
-      "description": "Bloquear setear codex como engine principal en /api/agent/engine y handleSetEngine. Codex queda invocable solo como tool desde Claude. Codex no invoca Claude."
+      "status": "done",
+      "completed_at": "2026-05-02",
+      "description": "Released en v0.4.2 (commit 703de6a). Nueva función validPrimaryEngine + validPrimaryEngineModel aplicadas en los 4 setters de engine primario: /api/agent/engine, /api/projects (default_engine), /api/projects/{id}/sessions create + set-engine. El catálogo /api/agent/engines sigue listando Codex para que el frontend lo describa; solo los setters lo rechazan. 7 tests unitarios pinean el contrato. Sesiones existentes con engine=codex pre-gate se preservan (immutability rule)."
     },
     {
       "id": "f-005",
