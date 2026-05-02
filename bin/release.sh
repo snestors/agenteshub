@@ -54,7 +54,7 @@ if [ "${1:-}" = "continue" ]; then
 
   COMMIT_MSG="chore(release): v${NEW_VERSION}"
   git commit -m "$COMMIT_MSG"
-  git tag "v${NEW_VERSION}"
+  git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}"
 
   rm -f "$IN_FLIGHT"
 
