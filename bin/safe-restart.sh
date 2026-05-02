@@ -2,10 +2,14 @@
 # safe-restart.sh — signals the daemon to restart once all in-flight turns complete.
 #
 # Behavior:
-#   1. Backs up the currently running binary to bin/agenthub.prev (rollback safety net)
-#   2. Calls /api/runs/schedule-restart so the daemon waits for active runs
-#   3. Falls back to direct `sudo systemctl restart agenthub` if the API is down
-#   4. If --wait is passed, polls /healthz post-restart and notifies on failure
+#   1. Calls /api/runs/schedule-restart so the daemon waits for active runs
+#   2. Falls back to direct `sudo systemctl restart agenthub` if the API is down
+#   3. If --wait is passed, polls /healthz post-restart and notifies on failure
+#
+# This script does NOT back up the binary. Backup is the responsibility of
+# bin/promote.sh, which runs the cp BEFORE swapping bin/agenthub.next into place.
+# Restarting without a fresh promote (e.g. after editing config) is fine — there
+# is no "new" binary to back up.
 #
 # Rollback if the new binary breaks:
 #   cp bin/agenthub.prev bin/agenthub && bin/safe-restart.sh
@@ -18,23 +22,13 @@ API="http://127.0.0.1:8093"
 SCHEDULE_URL="$API/api/runs/schedule-restart"
 RUNS_URL="$API/api/runs"
 HEALTH_URL="$API/healthz"
-BIN="bin/agenthub"
-PREV="bin/agenthub.prev"
 
 WAIT_FOR_RESTART=0
 if [ "${1:-}" = "--wait" ]; then
   WAIT_FOR_RESTART=1
 fi
 
-# ─── 1. Backup current binary ───────────────────────────────────────────────
-if [ -f "$BIN" ]; then
-  cp -p "$BIN" "$PREV"
-  echo "[safe-restart] Backup: $PREV ($(./bin/agenthub.prev version 2>/dev/null || echo 'unknown'))"
-else
-  echo "[safe-restart] WARN: no encuentro $BIN — sigo sin backup"
-fi
-
-# ─── 2. Schedule via daemon API ─────────────────────────────────────────────
+# ─── 1. Schedule via daemon API ─────────────────────────────────────────────
 echo "[safe-restart] Scheduling restart..."
 RESPONSE=$(curl -sf -X POST "$SCHEDULE_URL" 2>/dev/null || echo "")
 
@@ -50,11 +44,11 @@ else
   fi
 fi
 
-# ─── 3. Optional: wait for restart to complete + verify ────────────────────
+# ─── 2. Optional: wait for restart to complete + verify ────────────────────
 if [ "$WAIT_FOR_RESTART" = "1" ]; then
   echo "[safe-restart] --wait: polling for restart completion (max 5 min)"
 
-  # Phase 3a — wait for pending_restart=false (means the daemon actually restarted)
+  # Phase 2a — wait for pending_restart=false (means the daemon actually restarted)
   WAIT_OK=0
   for i in $(seq 1 60); do  # 60 polls × 5s = 5 min
     RUNS_JSON=$(curl -sf "$RUNS_URL" 2>/dev/null || echo "")
@@ -74,14 +68,14 @@ if [ "$WAIT_FOR_RESTART" = "1" ]; then
     exit 2
   fi
 
-  # Phase 3b — verify /healthz is OK with new version
+  # Phase 2b — verify /healthz is OK with new version
   sleep 2  # let the daemon settle
   HEALTH=$(curl -sf "$HEALTH_URL" 2>/dev/null || echo "")
   if [ -z "$HEALTH" ] || ! echo "$HEALTH" | grep -q '"ok":true'; then
     echo "[safe-restart] FAIL: post-restart /healthz NOT OK"
     echo "$HEALTH" | head -20
     echo "[safe-restart] Rollback hint:"
-    echo "  cp $PREV $BIN && sudo systemctl restart agenthub"
+    echo "  cp bin/agenthub.prev bin/agenthub && bin/safe-restart.sh"
     exit 3
   fi
 
