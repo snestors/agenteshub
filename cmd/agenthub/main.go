@@ -22,7 +22,6 @@ import (
 	"github.com/snestors/agenteshub/internal/config"
 	intcron "github.com/snestors/agenteshub/internal/cron"
 	"github.com/snestors/agenteshub/internal/mcp"
-	"github.com/snestors/agenteshub/internal/scheduler"
 	"github.com/snestors/agenteshub/internal/server"
 	"github.com/snestors/agenteshub/internal/setup"
 	"github.com/snestors/agenteshub/internal/store"
@@ -119,8 +118,6 @@ func runServe() {
 	cronRunner.Start()
 	defer cronRunner.Stop()
 
-	sched := scheduler.New(repos, engines, logger)
-
 	// Usage tracking worker — imports Claude+Codex JSONL every 5 min, idempotent.
 	usageWorker := usage.NewWorker(usage.NewUsageRepo(db), logger)
 	go usageWorker.Start(ctx)
@@ -130,8 +127,6 @@ func runServe() {
 		logger.Error("server new", "err", err)
 		os.Exit(1)
 	}
-	sched.SetRunFinishedHook(srv.NotifyAgentRunFinished)
-	sched.Start(ctx)
 
 	// WhatsApp client + outbox worker. Both no-op when WAEnabled=false so
 	// dev mode stays untouched.

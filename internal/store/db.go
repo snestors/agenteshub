@@ -83,7 +83,6 @@ type Repos struct {
 	Messages          *MessagesRepo
 	Topics            *TopicsRepo
 	Projects          *ProjectsRepo
-	Agents            *AgentsRepo
 	Records           *RecordsRepo
 	Sessions          *SessionsRepo
 	Snapshots         *SnapshotsRepo
@@ -110,7 +109,6 @@ func NewRepos(db *sql.DB) *Repos {
 		Messages:          NewMessagesRepo(db),
 		Topics:            NewTopicsRepo(db),
 		Projects:          NewProjectsRepo(db),
-		Agents:            NewAgentsRepo(db),
 		Records:           NewRecordsRepo(db),
 		Sessions:          NewSessionsRepo(db),
 		Snapshots:         NewSnapshotsRepo(db),

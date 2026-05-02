@@ -189,20 +189,6 @@ func (s *Server) routes() http.Handler {
 		pr.Put("/api/diagrams/{id}", s.handleDiagramUpdate)
 		pr.Delete("/api/diagrams/{id}", s.handleDiagramDelete)
 
-		// Mini-agents — persistent scheduled/manual agents
-		pr.Get("/api/agents", s.handleAgentsList)
-		pr.Post("/api/agents", s.handleAgentsCreate)
-		// Templates: literal route registered before /{id} so chi doesn't
-		// treat "templates" as a numeric agent id.
-		pr.Get("/api/agents/templates", s.handleAgentsTemplates)
-		pr.Get("/api/agents/{id}", s.handleAgentGet)
-		pr.Post("/api/agents/{id}/enabled", s.handleAgentSetEnabled)
-		pr.Post("/api/agents/{id}/run", s.handleAgentRunNow)
-		pr.Get("/api/agents/{id}/runs", s.handleAgentRuns)
-		pr.Post("/api/agents/{id}/schedules", s.handleAgentSchedulesAdd)
-		pr.Post("/api/agents/{id}/schedules/{sid}/enabled", s.handleAgentScheduleEnabled)
-		pr.Delete("/api/agents/{id}/schedules/{sid}", s.handleAgentScheduleDelete)
-
 		// Sub-agents — captured from JSONL post-spawn
 		pr.Get("/api/subagents", s.handleSubagentsList)
 		pr.Get("/api/subagents/{id}", s.handleSubagentGet)
@@ -362,14 +348,6 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		checks["migrations"] = map[string]any{"ok": false, "err": "no migrations applied"}
 		allOK = false
 	}
-
-	// Scheduler: indirect — agent_runs is touched on every tick. We just expose
-	// the row count so a stuck scheduler shows up as a flat number across deploys.
-	var runsCount int
-	if db := s.repos.DB(); db != nil {
-		_ = db.QueryRowContext(ctx, `SELECT COUNT(1) FROM agent_runs`).Scan(&runsCount)
-	}
-	checks["scheduler"] = map[string]any{"ok": true, "agent_runs": runsCount}
 
 	// WhatsApp: only relevant when enabled. Smoke runs with WAEnabled=false so
 	// the check stays informational. When enabled, ok=true requires the

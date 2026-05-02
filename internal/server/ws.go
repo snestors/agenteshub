@@ -40,10 +40,9 @@ func (s *Server) startSystemPoller(ctx context.Context) {
 }
 
 // systemTick wraps sysman.Stats with a couple of cross-cutting counters that
-// the server has and sysman doesn't (running agents, ws clients).
+// the server has and sysman doesn't (running turns, ws clients).
 type systemTick struct {
 	sysman.Stats
-	RunningAgents  int `json:"running_agents"`
 	RunningMain    int `json:"running_main"`
 	RunningProject int `json:"running_project"`
 	RunningTotal   int `json:"running_total"`
@@ -55,7 +54,6 @@ func (s *Server) buildSystemTick(ctx context.Context) *systemTick {
 	if err != nil {
 		return nil
 	}
-	runningAgents, _ := s.repos.Agents.CountRunning(ctx)
 	runningMain := 0
 	runningProject := 0
 	if s.runs != nil {
@@ -68,10 +66,9 @@ func (s *Server) buildSystemTick(ctx context.Context) *systemTick {
 	}
 	return &systemTick{
 		Stats:          stats,
-		RunningAgents:  runningAgents,
 		RunningMain:    runningMain,
 		RunningProject: runningProject,
-		RunningTotal:   runningAgents + runningMain + runningProject,
+		RunningTotal:   runningMain + runningProject,
 		WSClients:      clients,
 	}
 }
