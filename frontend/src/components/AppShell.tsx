@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Outlet, useNavigate } from "react-router-dom";
+import { Bit } from "@/components/Bit";
 import { MobileNav, Sidebar } from "@/components/Sidebar";
 import { NotifProvider } from "@/components/NotifCenter";
 import { api, ApiError, type Me } from "@/lib/api";
@@ -84,6 +85,7 @@ export function AppShell() {
               <Outlet />
             </main>
             <MobileNav username={auth.me?.username} />
+            <Bit />
           </div>
         </StreamsProvider>
       </NotifProvider>
