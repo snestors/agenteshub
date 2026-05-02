@@ -2,6 +2,31 @@
 
 Path: `/home/nestor/agenthub`
 
+## v0.4.2 — 2026-05-02
+
+Refuerzo de las dos invariantes que el user pidió en el plan de jerarquía: **WA solo va al main-agent** (f-003) y **Codex es siempre tool, nunca engine principal** (f-004).
+
+### Added
+
+- **`validPrimaryEngine` / `validPrimaryEngineModel`** en `internal/server/engines.go`. Listan los engines admitidos como engine principal de una sesión (main o project). Hoy solo `claude`; Codex queda fuera porque solo se invoca como tool desde Claude (`delegate_to_codex`). El catálogo `/api/agent/engines` sigue exponiendo Codex para que el frontend lo describa — el gate vive en los setters, no en el listing.
+- **7 tests nuevos** (`engines_test.go`) pinean el contrato: claude aceptado, codex rechazado en todos los formatos, modelos no-claude rechazados, catálogo sigue listando ambos.
+
+### Changed
+
+- **f-004 — gates en los 4 setters de engine primario:**
+  - `POST /api/agent/engine` (main-agent) — `validEngineModel` → `validPrimaryEngineModel`.
+  - `POST /api/projects` (default_engine del proyecto) — `validEngine` → `validPrimaryEngine`.
+  - `POST /api/projects/{id}/sessions` (engine + model de sesión nueva) — ambos checks migrados.
+  - `POST /api/projects/{id}/sessions/{sid}/engine` (cambio de engine en sesión existente) — `validEngine` → `validPrimaryEngine`. Sesiones existentes con `engine=codex` pre-gate siguen corriendo (la regla de inmutabilidad del session engine las preserva).
+- **f-003 — invariante documentada:** `routeConversationInput` y `StartWAConsumer` llevan ahora un comentario explícito que explica que el `scope` de cualquier mensaje WA es siempre `"main"`. La estructura `conversationInput` no tiene un campo `Scope`, así que el invariante ya valía por construcción; el comentario evita que un refactor lo rompa silenciosamente.
+
+### Notas
+
+- **Deuda visual (0.5.0):** el dropdown de Engine en el frontend va a seguir mostrando `Codex` aunque el backend lo rechace. UX: el user verá un error 400 al guardar. La limpieza del dropdown entra con la Fase 3 (frontend).
+- `handleAgentsCreate` (mini-agentes) sigue usando `validEngine` no-restringido. Se barre con f-002 cuando ripeemos el sistema mini-agente completo.
+
+---
+
 ## v0.4.1 — 2026-05-02
 
 Removal-only release. Closes **f-001 (rip OpenSpec)** y **f-005 (skill + CLAUDE.md actualizados a promote.sh)** del feature_list de agenthub. La SDD-style proposal-design-tasks-apply-verify se reemplaza por la disciplina del harness BettaTech (loop leader/implementer/reviewer + feature_list.json + CHECKPOINTS.md) que llegó en 0.4.0.
