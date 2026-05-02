@@ -2,6 +2,23 @@
 
 Path: `/home/nestor/agenthub`
 
+## v0.5.1 — 2026-05-02
+
+UI polish del ChatHUD a partir del feedback inmediato post-0.5.0. Frontend-only.
+
+### Changed
+
+- **`<ChatHUD>` reordenado** según pedido del user:
+  1. **ENGINE · TOKENS** (combinado) — la card ahora une lo que era `Engine` + `Tokens · session` en una sola: arriba engine/model/ctx, abajo el número grande de tokens session + bar de progreso. La idea: que la headline del consumo viva junto al engine que lo está produciendo.
+  2. **AGENTS · RUNTIME** subió al segundo slot (estaba sexto).
+  3. **FEATURE_LIST** (solo project) — sin cambios.
+  4. **SUBS · 5H WINDOW** — sin cambios.
+  5. **STACK** — sin cambios.
+  6. **SESSION** bajó al final (estaba primero). Es forensic data, casi nunca lo primero que querés mirar.
+- `EngineSection` y `TokensSection` reemplazadas por `EngineTokensSection`. El componente viejo `TokensSection` se elimina.
+
+---
+
 ## v0.5.0 — 2026-05-02
 
 Frontend rebrand pass del Claude Design handoff. Tres sprints:
