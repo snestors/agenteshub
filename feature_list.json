@@ -1,12 +1,13 @@
 {
   "version": 1,
-  "updated_at": "2026-05-02T21:35:00Z",
+  "updated_at": "2026-05-02T22:10:00Z",
   "features": [
     {
       "id": "f-001",
       "name": "Ripear OpenSpec del backend, UI, skill y dir",
-      "status": "pending",
-      "description": "Eliminar handlers /api/projects/{id}/openspec/*, vista 'changes' en frontend, skill sdd-workflow y dir openspec/. La vista de changes se reemplaza por una de feature_list.json en 0.5.0."
+      "status": "done",
+      "completed_at": "2026-05-02",
+      "description": "Released en 0.4.1 (tag v0.4.1, commits 79fab61 + 94331cb + f401790). Eliminados: 4 archivos Go (~1360 líneas), 8 routes /api/projects/{id}/openspec/*, types + 6 métodos API en frontend, tab 'changes' + ProjectChanges + 7 helpers (~263 líneas) en Projects.tsx, .claude/skills/sdd-workflow/, dir openspec/ entero (10 archivos). Migration 0019: DROP TABLE openspec_changes + rebuild conversation_runs sin 'openspec' en su CHECK enum."
     },
     {
       "id": "f-002",
@@ -93,6 +94,12 @@
       "name": "MCP tool delegate_to_project",
       "status": "pending",
       "description": "Tercera tool del plan original. Permite al main-agent enviar un mensaje al chat de un project_session específico. Diferida hasta cablear WS routing project-side por MCP."
+    },
+    {
+      "id": "f-015",
+      "name": "404 explícito en /api/* no registradas (no SPA fallback)",
+      "status": "pending",
+      "description": "Bug pre-existente detectado durante el smoke de 0.4.1: el catch-all de mountFrontend en server.go atrapa rutas /api/* no registradas y sirve index.html (200 con HTML body) en lugar de 404. Confunde a clientes que parsean JSON. Fix: en el handler de /* del SPA fallback, si req.URL.Path empieza con /api/, devolver http.NotFound."
     }
   ]
 }
