@@ -2,12 +2,15 @@ import * as React from "react";
 import {
   api,
   type AgentMessage,
+  type AgentStatus,
   type ConversationRuntime,
   type MessageAttachmentRef,
+  type RealtimeResponse,
   type RuntimeToolState,
 } from "@/lib/api";
 import { useTopic } from "@/lib/useTopic";
 import { wsClient } from "@/lib/wsClient";
+import { ChatHUD } from "@/components/ChatHUD";
 import { Composer } from "@/components/Composer";
 import { MessageBubble } from "@/components/MessageBubble";
 import { GhostBubble } from "@/components/GhostBubble";
@@ -406,6 +409,38 @@ export function ChatMain() {
     }
   })();
 
+  // ─── HUD lateral (Sprint A2) ──────────────────────────────────────
+  // Polling barato cada 6s; los datos solo alimentan el HUD lateral, así
+  // que un poll a base de setInterval alcanza. Más adelante esto va a vivir
+  // en useStreams o en un useSWR cuando esté instalado.
+  const [hudStatus, setHudStatus] = React.useState<AgentStatus | null>(null);
+  const [hudRuntime, setHudRuntime] = React.useState<ConversationRuntime | null>(null);
+  const [hudRealtime, setHudRealtime] = React.useState<RealtimeResponse | null>(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const [status, runtime, realtime] = await Promise.allSettled([
+          api.agentStatus(),
+          api.getAgentRuntime(),
+          api.getUsageRealtime(),
+        ]);
+        if (cancelled) return;
+        if (status.status === "fulfilled") setHudStatus(status.value);
+        if (runtime.status === "fulfilled") setHudRuntime(runtime.value);
+        if (realtime.status === "fulfilled") setHudRealtime(realtime.value);
+      } catch {
+        /* ignore — HUD is best-effort */
+      }
+    };
+    tick();
+    const handle = window.setInterval(tick, 6000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(handle);
+    };
+  }, []);
+
   // when there's an active ghost bubble, we don't show the simple "pensando…" line
   const hasGhost = ghostList.length > 0;
 
@@ -430,7 +465,8 @@ export function ChatMain() {
         }
       />
 
-      <div className="flex-1 min-h-0 p-2 overflow-hidden sm:p-4">
+      <div className="flex-1 min-h-0 flex flex-row overflow-hidden">
+       <div className="flex-1 min-h-0 p-2 overflow-hidden sm:p-4">
         <HudPanel
           title="agente principal"
           sub={
@@ -514,6 +550,15 @@ export function ChatMain() {
             <StatusBar transportLabel={transportLabel} />
           </div>
         </HudPanel>
+       </div>
+       <ChatHUD
+         scope="main"
+         scopeKey="main"
+         status={hudStatus}
+         runtime={hudRuntime}
+         realtimeUsage={hudRealtime}
+         wsConnected={isLive}
+       />
       </div>
     </div>
   );

@@ -83,6 +83,107 @@ body {
   filter: blur(1px);
   pointer-events: none;
   z-index: 0;
+  animation: hud-scan 8s linear infinite;
+}
+@keyframes hud-scan {
+  0%   { top: 5%; }
+  50%  { top: 85%; }
+  100% { top: 5%; }
+}
+
+/* ─── animaciones del HUD lateral (Claude Design handoff) ───────────────
+   Cascada de fade-in para las secciones del HUD, slide-up para mensajes,
+   zip-in para tool-calls, bounce para topic-pill, heartbeat para status
+   pill. Cada animación es de un solo paso (no loop) salvo heartbeat y la
+   campana del notif center; las hacen las páginas/componentes asignándose
+   las clases. */
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.anim-fade-in-up { animation: fade-in-up 0.32s ease-out both; }
+
+@keyframes zip-in {
+  from { opacity: 0; transform: scaleX(0.6); transform-origin: left center; }
+  to   { opacity: 1; transform: scaleX(1);   transform-origin: left center; }
+}
+.anim-zip-in { animation: zip-in 0.18s ease-out both; }
+
+@keyframes bounce-pop {
+  0%   { transform: scale(0.6); opacity: 0; }
+  60%  { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1);    opacity: 1; }
+}
+.anim-bounce { animation: bounce-pop 0.34s cubic-bezier(.34,1.56,.64,1) both; }
+
+@keyframes heartbeat {
+  0%, 50%, 100% { transform: scale(1);   opacity: 1; }
+  10%, 35%      { transform: scale(1.4); opacity: 0.85; }
+}
+.anim-heartbeat { animation: heartbeat 1.4s ease-in-out infinite; }
+
+@keyframes ring-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 78, 214, 0.55); }
+  70%  { box-shadow: 0 0 0 12px rgba(255, 78, 214, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 78, 214, 0); }
+}
+.anim-ring-pulse { animation: ring-pulse 2.6s ease-out infinite; }
+
+@keyframes bell-shake {
+  0%, 100% { transform: rotate(0); }
+  10%      { transform: rotate(-12deg); }
+  20%      { transform: rotate(10deg); }
+  30%      { transform: rotate(-8deg); }
+  40%      { transform: rotate(6deg); }
+  50%      { transform: rotate(-3deg); }
+}
+.anim-bell-shake { animation: bell-shake 0.8s ease-in-out; }
+
+@keyframes drawer-slide-in {
+  from { transform: translateX(100%); opacity: 0.6; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+.anim-drawer-in { animation: drawer-slide-in 0.32s cubic-bezier(.2,.8,.2,1) both; }
+
+@keyframes toast-pop {
+  0%   { transform: translateX(40%) scale(0.92); opacity: 0; }
+  60%  { transform: translateX(0)    scale(1.04); opacity: 1; }
+  100% { transform: translateX(0)    scale(1);    opacity: 1; }
+}
+.anim-toast-pop { animation: toast-pop 0.36s cubic-bezier(.2,.9,.2,1.2) both; }
+
+@keyframes hud-cascade {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.anim-hud-cascade { animation: hud-cascade 0.4s ease-out both; }
+/* Stagger por hijo cuando un contenedor lleva .anim-hud-stagger.
+   Se cap a 8 hijos; más allá comparten el último delay. */
+.anim-hud-stagger > * { animation: hud-cascade 0.42s ease-out both; }
+.anim-hud-stagger > *:nth-child(1) { animation-delay: 0.04s; }
+.anim-hud-stagger > *:nth-child(2) { animation-delay: 0.10s; }
+.anim-hud-stagger > *:nth-child(3) { animation-delay: 0.16s; }
+.anim-hud-stagger > *:nth-child(4) { animation-delay: 0.22s; }
+.anim-hud-stagger > *:nth-child(5) { animation-delay: 0.28s; }
+.anim-hud-stagger > *:nth-child(6) { animation-delay: 0.34s; }
+.anim-hud-stagger > *:nth-child(7) { animation-delay: 0.40s; }
+.anim-hud-stagger > *:nth-child(n+8) { animation-delay: 0.46s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-fade-in-up,
+  .anim-zip-in,
+  .anim-bounce,
+  .anim-heartbeat,
+  .anim-ring-pulse,
+  .anim-bell-shake,
+  .anim-drawer-in,
+  .anim-toast-pop,
+  .anim-hud-cascade,
+  .anim-hud-stagger > *,
+  .hud-scan {
+    animation: none !important;
+  }
 }
 
 /* clip-path corner-cut wrappers */

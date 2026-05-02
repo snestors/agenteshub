@@ -323,6 +323,42 @@ export const projectTemplatesApi = {
   },
 };
 
+// ─── BettaTech harness (0.4.0) ─────────────────────────────────────────
+export type FeatureStatus = "pending" | "in_progress" | "done" | "blocked";
+
+export interface FeatureItem {
+  id: string;
+  name: string;
+  status: FeatureStatus;
+  description?: string;
+  depends_on?: string[];
+  blocked_reason?: string;
+  completed_at?: string;
+}
+
+export interface ProjectFeatures {
+  exists: boolean;
+  path: string;
+  version: number;
+  updated_at?: string;
+  features: FeatureItem[];
+}
+
+export interface HarnessFileSnapshot {
+  exists: boolean;
+  path: string;
+  content: string;
+  truncated: boolean;
+  size: number;
+  error?: string;
+}
+
+export interface ProjectHarnessState {
+  current: HarnessFileSnapshot;
+  history: HarnessFileSnapshot;
+  checkpoints: HarnessFileSnapshot;
+}
+
 export interface Diagram {
   id: number;
   project_id?: number;
@@ -659,6 +695,14 @@ export const api = {
       `/api/projects/${projectId}/sessions/${sessionId}/runtime`,
     );
     return res.run ?? null;
+  },
+
+  async getProjectFeatures(projectId: number): Promise<ProjectFeatures> {
+    return request<ProjectFeatures>(`/api/projects/${projectId}/features`);
+  },
+
+  async getProjectHarnessState(projectId: number): Promise<ProjectHarnessState> {
+    return request<ProjectHarnessState>(`/api/projects/${projectId}/harness/state`);
   },
 
   async cancelProjectRun(projectId: number, sessionId: number): Promise<void> {

@@ -1,7 +1,20 @@
 import * as React from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ExternalLink, FolderKanban, MessageSquare, RefreshCw, Server, Settings2, X } from "lucide-react";
-import { api, DEFAULT_REASONING_EFFORTS, FALLBACK_ENGINES, type EngineDef, type Project, type ProjectServiceStatus, type ProjectSession } from "@/lib/api";
+import {
+  api,
+  DEFAULT_REASONING_EFFORTS,
+  FALLBACK_ENGINES,
+  type AgentStatus,
+  type ConversationRuntime,
+  type EngineDef,
+  type Project,
+  type ProjectFeatures,
+  type ProjectServiceStatus,
+  type ProjectSession,
+  type RealtimeResponse,
+} from "@/lib/api";
+import { ChatHUD } from "@/components/ChatHUD";
 import { HudPanel } from "@/components/HudPanel";
 import { Topbar } from "@/components/Topbar";
 import { ProjectChat } from "@/components/ProjectChat";
@@ -212,6 +225,53 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
     }
   }
 
+  // ─── HUD lateral (Sprint A2) ──────────────────────────────────────
+  const [hudStatus, setHudStatus] = React.useState<AgentStatus | null>(null);
+  const [hudRuntime, setHudRuntime] = React.useState<ConversationRuntime | null>(null);
+  const [hudRealtime, setHudRealtime] = React.useState<RealtimeResponse | null>(null);
+  const [hudFeatures, setHudFeatures] = React.useState<ProjectFeatures | null>(null);
+  React.useEffect(() => {
+    if (tab !== "chat" || !current) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const [status, runtime, realtime, features] = await Promise.allSettled([
+          api.agentStatus(),
+          api.getProjectRuntime(projectId, current.id),
+          api.getUsageRealtime(),
+          api.getProjectFeatures(projectId),
+        ]);
+        if (cancelled) return;
+        if (status.status === "fulfilled") setHudStatus(status.value);
+        if (runtime.status === "fulfilled") setHudRuntime(runtime.value);
+        if (realtime.status === "fulfilled") setHudRealtime(realtime.value);
+        if (features.status === "fulfilled") setHudFeatures(features.value);
+      } catch {
+        /* ignore — HUD is best-effort */
+      }
+    };
+    tick();
+    const handle = window.setInterval(tick, 6000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(handle);
+    };
+  }, [tab, current, projectId]);
+
+  async function scaffoldProjectHarness() {
+    try {
+      await fetch(`/api/projects/${projectId}/harness/scaffold`, {
+        method: "POST",
+        credentials: "include",
+      });
+      // Re-fetch features so the HUD flips from "sin harness" to the populated state.
+      const features = await api.getProjectFeatures(projectId);
+      setHudFeatures(features);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "error scaffolding harness");
+    }
+  }
+
   return (
     <div className="flex flex-col h-full min-h-0">
       <Topbar
@@ -226,7 +286,8 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
           </button>
         }
       />
-      <div className="flex-1 min-h-0 p-2 sm:p-4">
+      <div className="flex-1 min-h-0 flex flex-row overflow-hidden">
+       <div className="flex-1 min-h-0 p-2 sm:p-4">
         <HudPanel
           title={tab === "services" ? "project services" : current ? `project chat · ${current.name}` : "project chat"}
           sub={tab === "services" ? ".agenthub/services.yaml" : current ? `topic project_session:${current.id}` : "sin sesión"}
@@ -308,6 +369,19 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
             </div>
           )}
         </HudPanel>
+       </div>
+       {tab === "chat" && current && (
+         <ChatHUD
+           scope="project"
+           scopeKey={`project:${projectId}:${current.id}`}
+           status={hudStatus}
+           runtime={hudRuntime}
+           realtimeUsage={hudRealtime}
+           projectFeatures={hudFeatures}
+           wsConnected={true /* TODO Sprint B: real ws status */}
+           onScaffoldHarness={scaffoldProjectHarness}
+         />
+       )}
       </div>
       {sessionModalOpen && (
         <ProjectSessionModal
