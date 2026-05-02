@@ -23,6 +23,7 @@ import (
 	"github.com/snestors/agenteshub/internal/auth"
 	"github.com/snestors/agenteshub/internal/cliengine"
 	"github.com/snestors/agenteshub/internal/config"
+	"github.com/snestors/agenteshub/internal/harness"
 	"github.com/snestors/agenteshub/internal/store"
 	"github.com/snestors/agenteshub/internal/sysman"
 )
@@ -275,6 +276,18 @@ func (s *Server) registerTools() {
 		mcp.WithDescription("Re-enables a previously paused mini-agent."),
 		mcp.WithString("name", mcp.Required()),
 	), s.handleAgentResume)
+
+	// ---------- harness (project tier) ----------
+	s.srv.AddTool(mcp.NewTool("query_project_state",
+		mcp.WithDescription("Read-only snapshot of a registered project: feature_list.json, harness state files (progress/current.md, progress/history.md, CHECKPOINTS.md), and existence flags for canonical docs (CLAUDE.md, AGENTS.md, DESIGN.md, SPECS.md, RELEASE_NOTES.md). Use this from the main-agent to ask 'how is project X going?' without spawning a subprocess inside the project."),
+		mcp.WithString("project", mcp.Required(), mcp.Description("Project name or numeric id. Numeric strings are tried as id first, then as name.")),
+	), s.handleQueryProjectState)
+
+	s.srv.AddTool(mcp.NewTool("run_project_init",
+		mcp.WithDescription("Run init.sh in a project's repo (the BettaTech harness validator: tests + build + smoke). Synchronous; returns exit_code, combined output, duration, and a timeout flag. Default timeout 5 min, ceiling 30 min."),
+		mcp.WithString("project", mcp.Required(), mcp.Description("Project name or numeric id.")),
+		mcp.WithNumber("timeout_s", mcp.Description("Wall-clock cap in seconds. Defaults to 300, ceiling 1800.")),
+	), s.handleRunProjectInit)
 }
 
 // ---------- handlers ----------
@@ -1295,6 +1308,131 @@ func (s *Server) toggleAgent(ctx context.Context, req mcp.CallToolRequest, enabl
 		state = "resumed"
 	}
 	return mcp.NewToolResultText(fmt.Sprintf("agent %s %s", name, state)), nil
+}
+
+// resolveProject looks up a project by numeric id (preferred) or by name. The
+// input is the user-facing string given to the MCP tool — we tolerate both
+// forms because the LLM doesn't always know which one it has.
+func (s *Server) resolveProject(ctx context.Context, ref string) (*store.Project, error) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return nil, fmt.Errorf("project required")
+	}
+	if id, err := strconv.ParseInt(ref, 10, 64); err == nil && id > 0 {
+		if p, err := s.repos.Projects.GetByID(ctx, id); err == nil {
+			return p, nil
+		}
+	}
+	p, err := s.repos.Projects.GetByName(ctx, ref)
+	if err != nil {
+		return nil, fmt.Errorf("project not found: %s", ref)
+	}
+	return p, nil
+}
+
+// canonicalDocsForProject mirrors the keys served by /api/projects/{id}/docs
+// so the LLM gets a consistent picture across HTTP and MCP. We only stat —
+// content is left to a follow-up tool to keep the response small.
+var canonicalDocsForProject = map[string]string{
+	"claude":  ".claude/CLAUDE.md",
+	"specs":   "SPECS.md",
+	"design":  "DESIGN.md",
+	"agents":  "AGENTS.md",
+	"release": "RELEASE_NOTES.md",
+}
+
+func (s *Server) handleQueryProjectState(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	ref, err := req.RequireString("project")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	project, err := s.resolveProject(ctx, ref)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	out := map[string]any{
+		"project": map[string]any{
+			"id":   project.ID,
+			"name": project.Name,
+			"path": project.Path,
+		},
+		"state": harness.ReadAllState(project.Path, harness.FileMaxBytes),
+	}
+
+	// Feature list — tolerate missing/invalid file by surfacing the error
+	// instead of failing the whole tool. The caller is the LLM; it can decide
+	// what to do.
+	flPath := filepath.Join(project.Path, harness.FeatureListFile)
+	if raw, err := os.ReadFile(flPath); err == nil {
+		fl, perr := harness.ParseFeatureList(raw)
+		if perr != nil {
+			out["features"] = map[string]any{"exists": true, "error": perr.Error()}
+		} else {
+			out["features"] = map[string]any{
+				"exists":     true,
+				"version":    fl.Version,
+				"updated_at": fl.UpdatedAt,
+				"items":      fl.Features,
+			}
+		}
+	} else if os.IsNotExist(err) {
+		out["features"] = map[string]any{"exists": false, "items": []harness.FeatureItem{}}
+	} else {
+		out["features"] = map[string]any{"exists": false, "error": err.Error()}
+	}
+
+	docs := make([]map[string]any, 0, len(canonicalDocsForProject))
+	for slug, rel := range canonicalDocsForProject {
+		_, statErr := os.Stat(filepath.Join(project.Path, rel))
+		docs = append(docs, map[string]any{
+			"doc":    slug,
+			"path":   rel,
+			"exists": statErr == nil,
+		})
+	}
+	out["docs"] = docs
+
+	return jsonResult(out)
+}
+
+func (s *Server) handleRunProjectInit(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	ref, err := req.RequireString("project")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	project, err := s.resolveProject(ctx, ref)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	initSh := filepath.Join(project.Path, "init.sh")
+	info, err := os.Stat(initSh)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return mcp.NewToolResultError("init.sh missing — scaffold the harness first"), nil
+		}
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if info.Mode().Perm()&0o111 == 0 {
+		return mcp.NewToolResultError("init.sh exists but is not executable"), nil
+	}
+
+	timeout := harness.InitDefaultTimeout
+	if n := req.GetInt("timeout_s", 0); n > 0 {
+		timeout = time.Duration(n) * time.Second
+	}
+	if timeout > harness.InitMaxTimeout {
+		timeout = harness.InitMaxTimeout
+	}
+
+	res := harness.RunInit(ctx, project.Path, []string{
+		"AGENTHUB_HARNESS=1",
+		"AGENTHUB_PROJECT_ID=" + strconv.FormatInt(project.ID, 10),
+		"AGENTHUB_PROJECT_NAME=" + project.Name,
+	}, timeout, harness.InitOutputCap)
+
+	return jsonResult(res)
 }
 
 // ---------- helpers ----------
