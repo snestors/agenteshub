@@ -2,6 +2,62 @@
 
 Path: `/home/nestor/agenthub`
 
+## v0.5.0 — 2026-05-02
+
+Frontend rebrand pass del Claude Design handoff. Tres sprints:
+**A** HUD lateral derecho · **B** sistema de notificaciones · **C** BIT (mascota pixel-art notif assistant).
+
+### Added — Sprint A · ChatHUD lateral
+
+- **`<ChatHUD>`** (componente nuevo) montado en `/chat` y `/projects/:id/sessions/:sid`. Secciones (visibles según scope):
+  - **SESSION** — id corto, scope, started, status, ws conectado.
+  - **ENGINE** — engine/model/ctx window leídos de `/api/agent/status` + `/api/agent/runtime`.
+  - **FEATURE_LIST** (solo project) — counters por status (`pending/in_progress/done/blocked`) + lista scrollable. Cuando el proyecto no tiene scaffold, muestra CTA `scaffold harness` que postea `/api/projects/:id/harness/scaffold`.
+  - **TOKENS · session** — número grande + bar de progreso desde `usage_session_pct`.
+  - **SUBS · 5H** — radial pct + countdown a reset (parsed de `/api/usage/realtime` `claude.session`).
+  - **AGENTS · Runtime** — counters de main + project running.
+  - **STACK** — topic activo + tools usados (de `runtime.tools`).
+- Colapsable; preferencia persiste en `localStorage('agenthub.hud.collapsed')`.
+- Animaciones nuevas en `index.css` (handoff parity): `anim-fade-in-up`, `anim-zip-in`, `anim-bounce`, `anim-heartbeat`, `anim-ring-pulse`, `anim-bell-shake`, `anim-drawer-in`, `anim-toast-pop`, `anim-hud-cascade`, `anim-hud-stagger`. La `.hud-scan` ahora animada (era estática). Todas honran `prefers-reduced-motion`.
+- `api.ts` types `ProjectFeatures`, `FeatureItem`, `HarnessFileSnapshot`, `ProjectHarnessState` + métodos `api.getProjectFeatures`, `api.getProjectHarnessState`.
+- Polling de 6s en cada caller (`ChatMain` y `Projects.tsx`) para nutrir el HUD; best-effort, una falla no bloquea el chat.
+
+### Added — Sprint B · Sistema de notificaciones
+
+- **DB** — migration 0021 crea `notifications(id, kind, severity, title, body, context_json, created_at, read_at)` + índices `idx_notif_created`, `idx_notif_unread`.
+- **`internal/store/notifications.go`** — `NotificationsRepo` con `Insert` (idempotente en id), `List` (con filtro unread), `CountUnread`, `MarkRead`, `MarkAllRead`. `Repos.Notifications` wired en `db.go`.
+- **`broadcastNotification`** ahora **persiste antes de fan-out WS** — un cliente que se conecta después igual ve la notif via REST.
+- **3 endpoints nuevos**:
+  - `GET /api/notifications?unread=true&limit=N` → `{items, unread_count}`
+  - `POST /api/notifications/{id}/read`
+  - `POST /api/notifications/read-all`
+- **`<NotifProvider>`** wrap en `AppShell`. Carga inicial REST + suscripción WS topic="notifications". Cada evento prepende a items, bumpea unread, dispara bell shake + toast 5s.
+- **`<NotifBell>`** en Topbar — icono campana con shake on new + badge naranja `anim-ring-pulse`. Click abre el drawer.
+- **`<NotifDrawer>`** — slide-right desde la derecha (`anim-drawer-in`), backdrop blur, lista scrollable con dots por severity, "marcar leídas" + cerrar.
+- **`<NotifToast>`** — top-right pop-in (`anim-toast-pop`), kind/title/body, click abre drawer; progress bar CSS-driven que vacía en 5s.
+- `useNotifCenter()` expuesto para futuros consumers (BIT lo usa abajo).
+
+### Added — Sprint C · BIT pixel-art assistant
+
+- **`<Bit>`** componente nuevo montado en AppShell. 4 sprite PNG en `/public/bit/` (`idle`, `happy`, `excited`, `sleep`).
+- **Reacciones**:
+  - Notif nueva (unread) → `excited` + bounce + bubble con `kind/title/CTA "abrir drawer"`. Vuelve a `happy` a 1.5s, bubble cierra a 5.5s.
+  - 35s de inactividad → `sleep` con bubble zZ.
+  - Click con unread > 0 → abre drawer. Sin unread → bubble corto "estoy acá".
+- **Drag & drop** con pointer events; posición persiste en `localStorage('agenthub.bit.pos')`.
+- **Botón × esquinita** para ocultar; toggle persistido en `localStorage('agenthub.bit.hidden')`. Aparece un ◆ chico abajo-derecha para reabrirlo.
+- Performance: un solo `<img>` absolutamente posicionado + bubble. CSS transitions para el glide. `imageRendering: pixelated` para el sprite crisp.
+
+### What's NOT in 0.5.0
+
+- **3b** ChatShell extracción (refactor) — los chats `ChatMain` y `ProjectChat` siguen siendo componentes paralelos. La unificación es del componente HUD + animaciones, no de la implementación del feed. Se difiere a 0.5.x si surge dolor.
+- **3d** fly-pill animation (tool-call → counter del HUD). Diferida.
+- **f-014** delegate_to_project MCP tool. Sigue pendiente desde 0.4.0.
+- **f-015** 404 explícito en `/api/*` no registradas. Sigue pendiente.
+- **f-006** Harness Fase 2b (diff/update flow del template). Sigue pendiente.
+
+---
+
 ## v0.4.3 — 2026-05-02
 
 Removal-only release. Closes **f-002 (rip mini-agent system completo)** del feature_list. Solo quedan los dos tiers de agentes que el user quiere: el main-agent (Jarvis personal) y los project-agents (uno por proyecto registrado, con su harness BettaTech). No más cron loop, no más `/api/agents/*`, no más Ollama mini-agentes.
