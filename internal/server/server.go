@@ -236,6 +236,7 @@ func (s *Server) routes() http.Handler {
 		pr.Get("/api/projects/{id}/features", s.handleProjectFeaturesGet)
 		pr.Put("/api/projects/{id}/features", s.handleProjectFeaturesPut)
 		pr.Get("/api/projects/{id}/harness/state", s.handleProjectHarnessState)
+		pr.Post("/api/projects/{id}/harness/init", s.handleProjectHarnessInit)
 
 		// Topics
 		pr.Get("/api/topics", s.handleTopicsList)

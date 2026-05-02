@@ -1,10 +1,12 @@
 package server
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestReadHarnessFile_MissingReportsExistsFalse(t *testing.T) {
@@ -56,5 +58,69 @@ func TestReadHarnessFile_TruncationCap(t *testing.T) {
 	}
 	if out["size"].(int64) != 2000 {
 		t.Errorf("size = %d, want 2000 (real size, not truncated len)", out["size"])
+	}
+}
+
+func writeInitScript(t *testing.T, dir, body string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, "init.sh"), []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRunHarnessInit_Success(t *testing.T) {
+	dir := t.TempDir()
+	writeInitScript(t, dir, "#!/usr/bin/env bash\necho hello $AGENTHUB_PROJECT_NAME\nexit 0\n")
+	res := runHarnessInit(context.Background(), dir,
+		[]string{"AGENTHUB_PROJECT_NAME=alpha"},
+		5*time.Second, 256*1024)
+	if res.ExitCode != 0 {
+		t.Errorf("exit_code = %d, want 0", res.ExitCode)
+	}
+	if !strings.Contains(res.Combined, "hello alpha") {
+		t.Errorf("combined missing greeting: %q", res.Combined)
+	}
+	if res.TimedOut {
+		t.Errorf("should not have timed out")
+	}
+	if res.Truncated {
+		t.Errorf("output should not be truncated")
+	}
+}
+
+func TestRunHarnessInit_NonZeroExit(t *testing.T) {
+	dir := t.TempDir()
+	writeInitScript(t, dir, "#!/usr/bin/env bash\necho boom >&2\nexit 7\n")
+	res := runHarnessInit(context.Background(), dir, nil, 5*time.Second, 256*1024)
+	if res.ExitCode != 7 {
+		t.Errorf("exit_code = %d, want 7", res.ExitCode)
+	}
+	if !strings.Contains(res.Combined, "boom") {
+		t.Errorf("combined missing stderr line: %q", res.Combined)
+	}
+}
+
+func TestRunHarnessInit_Timeout(t *testing.T) {
+	dir := t.TempDir()
+	writeInitScript(t, dir, "#!/usr/bin/env bash\nsleep 5\n")
+	res := runHarnessInit(context.Background(), dir, nil, 200*time.Millisecond, 256*1024)
+	if !res.TimedOut {
+		t.Errorf("expected timed_out=true")
+	}
+	if res.ExitCode != -2 {
+		t.Errorf("exit_code = %d, want -2 (timeout sentinel)", res.ExitCode)
+	}
+}
+
+func TestRunHarnessInit_OutputTruncated(t *testing.T) {
+	dir := t.TempDir()
+	// 4 KiB of output, cap at 1 KiB.
+	writeInitScript(t, dir, "#!/usr/bin/env bash\nfor i in $(seq 1 100); do printf '%.0sa' $(seq 1 40); echo; done\n")
+	res := runHarnessInit(context.Background(), dir, nil, 5*time.Second, 1024)
+	if !res.Truncated {
+		t.Errorf("expected truncated=true")
+	}
+	if len(res.Combined) > 1024 {
+		t.Errorf("combined len = %d, want <= 1024", len(res.Combined))
 	}
 }
