@@ -83,9 +83,8 @@ kill $SMOKE_PID 2>/dev/null
 wait $SMOKE_PID 2>/dev/null
 rm -f $SMOKE_DB*
 
-# 6. Promover a prod con safe-restart (espera turns activos antes de reiniciar)
-mv bin/agenthub.next bin/agenthub
-bin/safe-restart.sh
+# 6. Promover a prod con backup + safe-restart en un solo paso
+bin/promote.sh           # backup → mv → safe-restart; --wait para polear /healthz post-restart
 ```
 
 ### Reglas no negociables
@@ -93,7 +92,8 @@ bin/safe-restart.sh
 - Si el smoke falla en CUALQUIER paso → NO tocar `bin/agenthub` ni reiniciar prod. Avisar al usuario y dejar `/tmp/agenthub-smoke.log` para inspección.
 - NO arrancar dos instancias contra la misma DB — SQLite WAL no lo permite.
 - NO arrancar el smoke con `AGENTHUB_WA_ENABLED=true` — mata la sesión de WhatsApp del prod.
-- `safe-restart` **no** promueve `bin/agenthub.next`; primero hay que moverlo a `bin/agenthub`.
+- **Promote SIEMPRE con `bin/promote.sh`**. Hace `cp bin/agenthub bin/agenthub.prev` ANTES del `mv bin/agenthub.next bin/agenthub`. Si hacés `mv` directo y después `bin/safe-restart.sh`, el backup queda igual al binario nuevo y perdés el rollback.
+- `safe-restart.sh` NO promueve `bin/agenthub.next` y NO hace backup. Es solo restart graceful.
 - Frontend (cambios sólo en `frontend/`) NO requiere smoke: `pnpm run build` desde `frontend/` y listo.
 
 ## Decisiones recientes
