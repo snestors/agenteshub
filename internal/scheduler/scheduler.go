@@ -142,7 +142,7 @@ func (s *Scheduler) runAgent(ctx context.Context, agent *store.Agent, sched stor
 	// No deadline: cron mini-agents are fire-and-forget; if one wedges, the
 	// next tick will spawn another and the user can pause from the UI. The
 	// 1h notification watcher only fires for interactive scopes (main/project/
-	// agent-manual/openspec) where there's a user actively waiting.
+	// agent-manual) where there's a user actively waiting.
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

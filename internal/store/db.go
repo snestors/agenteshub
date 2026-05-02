@@ -90,7 +90,6 @@ type Repos struct {
 	Subagents         *SubagentRunsRepo
 	Secrets           *SecretsRepo
 	Diagrams          *DiagramsRepo
-	OpenSpec          *OpenSpecChangesRepo
 	ConversationRuns  *ConversationRunsRepo
 	WaOutbox          *WaOutboxRepo
 	Skills            *SkillsRepo
@@ -118,7 +117,6 @@ func NewRepos(db *sql.DB) *Repos {
 		Subagents:         NewSubagentRunsRepo(db),
 		Secrets:           NewSecretsRepo(db),
 		Diagrams:          NewDiagramsRepo(db),
-		OpenSpec:          NewOpenSpecChangesRepo(db),
 		ConversationRuns:  NewConversationRunsRepo(db),
 		WaOutbox:          NewWaOutboxRepo(db),
 		Skills:            NewSkillsRepo(db),

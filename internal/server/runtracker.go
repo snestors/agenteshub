@@ -13,11 +13,11 @@ import (
 // It also owns a registry of cancel functions keyed by `<scope>:<id>` so any
 // caller (HTTP handler, MCP tool, slash command) can cancel an in-flight run
 // regardless of where it was kicked off from. Project chats already had this
-// via projectCancels; the registry generalises the pattern across main,
-// agent, and openspec scopes.
+// via projectCancels; the registry generalises the pattern across main and
+// agent scopes.
 type RunTracker struct {
 	mu             sync.Mutex
-	counts         map[string]int                     // 'main' | 'project' | 'agent' | 'openspec'
+	counts         map[string]int                     // 'main' | 'project' | 'agent'
 	cancels        map[string]context.CancelFunc      // 'scope:id' → cancel
 	pendingRestart bool
 	onZero         func() // fired once when restart is pending and total hits 0

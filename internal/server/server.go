@@ -170,14 +170,6 @@ func (s *Server) routes() http.Handler {
 		pr.Get("/api/projects/{id}/services", s.handleProjectServices)
 		pr.Post("/api/projects/{id}/services/reload", s.handleProjectServicesReload)
 		pr.Post("/api/projects/{id}/services/{idx}/{action}", s.handleProjectServiceAction)
-		pr.Get("/api/projects/{id}/openspec/changes", s.handleOpenSpecChangesList)
-		pr.Post("/api/projects/{id}/openspec/changes", s.handleOpenSpecChangesCreate)
-		pr.Get("/api/projects/{id}/openspec/changes/{name}", s.handleOpenSpecChangeGet)
-		pr.Post("/api/projects/{id}/openspec/changes/{name}/approve", s.handleOpenSpecApprove)
-		pr.Post("/api/projects/{id}/openspec/changes/{name}/reject", s.handleOpenSpecReject)
-		pr.Post("/api/projects/{id}/openspec/changes/{name}/feedback", s.handleOpenSpecFeedback)
-		pr.Get("/api/projects/{id}/openspec/specs", s.handleOpenSpecSpecsList)
-		pr.Get("/api/projects/{id}/openspec/specs/{capability}", s.handleOpenSpecSpecGet)
 		pr.Get("/api/projects/{id}/sessions", s.handleProjectSessionsList)
 		pr.Post("/api/projects/{id}/sessions", s.handleProjectSessionsCreate)
 		pr.Delete("/api/projects/{id}/sessions/{sid}", s.handleProjectSessionDelete)
@@ -863,7 +855,6 @@ func (s *Server) handleRunsStatus(w http.ResponseWriter, r *http.Request) {
 //   - "main"     id = engine ("claude" / "codex")
 //   - "project"  id = project_session_id (int64 as string)
 //   - "agent"    id = agent_run_id (int64 as string)
-//   - "openspec" id = "<change_id>:<phase>" or "<change_id>:apply-verify"
 func (s *Server) handleRunsCancel(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Scope string `json:"scope"`

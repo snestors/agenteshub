@@ -17,7 +17,7 @@ const longRunningThreshold = time.Hour
 // turn starts; it returns when the context is cancelled (turn finished or
 // user-cancelled). Lightweight — one timer per concurrent turn.
 //
-// `scope` is one of "main" / "project" / "agent" / "openspec" — used as the
+// `scope` is one of "main" / "project" / "agent" — used as the
 // scope key in the notification context AND in the cancel registry, so the
 // frontend toast can POST {scope, id} to /api/runs/cancel without translating.
 // `id` is the same id the handler used in RegisterCancel (engine name for
