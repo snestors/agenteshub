@@ -2,6 +2,30 @@
 
 Path: `/home/nestor/agenthub`
 
+## v0.3.1 — 2026-05-02
+
+Quick-fix release on top of 0.3.0: closes two ciclos abiertos del release pipeline (annotated tags, real binary backup) y suma el alert mensual de budget de Anthropic via WhatsApp.
+
+### Added
+
+- **`GET /api/internal/usage`** — loopback-only endpoint (no JWT) que devuelve `today`, `month`, `lifetime` con `events` + `cost_usd` agregados de `usage_events`. El handler rechaza cualquier `RemoteAddr` que no sea `127.0.0.0/8` o `::1` como defensa en profundidad. Pensado para `bin/budget-alert.sh` y futuras integraciones de cron.
+- **`POST /api/internal/notify`** — loopback-only, encola un mensaje de texto a `AGENTHUB_WA_NOTIFY_PHONE` reusando el worker de `wa_outbox`. Body: `{"body": "..."}`.
+- **`bin/budget-alert.sh`** — script de cron que compara cost mensual contra `AGENTHUB_BUDGET_USD` (default $50) y dispara una alerta de WhatsApp al cruzar 50/75/90/100/125 %. Idempotente por mes via `data/budget-alert.state`; resetea automáticamente al cambiar de mes. Modo `--status` imprime totales + estado sin alertar.
+- **`bin/promote.sh`** — script atómico de promote que respeta el orden correcto: 1) backup `bin/agenthub` → `bin/agenthub.prev` (binario aún corriendo), 2) `mv bin/agenthub.next bin/agenthub`, 3) delega en `bin/safe-restart.sh "$@"`. Acepta `--wait` que se pasa a safe-restart.
+- **`internal/usage.SumSince(since)`** — agregado de totales planos (count + cost) sin grouping, separado de `AggregateBy` porque el alert path no necesita buckets.
+- **Test `internal/server/usage_test.go`** — cubre `isLoopbackAddr` con la grilla completa (IPv4 con/sin puerto, IPv6, no-loopback, garbage).
+
+### Fixed
+
+- **`bin/release.sh`** ahora crea **annotated tags** (`git tag -a -m "Release vX.Y.Z"`). Los lightweight tags previos eran ignorados por `git push --follow-tags`, dejando los releases sin push automático del tag.
+- **`bin/safe-restart.sh`** ya **NO** hace backup del binario. El backup era post-`mv`, así que `bin/agenthub.prev` quedaba idéntico al binario nuevo y no había rollback real. La responsabilidad se movió a `bin/promote.sh` que hace el `cp` ANTES del `mv`.
+
+### Changed
+
+- Skill `.claude/skills/deploy-safe-restart` y la receta exacta del `.claude/CLAUDE.md` deberían apuntar a `bin/promote.sh` en lugar de `mv bin/agenthub.next bin/agenthub && bin/safe-restart.sh` — pendiente de aplicar (el editor pidió permiso explícito durante el release).
+
+---
+
 ## v0.3.0 — 2026-05-02
 
 Major housekeeping release: release pipeline, commit enforcement, deploy
