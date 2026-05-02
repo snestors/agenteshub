@@ -1,6 +1,6 @@
 # AgentHub — Agente del proyecto
 
-Sos el agente de **AgentHub**. Path: `/home/nestor/agenthub`.
+Eres el agente de **AgentHub**. Path: `/home/nestor/agenthub`.
 
 ## Stack
 
@@ -13,7 +13,7 @@ Sos el agente de **AgentHub**. Path: `/home/nestor/agenthub`.
 
 - Ver `.agenthub/services.yaml` para servicios systemd/docker/tunnel del proyecto.
 - Dato crítico: AgentHub se opera como `agenthub.service`; después de build se reinicia con `systemctl restart agenthub`.
-- Cuando haya URL pública, asumí que puede estar detrás de Cloudflare Tunnel y revisá el manifest antes de improvisar deploy.
+- Cuando haya URL pública, asume que puede estar detrás de Cloudflare Tunnel y revisa el manifest antes de improvisar deploy.
 
 ## Convenciones del proyecto
 
@@ -23,6 +23,27 @@ Sos el agente de **AgentHub**. Path: `/home/nestor/agenthub`.
 - Backend: validar con `go test ./...` y build con tags `sqlite_fts5 sqlite_json` cuando corresponda.
 - Frontend: validar con `pnpm run build` desde `frontend/`.
 - Para cambios backend/deploy usar la skill `.claude/skills/deploy-safe-restart/SKILL.md`.
+
+## Vault de credenciales (LEE ESTO ANTES DE PEDIR UN TOKEN)
+
+**Regla de oro:** si el usuario te comparte una API key, token, password o cualquier credencial, **guárdala en el vault encriptado YA**. Si vas a usar una credencial, **busca en el vault primero** antes de pedírsela. El usuario no quiere repetir credenciales entre sesiones.
+
+Tools MCP disponibles (servidor `agenthub`):
+
+- `secret_list` — devuelve `[{key, scope, description, updated_at, expires_at?}]`. Sin plaintext. **Llamala al inicio de cualquier tarea que necesite credenciales** para descubrir qué hay disponible.
+- `secret_get(key)` — devuelve plaintext. Úsala dentro del mismo turno y olvídala. Nunca la eches al chat.
+- `secret_set(key, value, description?, scope?)` — guarda o rota. AES-GCM con `AGENTHUB_SECRET_KEY`. Idempotente: el mismo `key` sobrescribe.
+- `secret_delete(key)` — borra permanentemente.
+
+**Convenciones de naming:** UPPER_SNAKE_CASE, prefijo por servicio. Ejemplos:
+
+- `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_KYN3D`
+- `BBVA_API_KEY`, `DEEPSEEK_API_KEY`
+- `SUDO_PASSWORD` (scope: `system`)
+
+**Descripción obligatoria al guardar.** Sin description, futuras sesiones no saben qué scope/uso tiene el secreto. Ejemplo bueno: `"CF token con scope DNS Edit + Tunnel para zona kyn3d.com"`.
+
+**Cuándo NO guardar:** valores efímeros (request IDs, session tokens de un turno), datos públicos.
 
 ## Deploy workflow — blue/green smoke (OBLIGATORIO)
 
@@ -35,7 +56,7 @@ cd /home/nestor/agenthub
 
 # 1. Compilar a binario "next" (NO sobrescribe el de prod)
 go build -tags 'sqlite_fts5 sqlite_json' \
-  -ldflags "-X github.com/snestors/agenthub/internal/buildinfo.Version=$(cat VERSION) -X github.com/snestors/agenthub/internal/buildinfo.GitCommit=$(git rev-parse --short HEAD)" \
+  -ldflags "-X github.com/snestors/agenteshub/internal/buildinfo.Version=$(cat VERSION) -X github.com/snestors/agenteshub/internal/buildinfo.GitCommit=$(git rev-parse --short HEAD)" \
   -o bin/agenthub.next ./cmd/agenthub
 
 # 2. Smoke en :8094 con DB temp + WA disabled (aislado del prod)

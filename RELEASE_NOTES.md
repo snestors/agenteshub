@@ -2,6 +2,21 @@
 
 Path: `/home/nestor/agenthub`
 
+## v0.2.65 — 2026-05-02
+
+### Added
+
+- **Vault `secret_set` y `secret_delete`** expuestos como MCP tools del servidor `agenthub`. Cierra el ciclo de credenciales: cualquier agente puede ahora guardar (`secret_set`) o rotar/eliminar tokens del vault encriptado (AES-GCM) sin pasos manuales en SQL. Idempotente — misma `key` sobrescribe el valor previo.
+  - `internal/mcp/server.go` — registro de las dos tools nuevas + handlers `handleSecretSet` y `handleSecretDelete` siguiendo el patrón de `handleSecretGet` y `handleSecretList`.
+  - Acepta parámetros `key` y `value` requeridos; opcionales `description` y `scope` (`global` por defecto).
+
+### Changed
+
+- `.claude/CLAUDE.md` — sección nueva **"Vault de credenciales"** con regla operativa: si el usuario comparte una credencial, guardarla YA en el vault; si se necesita una credencial para una tarea, **buscar en el vault primero** antes de pedírsela. Elimina el patrón anterior de re-pedir tokens en cada sesión.
+- Convención de naming `UPPER_SNAKE_CASE` con prefijo por servicio (`CLOUDFLARE_API_TOKEN`, `BBVA_API_KEY`, etc.) y descripción obligatoria al guardar.
+
+---
+
 ## v0.2.64 — 2026-04-30
 
 ### Added

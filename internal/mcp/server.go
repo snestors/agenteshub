@@ -186,6 +186,19 @@ func (s *Server) registerTools() {
 		mcp.WithDescription("List vault keys + metadata (description, scope, expiry). Never returns plaintext."),
 	), s.handleSecretList)
 
+	s.srv.AddTool(mcp.NewTool("secret_set",
+		mcp.WithDescription("Save or rotate a credential in the encrypted vault (AES-GCM). Use whenever the user shares an API key, token, password, or anything that should survive across sessions instead of being repeated. UPPER_SNAKE_CASE keys by convention. Idempotent: same key overwrites the previous value."),
+		mcp.WithString("key", mcp.Required(), mcp.Description("Vault key, UPPER_SNAKE_CASE (e.g. 'CLOUDFLARE_API_TOKEN', 'BBVA_API_KEY').")),
+		mcp.WithString("value", mcp.Required(), mcp.Description("Plaintext value to encrypt and store.")),
+		mcp.WithString("description", mcp.Description("Optional human-readable note (what scope it has, when it expires, where it came from).")),
+		mcp.WithString("scope", mcp.Description("Optional scope: 'global' (default) | 'project:<id>' | 'agent:<name>'.")),
+	), s.handleSecretSet)
+
+	s.srv.AddTool(mcp.NewTool("secret_delete",
+		mcp.WithDescription("Permanently remove a credential from the vault. Use when a token expires, gets rotated, or the user asks to forget it."),
+		mcp.WithString("key", mcp.Required(), mcp.Description("Vault key to delete.")),
+	), s.handleSecretDelete)
+
 	// ---------- system ----------
 	s.srv.AddTool(mcp.NewTool("get_status",
 		mcp.WithDescription("Returns a quick status snapshot of AgentHub."),
@@ -948,6 +961,68 @@ func (s *Server) handleSecretList(ctx context.Context, _ mcp.CallToolRequest) (*
 		out = append(out, entry)
 	}
 	return jsonResult(out)
+}
+
+func (s *Server) handleSecretSet(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	key, err := req.RequireString("key")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return mcp.NewToolResultError("key required"), nil
+	}
+	value, err := req.RequireString("value")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if value == "" {
+		return mcp.NewToolResultError("value required"), nil
+	}
+	description := strings.TrimSpace(req.GetString("description", ""))
+	scope := strings.TrimSpace(req.GetString("scope", ""))
+	if scope == "" {
+		scope = "global"
+	}
+
+	enc, err := auth.EncryptAESGCM(s.cfg.SecretKey, []byte(value))
+	if err != nil {
+		return mcp.NewToolResultError("encrypt: " + err.Error()), nil
+	}
+
+	sec := store.Secret{
+		Key:      key,
+		ValueEnc: enc,
+		Scope:    scope,
+	}
+	if description != "" {
+		sec.Description = sql.NullString{String: description, Valid: true}
+	}
+	if err := s.repos.Secrets.Upsert(ctx, sec); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return jsonResult(map[string]any{
+		"ok":  true,
+		"key": key,
+	})
+}
+
+func (s *Server) handleSecretDelete(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	key, err := req.RequireString("key")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return mcp.NewToolResultError("key required"), nil
+	}
+	if err := s.repos.Secrets.Delete(ctx, key); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return jsonResult(map[string]any{
+		"ok":  true,
+		"key": key,
+	})
 }
 
 func (s *Server) handleGetStatus(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
