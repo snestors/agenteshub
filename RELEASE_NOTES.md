@@ -2,6 +2,47 @@
 
 Path: `/home/nestor/agenthub`
 
+## v0.4.3 — 2026-05-02
+
+Removal-only release. Closes **f-002 (rip mini-agent system completo)** del feature_list. Solo quedan los dos tiers de agentes que el user quiere: el main-agent (Jarvis personal) y los project-agents (uno por proyecto registrado, con su harness BettaTech). No más cron loop, no más `/api/agents/*`, no más Ollama mini-agentes.
+
+### Removed
+
+- **Backend Go (~1142 líneas):**
+  - `internal/server/agents.go` (495) — 8 handlers de mini-agente
+  - `internal/server/agent_templates.go` (120) — `/agents/templates`
+  - `internal/store/agents.go` (265) — `AgentsRepo`
+  - `internal/scheduler/` paquete entero (262) — cron loop
+- **8 routes** `/api/agents/*` removidas de `server.go`. `Repos.Agents` field + `NewAgentsRepo` también.
+- **`/healthz`** ya no consulta `agent_runs` (la tabla está dropped abajo).
+- **`systemTick.RunningAgents`** removido — el WS payload de stats ahora cuenta solo main + project.
+- **MCP tools** (7): `agent_create`, `agent_list`, `agent_run_now`, `agent_logs`, `agent_schedule`, `agent_pause`, `agent_resume` y todos sus handlers + `toggleAgent` helper. La rama `"mini-agent"` del switch de scope fallback en `sendMedia` también se fue.
+- **Frontend:**
+  - `frontend/src/pages/Agents.tsx` (huérfana: no estaba routeada desde `App.tsx` ni listada en `Sidebar.tsx`)
+  - `frontend/src/lib/api.ts`: tipos `MiniAgent` / `AgentSchedule` / `AgentRun` + 8 métodos (`listAgents`, `createAgent`, `getAgent`, `setAgentEnabled`, `runAgentNow`, `listAgentRuns`, `addAgentSchedule`, `setAgentScheduleEnabled`, `deleteAgentSchedule`).
+- **Skill `.claude/skills/agent-management/SKILL.md`** removida.
+
+### Database
+
+- **Migration 0020** — `DROP TABLE agents`, `agent_schedules`, `agent_runs` (+ sus índices).
+
+Tablas que SUENAN relacionadas pero NO son mini-agentes y se quedan:
+  - `agent_sessions` — engine-scoped `session_id` store para resume de main + project (lo usa `SessionsRepo`).
+  - `agent_records` — schema-on-read JSON facts que el main-agent persiste (`source='agent'` es nombre legacy, sigue en uso).
+  - `subagent_runs` — capturas de Task-tool sub-spawns desde JSONL post-hoc, producidas por el main runtime.
+
+### Notas
+
+- `scope='agent'` se conserva en el `RunTracker` y en MCP `sendMedia` porque `diagrams.go` sigue corriendo el mermaid generator bajo ese scope (`cliengine.Run` con `AgentName='diagram-architect'`). Ya no es exclusivo de mini-agentes — es scope para "one-shot agent runs no asociados a una sesión".
+- Ollama deja de tener cualquier dependencia funcional. Los `cfg.OllamaURL` / `cfg.OllamaModel` siguen en `internal/config/config.go` por si en el futuro Claude llama a Ollama como tool subordinada (tipo `delegate_to_ollama`); hoy son dead code.
+
+### Breaking
+
+- Cualquier consumer de `/api/agents/*` recibe **404**.
+- Los 7 MCP tools `agent_*` ya no se ofrecen al spawnear `agenthub mcp`. Si Claude Code estaba usando `agent_create` o similares, ahora dará "tool not found".
+
+---
+
 ## v0.4.2 — 2026-05-02
 
 Refuerzo de las dos invariantes que el user pidió en el plan de jerarquía: **WA solo va al main-agent** (f-003) y **Codex es siempre tool, nunca engine principal** (f-004).
