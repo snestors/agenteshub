@@ -1,0 +1,77 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    name: Go build + test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: go mod verify
+        run: go mod verify
+
+      - name: go build (with sqlite tags)
+        run: |
+          go build -tags 'sqlite_fts5 sqlite_json' \
+            -ldflags "-X github.com/snestors/agenteshub/internal/buildinfo.Version=$(cat VERSION) -X github.com/snestors/agenteshub/internal/buildinfo.GitCommit=$(git rev-parse --short HEAD)" \
+            -o /tmp/agenthub.ci ./cmd/agenthub
+
+      - name: go test
+        run: go test -tags 'sqlite_fts5 sqlite_json' ./...
+
+      - name: smoke binary version
+        run: /tmp/agenthub.ci version
+
+  frontend:
+    runs-on: ubuntu-latest
+    name: Frontend build
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+          run_install: false
+
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      - name: pnpm build
+        run: pnpm run build
+
+  versions-aligned:
+    runs-on: ubuntu-latest
+    name: Verify VERSION + frontend + RELEASE_NOTES sync
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check 3 sources of truth match
+        run: |
+          V_FILE="$(cat VERSION)"
+          V_FRONT="$(grep -E '"version"' frontend/package.json | head -1 | sed -E 's/.*"version": "([^"]+)".*/\1/')"
+          V_NOTES="$(grep -E '^## v[0-9]' RELEASE_NOTES.md | head -1 | sed -E 's/^## v([0-9.]+).*/\1/')"
+          echo "VERSION:               $V_FILE"
+          echo "frontend/package.json: $V_FRONT"
+          echo "RELEASE_NOTES top:     $V_NOTES"
+          [ "$V_FILE" = "$V_FRONT" ] || { echo "::error::VERSION ($V_FILE) != frontend ($V_FRONT)"; exit 1; }
+          [ "$V_FILE" = "$V_NOTES" ] || { echo "::error::VERSION ($V_FILE) != RELEASE_NOTES top ($V_NOTES)"; exit 1; }
