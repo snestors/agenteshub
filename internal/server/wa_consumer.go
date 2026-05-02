@@ -12,6 +12,12 @@ import (
 // into the shared conversation router. WhatsApp is now only an adapter: it
 // handles channel-specific affordances (read receipt, typing presence, reply
 // JID) and never runs the agent directly.
+//
+// f-003 invariant: WhatsApp inbound is forwarded ONLY to the main-agent
+// (Jarvis). Project agents are not reachable through WhatsApp by design; the
+// consumer hands the message to routeConversationInput which has scope="main"
+// hard-wired. Do NOT add a project-routing branch here without also lifting
+// the comment on conversationInput.
 func (s *Server) StartWAConsumer(ctx context.Context, client *wa.Client) {
 	if s == nil || client == nil {
 		return

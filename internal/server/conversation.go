@@ -12,6 +12,18 @@ import (
 	"github.com/snestors/agenteshub/internal/store"
 )
 
+// conversationInput is the entry point used by HTTP /api/messages and the WA
+// inbound consumer. It DOES NOT carry a Scope field — every message that
+// reaches routeConversationInput is treated as scope="main" (the personal
+// Jarvis agent). Project chats have their own router under
+// handleProjectSessionMessagesSend; WhatsApp never crosses into a project
+// session.
+//
+// Invariant (f-003): WhatsApp inbound is always main-only. The user explicitly
+// opted out of routing WA messages to project agents — projects are reachable
+// only from the web UI. If a future change wants to re-introduce a Scope
+// field here, both the HTTP handler and the WA consumer must reject any value
+// other than "main".
 type conversationInput struct {
 	Channel     string
 	Body        string
