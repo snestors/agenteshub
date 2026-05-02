@@ -409,32 +409,39 @@ export function ChatMain() {
     }
   })();
 
-  // ─── HUD lateral (Sprint A2) ──────────────────────────────────────
-  // Polling barato cada 6s; los datos solo alimentan el HUD lateral, así
-  // que un poll a base de setInterval alcanza. Más adelante esto va a vivir
-  // en useStreams o en un useSWR cuando esté instalado.
+  // ─── HUD lateral (Sprint A2 + 0.5.1 reactivity fix) ───────────────
+  // Polling cada 4s; los datos solo alimentan el HUD lateral. Tan pronto el
+  // user pidió reactividad, bajamos de 6s a 4s y agregamos /api/runs para
+  // que el counter AGENTS · RUNTIME muestre números vivos.
   const [hudStatus, setHudStatus] = React.useState<AgentStatus | null>(null);
   const [hudRuntime, setHudRuntime] = React.useState<ConversationRuntime | null>(null);
   const [hudRealtime, setHudRealtime] = React.useState<RealtimeResponse | null>(null);
+  const [hudRunsMain, setHudRunsMain] = React.useState(0);
+  const [hudRunsProject, setHudRunsProject] = React.useState(0);
   React.useEffect(() => {
     let cancelled = false;
     const tick = async () => {
       try {
-        const [status, runtime, realtime] = await Promise.allSettled([
+        const [status, runtime, realtime, runs] = await Promise.allSettled([
           api.agentStatus(),
           api.getAgentRuntime(),
           api.getUsageRealtime(),
+          api.getRunsStatus(),
         ]);
         if (cancelled) return;
         if (status.status === "fulfilled") setHudStatus(status.value);
         if (runtime.status === "fulfilled") setHudRuntime(runtime.value);
         if (realtime.status === "fulfilled") setHudRealtime(realtime.value);
+        if (runs.status === "fulfilled") {
+          setHudRunsMain(runs.value.runs?.main ?? 0);
+          setHudRunsProject(runs.value.runs?.project ?? 0);
+        }
       } catch {
         /* ignore — HUD is best-effort */
       }
     };
     tick();
-    const handle = window.setInterval(tick, 6000);
+    const handle = window.setInterval(tick, 4000);
     return () => {
       cancelled = true;
       window.clearInterval(handle);
@@ -557,6 +564,8 @@ export function ChatMain() {
          status={hudStatus}
          runtime={hudRuntime}
          realtimeUsage={hudRealtime}
+         runningMain={hudRunsMain}
+         runningProject={hudRunsProject}
          wsConnected={isLive}
        />
       </div>

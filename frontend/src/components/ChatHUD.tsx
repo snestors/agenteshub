@@ -66,6 +66,9 @@ export function ChatHUD(props: ChatHUDProps) {
         aria-label="Expand HUD"
         className="cursor-pointer flex items-center justify-center clip-tag"
         style={{
+          // flexShrink:0 evita que el flex padre lo aplaste a 0 cuando hay
+          // contenido grande; sin esto, el botón se "comía" en /projects.
+          flexShrink: 0,
           width: 24,
           minHeight: "100%",
           background: "rgba(12,18,40,0.55)",

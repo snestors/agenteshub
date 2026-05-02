@@ -6,6 +6,7 @@ import {
   LogOut,
   Bell,
   Lock,
+  Menu,
   Network,
   Sparkles,
   Tag,
@@ -46,10 +47,25 @@ const ACCENT_VAR: Record<NavItem["accent"], string> = {
   orange: "var(--color-orange)",
 };
 
+const SIDEBAR_COLLAPSED_KEY = "agenthub.sidebar.collapsed";
+
 export function Sidebar({ username }: { username?: string }) {
   const { unreadByKindPrefix, unreadCount, openDrawer } = useNotifications();
   const location = useLocation();
   const navigate = useNavigate();
+  // Sidebar collapse toggle (handoff: "el sidebar de la izquierda tamben se
+  // debe poder ocultar"). Persistencia en localStorage para que sobreviva al
+  // refresh.
+  const [collapsed, setCollapsed] = React.useState<boolean>(() => {
+    try { return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1"; } catch { return false; }
+  });
+  const toggleCollapsed = React.useCallback(() => {
+    setCollapsed((c) => {
+      const n = !c;
+      try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, n ? "1" : "0"); } catch { /* ignore */ }
+      return n;
+    });
+  }, []);
 
   async function handleLogout() {
     try {
@@ -66,6 +82,40 @@ export function Sidebar({ username }: { username?: string }) {
       return;
     }
     navigate(item.to);
+  }
+
+  if (collapsed) {
+    // Collapsed = floating hamburguesa fija arriba-izquierda; click → expand.
+    return (
+      <button
+        type="button"
+        onClick={toggleCollapsed}
+        title="Mostrar sidebar"
+        aria-label="Mostrar sidebar"
+        className="hidden md:flex relative items-center justify-center cursor-pointer shrink-0"
+        style={{
+          width: 28,
+          height: "100%",
+          borderRight: "1px solid var(--color-line)",
+          background: "rgba(10,15,36,0.55)",
+          color: "var(--color-cyan)",
+        }}
+      >
+        <Menu size={14} />
+        {unreadCount > 0 && (
+          <span
+            className="absolute top-3 -right-1 min-w-4 px-1 text-center font-display text-[9px] font-bold leading-4"
+            style={{
+              color: "var(--color-orange)",
+              background: "var(--color-bg)",
+              border: "1px solid var(--color-orange)",
+            }}
+          >
+            {unreadCount > 99 ? "99+" : unreadCount}
+          </span>
+        )}
+      </button>
+    );
   }
 
   return (
@@ -107,6 +157,20 @@ export function Sidebar({ username }: { username?: string }) {
               v0 · NODE-42
             </div>
           </div>
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            title="Ocultar sidebar"
+            aria-label="Ocultar sidebar"
+            className="ml-auto w-6 h-6 flex items-center justify-center cursor-pointer"
+            style={{
+              border: "1px solid var(--color-line)",
+              color: "var(--color-dim)",
+              background: "rgba(255,255,255,0.02)",
+            }}
+          >
+            <X size={12} />
+          </button>
         </div>
       </div>
 

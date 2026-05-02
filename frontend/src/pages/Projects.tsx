@@ -225,33 +225,43 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
     }
   }
 
-  // ─── HUD lateral (Sprint A2) ──────────────────────────────────────
+  // ─── HUD lateral (Sprint A2 + 0.5.2 reactivity fix) ───────────────
+  // Polling cada 4s; bajamos de 6s para que feature_list y los counters de
+  // RUNTIME sean visibly reactivos. /api/runs nutre los counters AGENTS ·
+  // RUNTIME que antes quedaban en cero.
   const [hudStatus, setHudStatus] = React.useState<AgentStatus | null>(null);
   const [hudRuntime, setHudRuntime] = React.useState<ConversationRuntime | null>(null);
   const [hudRealtime, setHudRealtime] = React.useState<RealtimeResponse | null>(null);
   const [hudFeatures, setHudFeatures] = React.useState<ProjectFeatures | null>(null);
+  const [hudRunsMain, setHudRunsMain] = React.useState(0);
+  const [hudRunsProject, setHudRunsProject] = React.useState(0);
   React.useEffect(() => {
     if (tab !== "chat" || !current) return;
     let cancelled = false;
     const tick = async () => {
       try {
-        const [status, runtime, realtime, features] = await Promise.allSettled([
+        const [status, runtime, realtime, features, runs] = await Promise.allSettled([
           api.agentStatus(),
           api.getProjectRuntime(projectId, current.id),
           api.getUsageRealtime(),
           api.getProjectFeatures(projectId),
+          api.getRunsStatus(),
         ]);
         if (cancelled) return;
         if (status.status === "fulfilled") setHudStatus(status.value);
         if (runtime.status === "fulfilled") setHudRuntime(runtime.value);
         if (realtime.status === "fulfilled") setHudRealtime(realtime.value);
         if (features.status === "fulfilled") setHudFeatures(features.value);
+        if (runs.status === "fulfilled") {
+          setHudRunsMain(runs.value.runs?.main ?? 0);
+          setHudRunsProject(runs.value.runs?.project ?? 0);
+        }
       } catch {
         /* ignore — HUD is best-effort */
       }
     };
     tick();
-    const handle = window.setInterval(tick, 6000);
+    const handle = window.setInterval(tick, 4000);
     return () => {
       cancelled = true;
       window.clearInterval(handle);
@@ -378,6 +388,8 @@ function ProjectDetail({ projectId, routeSessionId }: { projectId: number; route
            runtime={hudRuntime}
            realtimeUsage={hudRealtime}
            projectFeatures={hudFeatures}
+           runningMain={hudRunsMain}
+           runningProject={hudRunsProject}
            wsConnected={true /* TODO Sprint B: real ws status */}
            onScaffoldHarness={scaffoldProjectHarness}
          />

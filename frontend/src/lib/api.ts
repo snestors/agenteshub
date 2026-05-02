@@ -553,6 +553,12 @@ export const api = {
 
   // Cross-scope cancel — backend identifies the run by (scope, id) and fires
   // its registered context.CancelFunc. Used by the long_running_turn toast.
+  /** Snapshot of in-flight turns. Public endpoint. Used by the ChatHUD's
+   *  AGENTS · RUNTIME counter so the user sees live concurrency. */
+  async getRunsStatus(): Promise<{ runs: Record<string, number>; total: number; pending_restart: boolean }> {
+    return request<{ runs: Record<string, number>; total: number; pending_restart: boolean }>("/api/runs");
+  },
+
   async cancelRun(scope: string, id: string): Promise<void> {
     await request<{ cancelled: boolean }>("/api/runs/cancel", {
       method: "POST",
