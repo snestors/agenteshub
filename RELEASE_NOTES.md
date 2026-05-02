@@ -2,6 +2,31 @@
 
 Path: `/home/nestor/agenthub`
 
+## v0.3.0 — 2026-05-02
+
+Major housekeeping release: release pipeline, commit enforcement, deploy
+safety net, and CI baseline. Daemon code untouched in this version —
+all the changes are in scripts, hooks, deploy config and workflows.
+
+### Added
+
+- **`bin/release.sh`** — two-phase atomic release helper. `bin/release.sh patch|minor|major|X.Y.Z` validates the working tree is clean and the 3 sources of truth (VERSION, frontend/package.json, RELEASE_NOTES.md) are aligned, then bumps all three and inserts a skeleton entry. `bin/release.sh continue` commits + tags. `bin/release.sh abort` rolls back. Closes the gap of 53 unsynced versions between VERSION (0.2.64) and the last git tag (v0.2.11).
+- **Conventional Commits enforcement** — `.githooks/commit-msg` hook (activated by `bin/setup-githooks.sh`) rejects subject lines outside the spec and any AI attribution footers (`Co-Authored-By: <ai>`, `Generated with <ai tool>`, robot emoji). The hook is versioned under `.githooks/`, not `.git/hooks/`, so it travels with the repo.
+- **`bin/safe-restart.sh --wait`** — optional flag that polls `/api/runs` until `pending_restart=false` (max 5 min), then verifies `/healthz` returns `ok:true` with the new binary. Exit codes: 2 if restart didn't complete, 3 if `/healthz` not OK after restart (with rollback hint printed).
+- **Backup automático del binario** — `bin/safe-restart.sh` ahora copia `bin/agenthub` → `bin/agenthub.prev` antes de cualquier restart. Rollback de emergencia: `cp bin/agenthub.prev bin/agenthub && bin/safe-restart.sh`.
+- **`.github/workflows/build.yml`** — three CI jobs run on push to main and PRs: backend (`go build` + `go test` with `sqlite_fts5/sqlite_json` tags), frontend (`pnpm run build`), and `versions-aligned` (validates the 3 sources of truth still match). Does not deploy.
+- **`deploy/agenthub.sudoers`** — versioned reference of the NOPASSWD config installed at `/etc/sudoers.d/agenthub`. Adds entries for `systemctl daemon-reload`, `enable`, `disable` and `mount -o remount,rw|ro /etc` to the existing wildcard `start/stop/restart`. Daemon still runs as `nestor` (NOT root) — granular grants only.
+
+### Changed
+
+- **`.gitignore`** — `bin/` (which ignored everything in `bin/`) replaced by explicit `bin/agenthub`, `bin/agenthub.next`, `bin/agenthub.prev` so versioned scripts under `bin/` (release.sh, safe-restart.sh, setup-githooks.sh) can be tracked. Also added `.release-in-flight` (release script in-flight marker).
+
+### Fixed
+
+- **`bin/release.sh`** — initial implementation used `git status --porcelain` which counts untracked files; switched to `git diff-index --quiet HEAD` so unrelated scratch files in the working tree don't block a release prep.
+
+---
+
 ## v0.2.65 — 2026-05-02
 
 ### Added
